@@ -1,0 +1,12 @@
+# macOS
+.DS_Store
+
+# Node.js
+node_modules/
+dist/
+build/
+*.log
+
+# 环境与密钥
+.env
+.env.local
