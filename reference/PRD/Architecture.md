@@ -2,7 +2,7 @@
 ## 架构引用规则
 
 - 应用架构只在项目级 Architecture.md文档中定义一次。
-- `AGENTS.md`、PRD、SPEC、SOP 和其他关联文档，需要表述应用架构的，只能声明、引用应用架构原文，不得再定义、改写、摘抄或粘贴等。声明内容：本项目采用哪种应用架构，该架构的详细内容见project root/Architecture.md。写代码前，必须读一遍架构原文。
+- `AGENTS.md`、PRD、SPEC、SOP 和其他关联文档，需要表述应用架构的，只能声明、引用应用架构原文，不得再定义、改写、摘抄或粘贴等。声明内容：本项目采用哪种应用架构，该架构的详细内容见project root/reference/PRD/Architecture.md。写代码前，必须读一遍架构原文。
 
 ## FCMA架构
 
