@@ -8,5 +8,6 @@ build/
 *.log
 
 # 环境与密钥
+env/
 .env
 .env.local
