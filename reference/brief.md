@@ -118,7 +118,7 @@ RAM（断电后会清空的临时内存）并显示。
 
 ## 4. 研发约束
 
-项目依赖项统一记录并持续维护在根目录 [`Depends.md`](../Depends.md)。
+项目依赖项统一记录并持续维护在根目录 [`requirements.md`](../requirements.md)。
 
 参考项目：
 
