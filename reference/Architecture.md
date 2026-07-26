@@ -121,7 +121,9 @@ project-root/
 │   │   └── <sop-topic>.md             # 若干个子文档
 │   ├── brief.md
 │   ├── design.md
-│   ├── SPEC.md
+│   ├── SPEC.md                        # 完整项目的 SPEC 总索引与公共合同
+│   ├── SPEC/                          # 每份子文档对应一个永久 Feature
+│   │   └── <feature-name>.md
 │   ├── requirements.md                # 项目依赖清单，记录要求的硬件、软件等
 │   └── <other-reference>              # 其他参考文献
 ├── app/
