@@ -11,7 +11,7 @@
 
 ## 关联文档
 
-- 项目架构：[`Architecture.md`](Architecture.md)
+- 项目架构：[`Architecture.md`](../Architecture.md)
 - 技术合同：[`SPEC.md`](../SPEC.md)
 - 操作规范：[`SOP.md`](../SOP/SOP.md)
 - 开发实施计划：[`开发实施计划.md`](../开发计划/开发实施计划.md)

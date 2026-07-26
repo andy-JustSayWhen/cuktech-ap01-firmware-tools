@@ -4,7 +4,7 @@
 | --- | --- |
 | [`brief.md`](brief.md) | 用户明确提出的开发需求 |
 | [`PRD/PRD.md`](PRD/PRD.md) | PRD 主文档与子文档索引 |
-| [`PRD/Architecture.md`](PRD/Architecture.md) | 项目架构和模块归属规则 |
+| [`Architecture.md`](Architecture.md) | 项目架构和模块归属规则 |
 | [`design.md`](design.md) | 交互和视觉设计 |
 | [`SPEC.md`](SPEC.md) | 技术事实、接口和校验合同 |
 | [`SOP/SOP.md`](SOP/SOP.md) | SOP 主文档与操作规范索引 |
