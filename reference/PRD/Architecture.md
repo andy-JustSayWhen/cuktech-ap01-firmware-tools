@@ -1,4 +1,3 @@
-
 ## 架构引用规则
 
 - 应用架构只在项目级 Architecture.md文档中定义一次。
@@ -106,6 +105,7 @@ features/subjective-rating/
 - 禁止创建混合多种职责的万能模块。
 - 禁止为了降低文件行数创建没有独立职责的空壳模块。
 
+
 ## 项目初始化的最小目录树
 
 AGENT根据Achietecture.md进行初始化目录，若选用FCMA架构，初始化都最小目录树如下：
@@ -113,9 +113,7 @@ AGENT根据Achietecture.md进行初始化目录，若选用FCMA架构，初始�
 ```text
 project-root/
 ├── AGENTS.md
-├── reference/ # 放PRD、SOP文档和其他参考文献，创建于代码生成前，维护于整个研发声明周期
-│   ├── PRD/ # 放入PRD、Architecture.md、Brief.md、Design.md、Brief.md、Design.md、SPEC.md等PRD文档。一个PRD主文档，若干个PRD子文档。主文档声明子文档。
-│   ├── SOP/ # 放入一个SOP主文档，若干个SOP子文档。主文档声明子文档
+├── reference/ # 放PRD/、SOP/、brief.md、design.md、SPEC.md等文档和其他参考文献，创建于代码生成前，维护于整个研发声明周期。结合项目复杂程度，对于PRD和SOP，决定是分别用一个单独PRD、SOP文档，还是分别用一个单独文件夹，然后在文件夹内放入一个SOP/PRD主文档，若干个SOP/PRD子文档。主文档声明子文档
 ├── app/
 ├── features/
 │   └── <feature-name>/
