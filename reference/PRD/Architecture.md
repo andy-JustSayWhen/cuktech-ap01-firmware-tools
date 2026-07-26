@@ -110,10 +110,23 @@ features/subjective-rating/
 
 AGENT根据Achietecture.md进行初始化目录，若选用FCMA架构，初始化都最小目录树如下：
 
-```text
+```Markdown
 project-root/
 ├── AGENTS.md
-├── reference/ # 放PRD/、SOP/、brief.md、design.md、SPEC.md等文档和其他参考文献，创建于代码生成前，维护于整个研发声明周期。结合项目复杂程度，对于PRD和SOP，决定是分别用一个单独PRD、SOP文档，还是分别用一个单独文件夹，然后在文件夹内放入一个SOP/PRD主文档，若干个SOP/PRD子文档。主文档声明子文档
+├── reference/                         # 代码生成前创建，整个研发生命周期持续维护
+│   ├── PRD.md                         # 简单项目：单个 PRD 文档
+│   ├── SOP.md                         # 简单项目：单个 SOP 文档
+│   ├── PRD/                           # 复杂项目：替代 PRD.md
+│   │   ├── PRD.md                     # 主文档，声明并索引各子文档
+│   │   └── <prd-topic>.md             # 按业务主题拆分的子文档
+│   ├── SOP/                           # 复杂项目：替代 SOP.md
+│   │   ├── SOP.md                     # 主文档，声明并索引各子文档
+│   │   └── <sop-topic>.md             # 按流程主题拆分的子文档
+│   ├── brief.md
+│   ├── design.md
+│   ├── SPEC.md
+│   ├── requirements.md                # 项目依赖清单，记录要求的硬件、软件等
+│   └── <other-reference>              # 其他参考文献
 ├── app/
 ├── features/
 │   └── <feature-name>/
@@ -121,7 +134,7 @@ project-root/
 │   └── <capability-name>/
 ├── shared/
 │   └── <capability-name>/
-├── docs/ # 放用户文档
-├── knowledge/ # 放技术文档
+├── docs/                              # 用户文档
+├── knowledge/                         # 技术文档
 └── env/
 ```

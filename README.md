@@ -1,6 +1,6 @@
 本项目为<酷态科10号电能基站-AP01屏幕>提供固件制作和刷机工具。
 
-运行、开发或刷机前，先阅读 [`requirements.md`](requirements.md)。
+运行、开发或刷机前，先阅读 [`requirements.md`](reference/requirements.md)。
 
 ## 风险提醒
 
