@@ -38,7 +38,7 @@ from .pricing import (
     markdown_rate_row,
     round_usd,
 )
-from .renderer import FontBook, _countdown, render_all
+from .renderer import FONT_ROLE_FILES, FontBook, _countdown, render_all
 
 
 BEIJING = ZoneInfo("Asia/Shanghai")
@@ -477,6 +477,18 @@ class CollectorTests(unittest.TestCase):
 
 
 class RendererTests(unittest.TestCase):
+    def test_font_roles_use_four_distinct_weights(self) -> None:
+        self.assertEqual(
+            FONT_ROLE_FILES,
+            {
+                "hero": "MiSans-Regular.ttf",
+                "secondary": "MiSans-Medium.ttf",
+                "body": "MiSans-Semibold.ttf",
+                "emphasis": "MiSans-Bold.ttf",
+            },
+        )
+        self.assertEqual(len(set(FONT_ROLE_FILES.values())), 4)
+
     def test_reset_time_is_not_lost_by_platform_locale(self) -> None:
         countdown, reset_time = _countdown(
             "2026-08-02T03:18:35+08:00",
@@ -491,11 +503,21 @@ class RendererTests(unittest.TestCase):
                 FontBook(Path(directory))
 
     @unittest.skipUnless(
-        all(
-            (FONT_DIRECTORY / name).is_file()
-            for name in ("MiSans-Light.ttf", "MiSans-Regular.ttf", "MiSans-Medium.ttf")
-        ),
-        "本机未放置 MiSans 字体",
+        all((FONT_DIRECTORY / name).is_file() for name in FONT_ROLE_FILES.values()),
+        "本机未放置完整 MiSans 字重",
+    )
+    def test_font_role_ink_increases_with_hierarchy(self) -> None:
+        fonts = FontBook(FONT_DIRECTORY)
+        ink = [
+            sum(fonts.get(7, role).getmask("活动洞察请求数"))
+            for role in ("hero", "secondary", "body", "emphasis")
+        ]
+        self.assertEqual(ink, sorted(ink))
+        self.assertEqual(len(set(ink)), 4)
+
+    @unittest.skipUnless(
+        all((FONT_DIRECTORY / name).is_file() for name in FONT_ROLE_FILES.values()),
+        "本机未放置完整 MiSans 字重",
     )
     def test_four_pages_are_exact_size_and_rgb(self) -> None:
         snapshot = DashboardSnapshot(
