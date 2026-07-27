@@ -5,7 +5,13 @@ from __future__ import annotations
 import argparse
 import json
 import subprocess
+import sys
 from pathlib import Path
+
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
 from core.firmware_image import FirmwareValidationError
 from features.offline_firmware_build import (
@@ -13,10 +19,10 @@ from features.offline_firmware_build import (
     inspect_baseline,
     make_firmware,
 )
-
-
-REPO_ROOT = Path(__file__).resolve().parents[1]
-
+from features.settings_menu_wrap import (
+    SettingsMenuWrapError,
+    write_draft_plan,
+)
 
 def _tool_revision() -> dict[str, object]:
     commit = subprocess.run(
@@ -46,6 +52,13 @@ def _parser() -> argparse.ArgumentParser:
     inspect_command.add_argument("--cloud-version")
     inspect_command.add_argument("--cloud-md5")
     inspect_command.add_argument("--cloud-checked-at")
+
+    settings_plan_command = commands.add_parser(
+        "settings-wrap-plan",
+        help="生成系统设置菜单首尾循环的待批准修改清单",
+    )
+    settings_plan_command.add_argument("--input", type=Path, required=True)
+    settings_plan_command.add_argument("--output", type=Path, required=True)
 
     build_command = commands.add_parser("build", help="按已批准清单离线制作固件")
     build_command.add_argument("--input", type=Path, required=True)
@@ -85,6 +98,27 @@ def main(argv: list[str] | None = None) -> int:
             )
             return 0
 
+        if args.command == "settings-wrap-plan":
+            document = write_draft_plan(
+                args.input,
+                args.output,
+                tool_revision=revision,
+            )
+            print(
+                json.dumps(
+                    {
+                        "result": "系统设置菜单修改清单已生成，等待用户批准",
+                        "plan": str(args.output.resolve()),
+                        "status": document["status"],
+                        "patch_count": document["review"]["patch_count"],
+                        "firmware_output_allowed": False,
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                )
+            )
+            return 0
+
         result = make_firmware(
             args.input,
             args.plan,
@@ -112,7 +146,13 @@ def main(argv: list[str] | None = None) -> int:
             )
         )
         return 0
-    except (BuildGateError, FirmwareValidationError, OSError, subprocess.SubprocessError) as error:
+    except (
+        BuildGateError,
+        FirmwareValidationError,
+        SettingsMenuWrapError,
+        OSError,
+        subprocess.SubprocessError,
+    ) as error:
         print(
             json.dumps(
                 {
