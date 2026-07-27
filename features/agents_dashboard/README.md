@@ -25,8 +25,8 @@
 python3 -m features.agents_dashboard.generate_actual
 ```
 
-渲染前必须从 MiSans 官方下载页取得 Light、Regular、Medium 三个字重，并放入
-`env/fonts/`。本模块生成的图片使用 MiSans 字体；字体文件不进入版本控制，也不随本项目
-转发。
+渲染前必须从 MiSans 官方下载页取得 Regular、Medium、Semibold、Bold 四个字重，并放入
+`env/fonts/`。具体字重角色只见效果图评审文档第 2 节。本模块生成的图片使用 MiSans 字体；
+字体文件不进入版本控制，也不随本项目转发。
 
 图标来源、文件对应关系和许可见 [`assets/icons/SOURCES.md`](assets/icons/SOURCES.md)。
