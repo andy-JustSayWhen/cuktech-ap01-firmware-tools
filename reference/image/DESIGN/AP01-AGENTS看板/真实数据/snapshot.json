@@ -1,0 +1,192 @@
+{
+  "generated_at": "2026-07-28T04:33:51+08:00",
+  "weekly_remaining_percent": 33,
+  "weekly_reset_at": "2026-08-02T03:18:35+08:00",
+  "reset_cards_available": 2,
+  "reset_cards": [
+    {
+      "status": "available",
+      "granted_at": "2026-07-13T05:08:56+08:00",
+      "expires_at": "2026-08-12T05:08:56+08:00",
+      "redeemed_at": null
+    },
+    {
+      "status": "available",
+      "granted_at": "2026-07-14T01:27:38+08:00",
+      "expires_at": "2026-08-13T01:27:38+08:00",
+      "redeemed_at": null
+    }
+  ],
+  "today": {
+    "total_tokens": 65706065,
+    "fresh_input_tokens": 2809918,
+    "raw_input_tokens": 65424702,
+    "output_tokens": 281363,
+    "cached_input_tokens": 62614784,
+    "request_count": 491,
+    "cache_hit_percent": 96,
+    "total_cost": null
+  },
+  "last_30d_tokens": 15852929368,
+  "daily_30d": [
+    [
+      "2026-06-29",
+      328294972
+    ],
+    [
+      "2026-06-30",
+      422099410
+    ],
+    [
+      "2026-07-01",
+      382815790
+    ],
+    [
+      "2026-07-02",
+      651376866
+    ],
+    [
+      "2026-07-03",
+      481832885
+    ],
+    [
+      "2026-07-04",
+      426717838
+    ],
+    [
+      "2026-07-05",
+      330016984
+    ],
+    [
+      "2026-07-06",
+      464319877
+    ],
+    [
+      "2026-07-07",
+      551289280
+    ],
+    [
+      "2026-07-08",
+      362153925
+    ],
+    [
+      "2026-07-09",
+      617240792
+    ],
+    [
+      "2026-07-10",
+      1089242287
+    ],
+    [
+      "2026-07-11",
+      696834747
+    ],
+    [
+      "2026-07-12",
+      918031171
+    ],
+    [
+      "2026-07-13",
+      991175377
+    ],
+    [
+      "2026-07-14",
+      360454440
+    ],
+    [
+      "2026-07-15",
+      552556525
+    ],
+    [
+      "2026-07-16",
+      456408719
+    ],
+    [
+      "2026-07-17",
+      681948532
+    ],
+    [
+      "2026-07-18",
+      415400388
+    ],
+    [
+      "2026-07-19",
+      432788034
+    ],
+    [
+      "2026-07-20",
+      1090545534
+    ],
+    [
+      "2026-07-21",
+      829176758
+    ],
+    [
+      "2026-07-22",
+      708555063
+    ],
+    [
+      "2026-07-23",
+      303904849
+    ],
+    [
+      "2026-07-24",
+      814597240
+    ],
+    [
+      "2026-07-25",
+      487211711
+    ],
+    [
+      "2026-07-26",
+      5939374
+    ],
+    [
+      "2026-07-27",
+      0
+    ],
+    [
+      "2026-07-28",
+      0
+    ]
+  ],
+  "activity": {
+    "fast_mode_percent": 38,
+    "reasoning_label": "高",
+    "reasoning_percent": 43,
+    "explored_skills": 86,
+    "skill_uses": 1392,
+    "task_count": 4129,
+    "longest_task_minutes": 1310
+  },
+  "common_plugins": [
+    {
+      "name": "superpowers",
+      "count": 308
+    },
+    {
+      "name": "browser",
+      "count": 172
+    },
+    {
+      "name": "computer-use",
+      "count": 127
+    },
+    {
+      "name": "product-design",
+      "count": 102
+    },
+    {
+      "name": "github",
+      "count": 73
+    }
+  ],
+  "quota_fetched_at": "2026-07-28T04:30:32+08:00",
+  "reset_cards_fetched_at": "2026-07-28T04:30:32+08:00",
+  "profile_fetched_at": "2026-07-28T04:30:32+08:00",
+  "profile_usage_as_of": "2026-07-26",
+  "quota_available": true,
+  "reset_cards_source_available": true,
+  "profile_available": true,
+  "local_sessions_available": true
+}

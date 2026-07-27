@@ -1,0 +1,382 @@
+from __future__ import annotations
+
+import json
+import tempfile
+import unittest
+from datetime import datetime
+from pathlib import Path
+from zoneinfo import ZoneInfo
+
+from PIL import Image
+
+from .collector import (
+    ProfileData,
+    QuotaData,
+    ResetCardsData,
+    _encode_profile,
+    _encode_quota,
+    _encode_reset_cards,
+    _cache_record,
+    _parse_profile_response,
+    _parse_quota_response,
+    _parse_reset_response,
+    collect_snapshot,
+    scan_today_sessions,
+)
+from .formatting import format_token_count
+from .models import (
+    ActivityInsights,
+    DashboardSnapshot,
+    PluginUsage,
+    ResetCard,
+    TodayUsage,
+)
+from .renderer import FontBook, _countdown, render_all
+
+
+BEIJING = ZoneInfo("Asia/Shanghai")
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+FONT_DIRECTORY = PROJECT_ROOT / "env" / "fonts"
+
+
+class FormattingTests(unittest.TestCase):
+    def test_required_token_boundaries(self) -> None:
+        expected = {
+            9_000: ("9,000", "Token"),
+            164_000: ("16", "万 Token"),
+            99_995_000: ("1", "亿 Token"),
+            500_000_000: ("5", "亿 Token"),
+            1_000_000_000: ("10", "亿 Token"),
+            2_000_000_000: ("20", "亿 Token"),
+            99_999_999_999: ("1,000", "亿 Token"),
+        }
+        for raw, result in expected.items():
+            with self.subTest(raw=raw):
+                display = format_token_count(raw)
+                self.assertEqual((display.value, display.unit), result)
+                self.assertNotIn(".", display.text)
+
+
+class CollectorTests(unittest.TestCase):
+    @staticmethod
+    def _write_session(path: Path) -> None:
+        records = [
+            {
+                "timestamp": "2026-07-28T00:00:00.000Z",
+                "type": "session_meta",
+                "payload": {"id": "019fa40e-5160-7d51-8824-5ed0b8d26b33"},
+            },
+            {
+                "timestamp": "2026-07-28T00:02:00.000Z",
+                "type": "event_msg",
+                "payload": {
+                    "type": "token_count",
+                    "info": {
+                        "total_token_usage": {
+                            "input_tokens": 8_000,
+                            "output_tokens": 1_000,
+                            "cached_input_tokens": 4_000,
+                        }
+                    },
+                },
+            },
+            {
+                "timestamp": "2026-07-28T00:03:00.000Z",
+                "type": "event_msg",
+                "payload": {
+                    "type": "token_count",
+                    "info": {
+                        "total_token_usage": {
+                            "input_tokens": 10_000,
+                            "output_tokens": 1_500,
+                            "cached_input_tokens": 5_000,
+                        }
+                    },
+                },
+            },
+        ]
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            "".join(json.dumps(record, separators=(",", ":")) + "\n" for record in records),
+            encoding="utf-8",
+        )
+
+    def test_cc_switch_3161_session_math_and_duplicate_key(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            home = Path(directory)
+            active = home / "sessions" / "2026" / "07" / "28" / (
+                "rollout-2026-07-28T08-00-00-"
+                "019fa40e-5160-7d51-8824-5ed0b8d26b33.jsonl"
+            )
+            archived = home / "archived_sessions" / active.name
+            self._write_session(active)
+            self._write_session(archived)
+
+            data = scan_today_sessions(
+                home, datetime(2026, 7, 28, 8, 5, tzinfo=BEIJING)
+            )
+
+            self.assertTrue(data.source_available)
+            self.assertEqual(data.raw_input_tokens, 10_000)
+            self.assertEqual(data.fresh_input_tokens, 5_000)
+            self.assertEqual(data.output_tokens, 1_500)
+            self.assertEqual(data.cached_input_tokens, 5_000)
+            self.assertEqual(data.request_count, 2)
+
+    def test_official_response_mapping_matches_reference_apps(self) -> None:
+        now = datetime(2026, 7, 28, 8, 5, tzinfo=BEIJING)
+        fetched_at = now.isoformat(timespec="seconds")
+        quota = _parse_quota_response(
+            {
+                "rate_limit": {
+                    "primary_window": {
+                        "used_percent": 67,
+                        "limit_window_seconds": 604_800,
+                        "reset_at": 1_785_611_915,
+                    },
+                    "secondary_window": None,
+                }
+            },
+            fetched_at,
+        )
+        resets = _parse_reset_response(
+            {
+                "available_count": 2,
+                "credits": [
+                    {
+                        "status": "available",
+                        "granted_at": "2026-07-12T21:08:56Z",
+                        "expires_at": "2026-08-11T21:08:56Z",
+                        "redeemed_at": None,
+                    }
+                ],
+            },
+            fetched_at,
+            now,
+        )
+        profile = _parse_profile_response(
+            {
+                "stats": {
+                    "daily_usage_buckets": [
+                        {"start_date": "2026-07-27", "tokens": 2_000_000}
+                    ],
+                    "fast_mode_usage_percentage": 37.5,
+                    "most_used_reasoning_effort": "high",
+                    "most_used_reasoning_effort_percentage": 43.2,
+                    "unique_skills_used": 86,
+                    "total_skills_used": 1_392,
+                    "total_threads": 4_129,
+                    "longest_running_turn_sec": 78_607,
+                    "top_invocations": [
+                        {
+                            "type": "plugin",
+                            "plugin_name": "browser",
+                            "usage_count": 172,
+                        }
+                    ],
+                }
+            },
+            fetched_at,
+        )
+
+        self.assertEqual(quota.remaining_percent, 33)
+        self.assertEqual(resets.available_count, 2)
+        self.assertEqual(len(resets.cards), 1)
+        self.assertEqual(profile.activity.fast_mode_percent, 38)
+        self.assertEqual(profile.activity.reasoning_label, "高")
+        self.assertEqual(profile.activity.reasoning_percent, 43)
+        self.assertEqual(profile.plugins, (PluginUsage("browser", 172),))
+
+    def test_snapshot_uses_independent_sources_and_safe_fields(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            home = Path(directory)
+            session = home / "sessions" / "2026" / "07" / "28" / (
+                "rollout-2026-07-28T08-00-00-"
+                "019fa40e-5160-7d51-8824-5ed0b8d26b33.jsonl"
+            )
+            self._write_session(session)
+            fetched_at = "2026-07-28T08:00:00+08:00"
+            quota = QuotaData(33, "2026-08-02T03:18:35+08:00", fetched_at)
+            resets = ResetCardsData(
+                1,
+                (
+                    ResetCard(
+                        "available",
+                        "2026-07-13T05:08:56+08:00",
+                        "2026-08-12T05:08:56+08:00",
+                        None,
+                    ),
+                ),
+                fetched_at,
+            )
+            profile = ProfileData(
+                (("2026-07-27", 2_000_000),),
+                ActivityInsights(38, "高", 43, 86, 1_392, 4_129, 1_310),
+                (PluginUsage("browser", 172),),
+                fetched_at,
+            )
+
+            snapshot = collect_snapshot(
+                now=datetime(2026, 7, 28, 8, 5, tzinfo=BEIJING),
+                codex_home=home,
+                quota=quota,
+                reset_cards=resets,
+                profile=profile,
+                fetch_remote=False,
+            )
+
+            self.assertEqual(snapshot.today.total_tokens, 11_500)
+            self.assertEqual(snapshot.today.fresh_input_tokens, 5_000)
+            self.assertEqual(snapshot.today.raw_input_tokens, 10_000)
+            self.assertEqual(snapshot.today.cache_hit_percent, 50)
+            self.assertEqual(snapshot.last_30d_tokens, 2_000_000)
+            serialized = json.dumps(snapshot.to_dict(), ensure_ascii=False)
+            for forbidden in (
+                str(home),
+                "access_token",
+                "refresh_token",
+                "account_id",
+                "email",
+            ):
+                self.assertNotIn(forbidden, serialized)
+
+            normalized_cache = json.dumps(
+                {
+                    "quota": _encode_quota(quota),
+                    "resets": _encode_reset_cards(resets),
+                    "profile": _encode_profile(profile),
+                },
+                ensure_ascii=False,
+            )
+            self.assertNotIn("access_token", normalized_cache)
+            self.assertNotIn("account_id", normalized_cache)
+
+    def test_collector_has_no_reference_app_storage_dependency(self) -> None:
+        source = (Path(__file__).parent / "collector.py").read_text(encoding="utf-8")
+        for forbidden in (
+            ".cc-switch",
+            ".antigravity_cockpit",
+            "Cockpit Tools.app",
+            "CC Switch.app",
+            "/Applications/ChatGPT.app",
+        ):
+            self.assertNotIn(forbidden, source)
+
+    def test_missing_login_uses_last_safe_cache(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            home = root / "codex"
+            cache = root / "cache"
+            fetched_at = "2026-07-27T08:00:00+08:00"
+            quota = QuotaData(33, "2026-08-02T03:18:35+08:00", fetched_at)
+            resets = ResetCardsData(0, (), fetched_at)
+            profile = ProfileData(
+                (("2026-07-27", 2_000_000),),
+                ActivityInsights(38, "高", 43, 86, 1_392, 4_129, 1_310),
+                (),
+                fetched_at,
+            )
+            _cache_record(cache / "quota.json", fetched_at, _encode_quota(quota))
+            _cache_record(
+                cache / "reset-cards.json", fetched_at, _encode_reset_cards(resets)
+            )
+            _cache_record(cache / "profile.json", fetched_at, _encode_profile(profile))
+
+            snapshot = collect_snapshot(
+                now=datetime(2026, 7, 28, 8, 5, tzinfo=BEIJING),
+                codex_home=home,
+                cache_directory=cache,
+            )
+
+            self.assertEqual(snapshot.weekly_remaining_percent, 33)
+            self.assertEqual(snapshot.last_30d_tokens, 2_000_000)
+            self.assertTrue(snapshot.quota_available)
+            self.assertTrue(snapshot.profile_available)
+
+
+class RendererTests(unittest.TestCase):
+    def test_reset_time_is_not_lost_by_platform_locale(self) -> None:
+        countdown, reset_time = _countdown(
+            "2026-08-02T03:18:35+08:00",
+            "2026-07-28T03:57:27+08:00",
+        )
+        self.assertEqual(countdown, "5天0小时")
+        self.assertEqual(reset_time, "08月02日 03:18")
+
+    def test_missing_fonts_fail_closed(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            with self.assertRaises(FileNotFoundError):
+                FontBook(Path(directory))
+
+    @unittest.skipUnless(
+        all(
+            (FONT_DIRECTORY / name).is_file()
+            for name in ("MiSans-Light.ttf", "MiSans-Regular.ttf", "MiSans-Medium.ttf")
+        ),
+        "本机未放置 MiSans 字体",
+    )
+    def test_four_pages_are_exact_size_and_rgb(self) -> None:
+        snapshot = DashboardSnapshot(
+            generated_at="2026-07-28T08:00:00+08:00",
+            weekly_remaining_percent=33,
+            weekly_reset_at="2026-08-02T03:18:35+08:00",
+            reset_cards_available=2,
+            reset_cards=(
+                ResetCard(
+                    "available",
+                    "2026-07-13T05:08:56+08:00",
+                    "2026-08-12T05:08:56+08:00",
+                    None,
+                ),
+                ResetCard(
+                    "available",
+                    "2026-07-14T01:27:38+08:00",
+                    "2026-08-13T01:27:38+08:00",
+                    None,
+                ),
+            ),
+            today=TodayUsage(
+                total_tokens=2_000_000_000,
+                fresh_input_tokens=1_000_000_000,
+                raw_input_tokens=1_900_000_000,
+                output_tokens=500_000_000,
+                cached_input_tokens=900_000_000,
+                request_count=1_234,
+                cache_hit_percent=47,
+            ),
+            last_30d_tokens=99_999_999_999,
+            daily_30d=tuple(
+                (f"2026-07-{index:02d}", index * 1_000) for index in range(1, 31)
+            ),
+            activity=ActivityInsights(
+                fast_mode_percent=38,
+                reasoning_label="高",
+                reasoning_percent=43,
+                explored_skills=86,
+                skill_uses=1_392,
+                task_count=4_129,
+                longest_task_minutes=1_310,
+            ),
+            common_plugins=(
+                PluginUsage("superpowers", 308),
+                PluginUsage("browser", 172),
+                PluginUsage("computer-use", 127),
+                PluginUsage("product-design", 102),
+                PluginUsage("github", 73),
+            ),
+            quota_fetched_at="2026-07-28T08:00:00+08:00",
+            reset_cards_fetched_at="2026-07-28T08:00:00+08:00",
+            profile_fetched_at="2026-07-28T08:00:00+08:00",
+            profile_usage_as_of="2026-07-27",
+            quota_available=True,
+            reset_cards_source_available=True,
+            profile_available=True,
+            local_sessions_available=True,
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            paths = render_all(snapshot, Path(directory), FONT_DIRECTORY)
+            self.assertEqual(len(paths), 4)
+            for path in paths.values():
+                with Image.open(path) as image:
+                    self.assertEqual(image.size, (320, 240))
+                    self.assertEqual(image.mode, "RGB")
