@@ -18,12 +18,18 @@ from core.firmware_image import AP01_1_0_2_0031, load_read_only_baseline
 MODULE_DIR = Path(__file__).resolve().parent
 ASSEMBLY_SOURCE = MODULE_DIR / "settings_menu_wrap_patch.S"
 LINKER_SCRIPT = MODULE_DIR / "settings_menu_wrap_patch.ld"
+APPROVAL_RECORD_PATH = MODULE_DIR / "approval_record.json"
 EVIDENCE_PATH = (
     "knowledge/AP01-官方固件分析/cases/"
     "2026-07-27-系统设置菜单首尾循环静态定位.md"
 )
 
 DRAFT_PLAN_STATUS = "draft-awaiting-user-approval"
+APPROVED_PLAN_STATUS = "approved-for-offline-build"
+APPROVAL_RECORD_SCHEMA_VERSION = 1
+APPROVAL_LIMIT = (
+    "仅批准证据文档中的 3 个精确修改区间用于离线构建，不允许下载或安装"
+)
 EXPECTED_BINUTILS_VERSION = "2.46.1"
 XIP_DELTA = 0x9FFFF000
 CODE_GAP_START = 0x01C008
@@ -378,15 +384,88 @@ def build_draft_plan(
     }
 
 
-def write_draft_plan(
+def _approval_scope(document: dict[str, Any]) -> dict[str, Any]:
+    review = document["review"]
+    return {
+        "schema_version": document["schema_version"],
+        "target": document["target"],
+        "evidence_path": document["evidence_path"],
+        "review": {
+            "patch_count": review["patch_count"],
+            "logging_changed": review["logging_changed"],
+            "preserved_log_ranges": review["preserved_log_ranges"],
+            "code_gap": review["code_gap"],
+        },
+        "patches": document["patches"],
+    }
+
+
+def _approval_scope_sha256(document: dict[str, Any]) -> str:
+    payload = json.dumps(
+        _approval_scope(document),
+        ensure_ascii=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    ).encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()
+
+
+def _load_approval_record(document: dict[str, Any]) -> dict[str, Any]:
+    try:
+        approval = json.loads(APPROVAL_RECORD_PATH.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as error:
+        raise SettingsMenuWrapError("无法读取系统设置菜单批准记录") from error
+    if not isinstance(approval, dict):
+        raise SettingsMenuWrapError("系统设置菜单批准记录根节点必须是对象")
+    if approval.get("schema_version") != APPROVAL_RECORD_SCHEMA_VERSION:
+        raise SettingsMenuWrapError("系统设置菜单批准记录版本不匹配")
+    if approval.get("status") != APPROVED_PLAN_STATUS:
+        raise SettingsMenuWrapError("系统设置菜单批准记录状态不允许离线构建")
+    if approval.get("approval_statement") != "批准":
+        raise SettingsMenuWrapError("系统设置菜单批准记录缺少明确批准原文")
+    if approval.get("target") != document["target"]:
+        raise SettingsMenuWrapError("系统设置菜单批准记录的目标基线不匹配")
+    if approval.get("evidence_path") != document["evidence_path"]:
+        raise SettingsMenuWrapError("系统设置菜单批准记录的证据路径不匹配")
+    if approval.get("patch_count") != document["review"]["patch_count"]:
+        raise SettingsMenuWrapError("系统设置菜单批准记录的修改区间数量不匹配")
+    scope_sha256 = _approval_scope_sha256(document)
+    if approval.get("scope_sha256") != scope_sha256:
+        raise SettingsMenuWrapError("系统设置菜单批准范围指纹不一致，必须重新审批")
+    approved_at = approval.get("approved_at_beijing")
+    if not isinstance(approved_at, str) or not approved_at.strip():
+        raise SettingsMenuWrapError("系统设置菜单批准记录缺少批准时间")
+    if approval.get("approval_limit") != APPROVAL_LIMIT:
+        raise SettingsMenuWrapError("系统设置菜单批准记录的使用限制不匹配")
+    return approval
+
+
+def build_approved_plan(
     source: Path,
-    output: Path,
     *,
     tool_revision: dict[str, Any],
 ) -> dict[str, Any]:
-    """原子写入待批准清单，不提供修改批准状态的参数。"""
+    """重新校验真实基线，并返回与用户批准范围完全一致的清单。"""
 
     document = build_draft_plan(source, tool_revision=tool_revision)
+    approval = _load_approval_record(document)
+    scope_sha256 = _approval_scope_sha256(document)
+    document["status"] = APPROVED_PLAN_STATUS
+    document["approval"] = {
+        "record_path": str(APPROVAL_RECORD_PATH.relative_to(MODULE_DIR.parents[1])),
+        "approved_at_beijing": approval["approved_at_beijing"],
+        "approval_statement": approval["approval_statement"],
+        "approval_limit": approval["approval_limit"],
+        "scope_sha256": scope_sha256,
+    }
+    document["review"]["firmware_output_allowed"] = True
+    document["review"]["approval_required"] = False
+    document["review"]["experimental_download_allowed"] = False
+    document["review"]["installation_allowed"] = False
+    return document
+
+
+def _write_plan(document: dict[str, Any], output: Path) -> None:
     destination = output.expanduser().resolve()
     destination.parent.mkdir(parents=True, exist_ok=True)
     temporary = destination.with_name(destination.name + ".part")
@@ -407,4 +486,29 @@ def write_draft_plan(
     finally:
         if temporary.exists():
             temporary.unlink()
+
+
+def write_draft_plan(
+    source: Path,
+    output: Path,
+    *,
+    tool_revision: dict[str, Any],
+) -> dict[str, Any]:
+    """原子写入待批准清单，不提供修改批准状态的参数。"""
+
+    document = build_draft_plan(source, tool_revision=tool_revision)
+    _write_plan(document, output)
+    return document
+
+
+def write_approved_plan(
+    source: Path,
+    output: Path,
+    *,
+    tool_revision: dict[str, Any],
+) -> dict[str, Any]:
+    """原子写入与版本控制内批准记录完全一致的离线构建清单。"""
+
+    document = build_approved_plan(source, tool_revision=tool_revision)
+    _write_plan(document, output)
     return document

@@ -1,18 +1,26 @@
 from __future__ import annotations
 
+import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
+import features.settings_menu_wrap.patch_plan as patch_plan_module
 from features.offline_firmware_build import BuildGateError, load_patch_plan
 from features.settings_menu_wrap import (
+    APPROVAL_RECORD_PATH,
+    APPROVED_PLAN_STATUS,
     CODE_GAP_END,
     CODE_GAP_START,
     DRAFT_PLAN_STATUS,
     PATCHES,
     PRESERVED_LOG_RANGES,
+    SettingsMenuWrapError,
     assemble_and_verify,
+    build_approved_plan,
     build_draft_plan,
+    write_approved_plan,
     write_draft_plan,
 )
 
@@ -124,6 +132,61 @@ class SettingsMenuWrapTests(unittest.TestCase):
 
             with self.assertRaisesRegex(BuildGateError, "尚未明确批准"):
                 load_patch_plan(plan_path, REPO_ROOT)
+
+    @unittest.skipUnless(REAL_BASELINE.is_file(), "真实原厂基线不在本机")
+    def test_approval_record_is_bound_to_exact_reviewed_scope(self) -> None:
+        document = build_approved_plan(
+            REAL_BASELINE,
+            tool_revision={"commit": "test", "scoped_code_dirty": True},
+        )
+
+        self.assertEqual(document["status"], APPROVED_PLAN_STATUS)
+        self.assertTrue(document["review"]["firmware_output_allowed"])
+        self.assertFalse(document["review"]["experimental_download_allowed"])
+        self.assertFalse(document["review"]["installation_allowed"])
+        self.assertEqual(
+            document["approval"]["scope_sha256"],
+            "4445654562f7911b38adfbcdd53eb587c55341d1a6020e5298b28c5b9c11b7ff",
+        )
+        self.assertEqual(
+            [entry["offset"] for entry in document["patches"]],
+            [0x01C008, 0x0F919E, 0x0F976A],
+        )
+
+    @unittest.skipUnless(REAL_BASELINE.is_file(), "真实原厂基线不在本机")
+    def test_changed_approval_scope_is_rejected(self) -> None:
+        approval = json.loads(APPROVAL_RECORD_PATH.read_text(encoding="utf-8"))
+        approval["scope_sha256"] = "0" * 64
+        with tempfile.TemporaryDirectory() as selected:
+            changed_record = Path(selected) / "approval-record.json"
+            changed_record.write_text(
+                json.dumps(approval, ensure_ascii=False),
+                encoding="utf-8",
+            )
+            with patch.object(
+                patch_plan_module,
+                "APPROVAL_RECORD_PATH",
+                changed_record,
+            ):
+                with self.assertRaisesRegex(SettingsMenuWrapError, "必须重新审批"):
+                    build_approved_plan(
+                        REAL_BASELINE,
+                        tool_revision={"commit": "test", "scoped_code_dirty": True},
+                    )
+
+    @unittest.skipUnless(REAL_BASELINE.is_file(), "真实原厂基线不在本机")
+    def test_approved_plan_passes_offline_build_approval_gate(self) -> None:
+        with tempfile.TemporaryDirectory() as selected:
+            plan_path = Path(selected) / "settings-menu-wrap-approved.json"
+            write_approved_plan(
+                REAL_BASELINE,
+                plan_path,
+                tool_revision={"commit": "test", "scoped_code_dirty": True},
+            )
+
+            plan = load_patch_plan(plan_path, REPO_ROOT)
+            self.assertEqual(plan.status, APPROVED_PLAN_STATUS)
+            self.assertEqual(len(plan.patches), 3)
 
 
 if __name__ == "__main__":

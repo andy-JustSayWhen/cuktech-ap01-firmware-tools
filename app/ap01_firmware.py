@@ -21,6 +21,7 @@ from features.offline_firmware_build import (
 )
 from features.settings_menu_wrap import (
     SettingsMenuWrapError,
+    write_approved_plan,
     write_draft_plan,
 )
 
@@ -59,6 +60,21 @@ def _parser() -> argparse.ArgumentParser:
     )
     settings_plan_command.add_argument("--input", type=Path, required=True)
     settings_plan_command.add_argument("--output", type=Path, required=True)
+
+    approved_settings_plan_command = commands.add_parser(
+        "settings-wrap-approved-plan",
+        help="生成与批准记录完全一致的系统设置菜单离线构建清单",
+    )
+    approved_settings_plan_command.add_argument(
+        "--input",
+        type=Path,
+        required=True,
+    )
+    approved_settings_plan_command.add_argument(
+        "--output",
+        type=Path,
+        required=True,
+    )
 
     build_command = commands.add_parser("build", help="按已批准清单离线制作固件")
     build_command.add_argument("--input", type=Path, required=True)
@@ -112,6 +128,29 @@ def main(argv: list[str] | None = None) -> int:
                         "status": document["status"],
                         "patch_count": document["review"]["patch_count"],
                         "firmware_output_allowed": False,
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                )
+            )
+            return 0
+
+        if args.command == "settings-wrap-approved-plan":
+            document = write_approved_plan(
+                args.input,
+                args.output,
+                tool_revision=revision,
+            )
+            print(
+                json.dumps(
+                    {
+                        "result": "系统设置菜单批准范围绑定清单已生成",
+                        "plan": str(args.output.resolve()),
+                        "status": document["status"],
+                        "patch_count": document["review"]["patch_count"],
+                        "firmware_output_allowed": True,
+                        "experimental_download_allowed": False,
+                        "installation_allowed": False,
                     },
                     ensure_ascii=False,
                     indent=2,
