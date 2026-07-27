@@ -382,8 +382,12 @@ def render_today(snapshot: DashboardSnapshot, fonts: FontBook) -> Image.Image:
         "lm",
     )
     canvas.line(((250, 60), (304, 60)), "#303130", 0.7)
-    canvas.text((258, 70), "总成本", 7, ORANGE, "medium")
-    cost = "无法获取" if snapshot.today.total_cost is None else f"${snapshot.today.total_cost}"
+    canvas.text((258, 70), "API成本", 7, ORANGE, "medium")
+    cost = (
+        "无法获取"
+        if snapshot.today.api_cost_usd_rounded is None
+        else f"${format_integer(snapshot.today.api_cost_usd_rounded)}"
+    )
     cost_size = _fit_font(canvas, cost, (16, 13, 11), 52, "regular")
     canvas.text((258, 91), cost, cost_size, WHITE, "regular", "lm")
 

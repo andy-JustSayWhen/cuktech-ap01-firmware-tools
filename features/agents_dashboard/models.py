@@ -5,15 +5,33 @@ from typing import Any
 
 
 @dataclass(frozen=True)
+class ModelUsage:
+    model: str | None
+    raw_input_tokens: int
+    fresh_input_tokens: int
+    cached_input_tokens: int
+    cache_write_input_tokens: int
+    output_tokens: int
+    reasoning_output_tokens: int
+    request_count: int
+    long_context_request_count: int
+    api_cost_usd: str | None
+
+
+@dataclass(frozen=True)
 class TodayUsage:
     total_tokens: int
     fresh_input_tokens: int
     raw_input_tokens: int
     output_tokens: int
     cached_input_tokens: int
+    cache_write_input_tokens: int
+    reasoning_output_tokens: int
     request_count: int
     cache_hit_percent: int
-    total_cost: int | None = None
+    api_cost_usd: str | None = None
+    api_cost_usd_rounded: int | None = None
+    model_usage: tuple[ModelUsage, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -57,6 +75,7 @@ class DashboardSnapshot:
     reset_cards_fetched_at: str | None
     profile_fetched_at: str | None
     profile_usage_as_of: str | None
+    pricing_verified_on: str
     quota_available: bool
     reset_cards_source_available: bool
     profile_available: bool

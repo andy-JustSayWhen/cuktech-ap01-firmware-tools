@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-07-28T04:33:51+08:00",
-  "weekly_remaining_percent": 33,
+  "generated_at": "2026-07-28T05:12:43+08:00",
+  "weekly_remaining_percent": 32,
   "weekly_reset_at": "2026-08-02T03:18:35+08:00",
   "reset_cards_available": 2,
   "reset_cards": [
@@ -18,14 +18,31 @@
     }
   ],
   "today": {
-    "total_tokens": 65706065,
-    "fresh_input_tokens": 2809918,
-    "raw_input_tokens": 65424702,
-    "output_tokens": 281363,
-    "cached_input_tokens": 62614784,
-    "request_count": 491,
+    "total_tokens": 182540639,
+    "fresh_input_tokens": 7355821,
+    "raw_input_tokens": 181703085,
+    "output_tokens": 837554,
+    "cached_input_tokens": 174347264,
+    "cache_write_input_tokens": 0,
+    "reasoning_output_tokens": 350861,
+    "request_count": 1388,
     "cache_hit_percent": 96,
-    "total_cost": null
+    "api_cost_usd": "150.725251",
+    "api_cost_usd_rounded": 151,
+    "model_usage": [
+      {
+        "model": "gpt-5.6-sol",
+        "raw_input_tokens": 181703085,
+        "fresh_input_tokens": 7355821,
+        "cached_input_tokens": 174347264,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 837554,
+        "reasoning_output_tokens": 350861,
+        "request_count": 1388,
+        "long_context_request_count": 2,
+        "api_cost_usd": "150.725251"
+      }
+    ]
   },
   "last_30d_tokens": 15852929368,
   "daily_30d": [
@@ -181,10 +198,11 @@
       "count": 73
     }
   ],
-  "quota_fetched_at": "2026-07-28T04:30:32+08:00",
-  "reset_cards_fetched_at": "2026-07-28T04:30:32+08:00",
+  "quota_fetched_at": "2026-07-28T05:12:43+08:00",
+  "reset_cards_fetched_at": "2026-07-28T05:12:43+08:00",
   "profile_fetched_at": "2026-07-28T04:30:32+08:00",
   "profile_usage_as_of": "2026-07-26",
+  "pricing_verified_on": "2026-07-28",
   "quota_available": true,
   "reset_cards_source_available": true,
   "profile_available": true,

@@ -18,9 +18,16 @@ from .formatting import round_half_up
 from .models import (
     ActivityInsights,
     DashboardSnapshot,
+    ModelUsage,
     PluginUsage,
     ResetCard,
     TodayUsage,
+)
+from .pricing import (
+    RATE_CARD_VERIFIED_ON,
+    calculate_request_cost,
+    exact_usd_text,
+    round_usd,
 )
 
 
@@ -70,16 +77,35 @@ class TodaySessionData:
     fresh_input_tokens: int
     output_tokens: int
     cached_input_tokens: int
+    cache_write_input_tokens: int
+    reasoning_output_tokens: int
     request_count: int
     latest_event_at: str | None
     source_available: bool
+    model_usage: tuple["SessionModelUsage", ...]
+
+
+@dataclass(frozen=True)
+class SessionModelUsage:
+    model: str | None
+    raw_input_tokens: int
+    cached_input_tokens: int
+    cache_write_input_tokens: int
+    output_tokens: int
+    reasoning_output_tokens: int
+    request_count: int
+    long_context_request_count: int
+    api_cost_usd: Decimal | None
 
 
 @dataclass(frozen=True)
 class TokenCounters:
     input_tokens: int
     cached_input_tokens: int
+    cache_write_input_tokens: int
     output_tokens: int
+    reasoning_output_tokens: int
+    pricing_fields_available: bool
 
 
 T = TypeVar("T")
@@ -555,32 +581,54 @@ def fetch_profile(
 
 
 def _session_files(codex_home: Path) -> tuple[list[Path], bool]:
-    files: list[Path] = []
+    active_files: list[Path] = []
+    archived_files: list[Path] = []
     sources_found = False
     sessions = codex_home / "sessions"
     if sessions.is_dir():
         sources_found = True
-        files.extend(sessions.rglob("*.jsonl"))
+        active_files.extend(sessions.rglob("*.jsonl"))
     archived = codex_home / "archived_sessions"
     if archived.is_dir():
         sources_found = True
-        files.extend(
+        archived_files.extend(
             path
             for path in archived.iterdir()
             if path.is_file() and path.suffix == ".jsonl"
         )
-    return sorted(files, key=lambda item: str(item)), sources_found
+    return (
+        sorted(active_files, key=lambda item: str(item))
+        + sorted(archived_files, key=lambda item: str(item)),
+        sources_found,
+    )
 
 
 def _token_counters(value: Any) -> TokenCounters | None:
     if not isinstance(value, dict):
         return None
-    input_tokens = _non_negative_int(value.get("input_tokens")) or 0
+    parsed_input = _non_negative_int(value.get("input_tokens"))
+    input_tokens = parsed_input or 0
     cached = _non_negative_int(value.get("cached_input_tokens"))
     if cached is None:
-        cached = _non_negative_int(value.get("cache_read_input_tokens")) or 0
-    output = _non_negative_int(value.get("output_tokens")) or 0
-    return TokenCounters(input_tokens, cached, output)
+        cached = _non_negative_int(value.get("cache_read_input_tokens"))
+    parsed_cache_write = _non_negative_int(value.get("cache_write_input_tokens"))
+    parsed_output = _non_negative_int(value.get("output_tokens"))
+    cache_write = parsed_cache_write or 0
+    output = parsed_output or 0
+    reasoning_output = _non_negative_int(value.get("reasoning_output_tokens")) or 0
+    return TokenCounters(
+        input_tokens,
+        cached or 0,
+        cache_write,
+        output,
+        reasoning_output,
+        (
+            parsed_input is not None
+            and cached is not None
+            and parsed_cache_write is not None
+            and parsed_output is not None
+        ),
+    )
 
 
 def _counter_delta(
@@ -591,7 +639,16 @@ def _counter_delta(
     return TokenCounters(
         max(0, current.input_tokens - previous.input_tokens),
         max(0, current.cached_input_tokens - previous.cached_input_tokens),
+        max(
+            0,
+            current.cache_write_input_tokens - previous.cache_write_input_tokens,
+        ),
         max(0, current.output_tokens - previous.output_tokens),
+        max(
+            0,
+            current.reasoning_output_tokens - previous.reasoning_output_tokens,
+        ),
+        current.pricing_fields_available and previous.pricing_fields_available,
     )
 
 
@@ -601,13 +658,19 @@ def scan_today_sessions(codex_home: Path, now: datetime) -> TodaySessionData:
     raw_input = 0
     output = 0
     cached = 0
+    cache_write = 0
+    reasoning_output = 0
     request_count = 0
     latest: datetime | None = None
     seen_request_ids: set[str] = set()
+    model_totals: dict[str | None, list[int]] = {}
+    model_costs: dict[str | None, Decimal] = {}
+    model_prices_available: dict[str | None, bool] = {}
 
     for path in files:
         previous: TokenCounters | None = None
         session_id: str | None = None
+        current_model: str | None = None
         event_index = 0
         try:
             stream = path.open("r", encoding="utf-8", errors="replace")
@@ -621,7 +684,11 @@ def scan_today_sessions(codex_home: Path, now: datetime) -> TodaySessionData:
                     or '"session_meta"' in line
                 ):
                     continue
-                if '"event_msg"' in line and '"token_count"' not in line:
+                if (
+                    '"event_msg"' in line
+                    and '"token_count"' not in line
+                    and '"thread_settings_applied"' not in line
+                ):
                     continue
                 try:
                     record = json.loads(line)
@@ -641,7 +708,19 @@ def scan_today_sessions(codex_home: Path, now: datetime) -> TodaySessionData:
                         if isinstance(candidate, str) and candidate:
                             session_id = candidate
                     continue
+                if record_type == "turn_context" and isinstance(payload, dict):
+                    model = payload.get("model")
+                    if isinstance(model, str) and model.strip():
+                        current_model = model.strip().lower()
+                    continue
                 if record_type != "event_msg" or not isinstance(payload, dict):
+                    continue
+                if payload.get("type") == "thread_settings_applied":
+                    settings = payload.get("thread_settings")
+                    if isinstance(settings, dict):
+                        model = settings.get("model")
+                        if isinstance(model, str) and model.strip():
+                            current_model = model.strip().lower()
                     continue
                 if payload.get("type") != "token_count":
                     continue
@@ -663,11 +742,18 @@ def scan_today_sessions(codex_home: Path, now: datetime) -> TodaySessionData:
                 delta = TokenCounters(
                     delta.input_tokens,
                     min(delta.cached_input_tokens, delta.input_tokens),
+                    min(
+                        delta.cache_write_input_tokens,
+                        max(0, delta.input_tokens - delta.cached_input_tokens),
+                    ),
                     delta.output_tokens,
+                    min(delta.reasoning_output_tokens, delta.output_tokens),
+                    delta.pricing_fields_available,
                 )
                 if (
                     delta.input_tokens == 0
                     and delta.cached_input_tokens == 0
+                    and delta.cache_write_input_tokens == 0
                     and delta.output_tokens == 0
                 ):
                     continue
@@ -681,18 +767,73 @@ def scan_today_sessions(codex_home: Path, now: datetime) -> TodaySessionData:
                     continue
                 raw_input += delta.input_tokens
                 cached += delta.cached_input_tokens
+                cache_write += delta.cache_write_input_tokens
                 output += delta.output_tokens
+                reasoning_output += delta.reasoning_output_tokens
                 request_count += 1
+                totals = model_totals.setdefault(
+                    current_model, [0, 0, 0, 0, 0, 0, 0]
+                )
+                totals[0] += delta.input_tokens
+                totals[1] += delta.cached_input_tokens
+                totals[2] += delta.cache_write_input_tokens
+                totals[3] += delta.output_tokens
+                totals[4] += delta.reasoning_output_tokens
+                totals[5] += 1
+                price = (
+                    calculate_request_cost(
+                        current_model,
+                        delta.input_tokens,
+                        delta.cached_input_tokens,
+                        delta.cache_write_input_tokens,
+                        delta.output_tokens,
+                    )
+                    if delta.pricing_fields_available
+                    else None
+                )
+                if price is None:
+                    model_prices_available[current_model] = False
+                else:
+                    model_costs[current_model] = (
+                        model_costs.get(current_model, Decimal(0))
+                        + price.exact_usd
+                    )
+                    totals[6] += int(price.long_context)
+                    model_prices_available.setdefault(current_model, True)
                 latest = timestamp if latest is None else max(latest, timestamp)
 
+    model_usage = tuple(
+        SessionModelUsage(
+            model=model,
+            raw_input_tokens=values[0],
+            cached_input_tokens=values[1],
+            cache_write_input_tokens=values[2],
+            output_tokens=values[3],
+            reasoning_output_tokens=values[4],
+            request_count=values[5],
+            long_context_request_count=values[6],
+            api_cost_usd=(
+                model_costs.get(model, Decimal(0))
+                if model_prices_available.get(model, False)
+                else None
+            ),
+        )
+        for model, values in sorted(
+            model_totals.items(),
+            key=lambda item: item[0] or "",
+        )
+    )
     return TodaySessionData(
         raw_input_tokens=raw_input,
         fresh_input_tokens=max(0, raw_input - cached),
         output_tokens=output,
         cached_input_tokens=cached,
+        cache_write_input_tokens=cache_write,
+        reasoning_output_tokens=reasoning_output,
         request_count=request_count,
         latest_event_at=_iso_beijing(latest) if latest is not None else None,
         source_available=source_available,
+        model_usage=model_usage,
     )
 
 
@@ -785,6 +926,36 @@ def collect_snapshot(
         if profile is not None
         else None
     )
+    exact_api_costs: list[Decimal] = []
+    priced_model_usage: list[ModelUsage] = []
+    pricing_complete = sessions.source_available
+    for usage in sessions.model_usage:
+        fresh_input = max(0, usage.raw_input_tokens - usage.cached_input_tokens)
+        if usage.api_cost_usd is None:
+            pricing_complete = False
+        else:
+            exact_api_costs.append(usage.api_cost_usd)
+        priced_model_usage.append(
+            ModelUsage(
+                model=usage.model,
+                raw_input_tokens=usage.raw_input_tokens,
+                fresh_input_tokens=fresh_input,
+                cached_input_tokens=usage.cached_input_tokens,
+                cache_write_input_tokens=usage.cache_write_input_tokens,
+                output_tokens=usage.output_tokens,
+                reasoning_output_tokens=usage.reasoning_output_tokens,
+                request_count=usage.request_count,
+                long_context_request_count=usage.long_context_request_count,
+                api_cost_usd=(
+                    exact_usd_text(usage.api_cost_usd)
+                    if usage.api_cost_usd is not None
+                    else None
+                ),
+            )
+        )
+    exact_api_cost = (
+        sum(exact_api_costs, Decimal(0)) if pricing_complete else None
+    )
     return DashboardSnapshot(
         generated_at=_iso_beijing(current),
         weekly_remaining_percent=quota.remaining_percent if quota else None,
@@ -799,9 +970,19 @@ def collect_snapshot(
             raw_input_tokens=sessions.raw_input_tokens,
             output_tokens=sessions.output_tokens,
             cached_input_tokens=sessions.cached_input_tokens,
+            cache_write_input_tokens=sessions.cache_write_input_tokens,
+            reasoning_output_tokens=sessions.reasoning_output_tokens,
             request_count=sessions.request_count,
             cache_hit_percent=hit_percent,
-            total_cost=None,
+            api_cost_usd=(
+                exact_usd_text(exact_api_cost)
+                if exact_api_cost is not None
+                else None
+            ),
+            api_cost_usd_rounded=(
+                round_usd(exact_api_cost) if exact_api_cost is not None else None
+            ),
+            model_usage=tuple(priced_model_usage),
         ),
         last_30d_tokens=sum(tokens for _, tokens in daily),
         daily_30d=daily,
@@ -813,6 +994,7 @@ def collect_snapshot(
         ),
         profile_fetched_at=profile.fetched_at if profile is not None else None,
         profile_usage_as_of=profile_usage_as_of,
+        pricing_verified_on=RATE_CARD_VERIFIED_ON,
         quota_available=quota is not None,
         reset_cards_source_available=reset_cards is not None,
         profile_available=profile is not None,

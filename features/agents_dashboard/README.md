@@ -4,15 +4,12 @@
 [`reference/DESIGN/AP01-1.0.2_0031-opt.bin.md` 第 7 节](../../reference/DESIGN/AP01-1.0.2_0031-opt.bin.md#7-agents-看板页面)
 采集本机聚合数据并生成四张 320×240 对照图。
 
-数据取得方式：
-
-- 一周额度和重置卡直接读取 Codex 官方接口，字段解析参考 Cockpit Tools；
-- 今日消耗直接扫描 Codex 本机会话记录，增量算法固定为 CC Switch 3.16.1 的实现；
-- 近 30 天每日用量、活动洞察和常用插件直接读取 Codex 个人统计，字段映射与 Codex 桌面端
-  一致；
-- 三个参考应用都不是安装依赖，采集器不读取它们的页面、缓存或数据库；
-- 官方接口的安全聚合缓存写入被版本控制忽略的 `env/agents-dashboard-cache/`，不保存登录
-  凭据、账号标识或原始响应。
+用户可见字段口径只见
+[`reference/SPEC.md` 第 4.2 节](../../reference/SPEC.md#42-看板字段口径)；数据清单、原始
+字段、直接来源、采集方法和安全边界只见
+[`DESIGN` 第 7.4 节](../../reference/DESIGN/AP01-1.0.2_0031-opt.bin.md#74-本机真实数据采集)；
+模型单价与费用公式只见
+[`Codex 模型 API 计费表`](../../reference/Codex-模型API计费表.md)。
 
 实现依据：
 

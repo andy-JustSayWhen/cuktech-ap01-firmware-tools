@@ -4,6 +4,7 @@ import json
 import tempfile
 import unittest
 from datetime import datetime
+from decimal import Decimal
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -30,6 +31,12 @@ from .models import (
     PluginUsage,
     ResetCard,
     TodayUsage,
+)
+from .pricing import (
+    API_RATE_CARD,
+    calculate_request_cost,
+    markdown_rate_row,
+    round_usd,
 )
 from .renderer import FontBook, _countdown, render_all
 
@@ -67,6 +74,14 @@ class CollectorTests(unittest.TestCase):
                 "payload": {"id": "019fa40e-5160-7d51-8824-5ed0b8d26b33"},
             },
             {
+                "timestamp": "2026-07-28T00:01:00.000Z",
+                "type": "event_msg",
+                "payload": {
+                    "type": "thread_settings_applied",
+                    "thread_settings": {"model": "gpt-5.6-sol"},
+                },
+            },
+            {
                 "timestamp": "2026-07-28T00:02:00.000Z",
                 "type": "event_msg",
                 "payload": {
@@ -76,6 +91,8 @@ class CollectorTests(unittest.TestCase):
                             "input_tokens": 8_000,
                             "output_tokens": 1_000,
                             "cached_input_tokens": 4_000,
+                            "cache_write_input_tokens": 1_000,
+                            "reasoning_output_tokens": 200,
                         }
                     },
                 },
@@ -90,6 +107,8 @@ class CollectorTests(unittest.TestCase):
                             "input_tokens": 10_000,
                             "output_tokens": 1_500,
                             "cached_input_tokens": 5_000,
+                            "cache_write_input_tokens": 1_500,
+                            "reasoning_output_tokens": 300,
                         }
                     },
                 },
@@ -98,6 +117,52 @@ class CollectorTests(unittest.TestCase):
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(
             "".join(json.dumps(record, separators=(",", ":")) + "\n" for record in records),
+            encoding="utf-8",
+        )
+
+    @staticmethod
+    def _write_one_request_session(
+        path: Path,
+        session_id: str,
+        model: str,
+        input_tokens: int,
+        cached_input_tokens: int,
+        cache_write_input_tokens: int,
+        output_tokens: int,
+    ) -> None:
+        records = [
+            {
+                "timestamp": "2026-07-28T00:00:00.000Z",
+                "type": "session_meta",
+                "payload": {"id": session_id},
+            },
+            {
+                "timestamp": "2026-07-28T00:01:00.000Z",
+                "type": "turn_context",
+                "payload": {"model": model},
+            },
+            {
+                "timestamp": "2026-07-28T00:02:00.000Z",
+                "type": "event_msg",
+                "payload": {
+                    "type": "token_count",
+                    "info": {
+                        "last_token_usage": {
+                            "input_tokens": input_tokens,
+                            "cached_input_tokens": cached_input_tokens,
+                            "cache_write_input_tokens": cache_write_input_tokens,
+                            "output_tokens": output_tokens,
+                        }
+                    },
+                },
+            },
+        ]
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            "".join(
+                json.dumps(record, separators=(",", ":")) + "\n"
+                for record in records
+            ),
             encoding="utf-8",
         )
 
@@ -121,7 +186,119 @@ class CollectorTests(unittest.TestCase):
             self.assertEqual(data.fresh_input_tokens, 5_000)
             self.assertEqual(data.output_tokens, 1_500)
             self.assertEqual(data.cached_input_tokens, 5_000)
+            self.assertEqual(data.cache_write_input_tokens, 1_500)
+            self.assertEqual(data.reasoning_output_tokens, 300)
             self.assertEqual(data.request_count, 2)
+            self.assertEqual(len(data.model_usage), 1)
+            self.assertEqual(data.model_usage[0].model, "gpt-5.6-sol")
+            self.assertEqual(data.model_usage[0].api_cost_usd, Decimal("0.074375"))
+
+    def test_api_rate_card_and_long_context_math(self) -> None:
+        standard = calculate_request_cost(
+            "gpt-5.6-sol",
+            input_tokens=200_000,
+            cached_input_tokens=100_000,
+            cache_write_input_tokens=20_000,
+            output_tokens=20_000,
+        )
+        self.assertIsNotNone(standard)
+        assert standard is not None
+        self.assertFalse(standard.long_context)
+        self.assertEqual(standard.exact_usd, Decimal("1.175"))
+        self.assertEqual(round_usd(standard.exact_usd), 1)
+
+        long_context = calculate_request_cost(
+            "gpt-5.6-sol",
+            input_tokens=300_000,
+            cached_input_tokens=100_000,
+            cache_write_input_tokens=20_000,
+            output_tokens=10_000,
+        )
+        self.assertIsNotNone(long_context)
+        assert long_context is not None
+        self.assertTrue(long_context.long_context)
+        self.assertEqual(long_context.exact_usd, Decimal("2.600"))
+        self.assertIsNone(
+            calculate_request_cost(
+                "gpt-5.3-codex-spark",
+                input_tokens=1_000,
+                cached_input_tokens=0,
+                cache_write_input_tokens=0,
+                output_tokens=100,
+            )
+        )
+
+    def test_multiple_models_are_summed_before_final_rounding(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            home = Path(directory)
+            self._write_one_request_session(
+                home / "sessions" / "sol.jsonl",
+                "sol-session",
+                "gpt-5.6-sol",
+                0,
+                0,
+                0,
+                16_000,
+            )
+            self._write_one_request_session(
+                home / "sessions" / "terra.jsonl",
+                "terra-session",
+                "gpt-5.6-terra",
+                0,
+                0,
+                0,
+                32_000,
+            )
+
+            snapshot = collect_snapshot(
+                now=datetime(2026, 7, 28, 8, 5, tzinfo=BEIJING),
+                codex_home=home,
+                fetch_remote=False,
+            )
+
+            self.assertEqual(snapshot.today.api_cost_usd, "0.96")
+            self.assertEqual(snapshot.today.api_cost_usd_rounded, 1)
+            self.assertEqual(
+                tuple(item.api_cost_usd for item in snapshot.today.model_usage),
+                ("0.48", "0.48"),
+            )
+
+    def test_missing_api_billing_field_fails_closed(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            home = Path(directory)
+            session = home / "sessions" / "missing-cache-write.jsonl"
+            self._write_one_request_session(
+                session,
+                "missing-cache-write",
+                "gpt-5.6-sol",
+                10_000,
+                5_000,
+                0,
+                1_000,
+            )
+            content = session.read_text(encoding="utf-8")
+            session.write_text(
+                content.replace('"cache_write_input_tokens":0,', ""),
+                encoding="utf-8",
+            )
+
+            snapshot = collect_snapshot(
+                now=datetime(2026, 7, 28, 8, 5, tzinfo=BEIJING),
+                codex_home=home,
+                fetch_remote=False,
+            )
+
+            self.assertEqual(snapshot.today.total_tokens, 11_000)
+            self.assertIsNone(snapshot.today.api_cost_usd)
+            self.assertIsNone(snapshot.today.api_cost_usd_rounded)
+
+    def test_api_rate_implementation_matches_authoritative_document(self) -> None:
+        document = (
+            PROJECT_ROOT / "reference" / "Codex-模型API计费表.md"
+        ).read_text(encoding="utf-8")
+        for entry in API_RATE_CARD:
+            with self.subTest(model=entry.model):
+                self.assertIn(markdown_rate_row(entry), document)
 
     def test_official_response_mapping_matches_reference_apps(self) -> None:
         now = datetime(2026, 7, 28, 8, 5, tzinfo=BEIJING)
@@ -229,6 +406,11 @@ class CollectorTests(unittest.TestCase):
             self.assertEqual(snapshot.today.fresh_input_tokens, 5_000)
             self.assertEqual(snapshot.today.raw_input_tokens, 10_000)
             self.assertEqual(snapshot.today.cache_hit_percent, 50)
+            self.assertEqual(snapshot.today.cache_write_input_tokens, 1_500)
+            self.assertEqual(snapshot.today.reasoning_output_tokens, 300)
+            self.assertEqual(snapshot.today.api_cost_usd, "0.074375")
+            self.assertEqual(snapshot.today.api_cost_usd_rounded, 0)
+            self.assertEqual(snapshot.today.model_usage[0].cache_write_input_tokens, 1_500)
             self.assertEqual(snapshot.last_30d_tokens, 2_000_000)
             serialized = json.dumps(snapshot.to_dict(), ensure_ascii=False)
             for forbidden in (
@@ -341,8 +523,12 @@ class RendererTests(unittest.TestCase):
                 raw_input_tokens=1_900_000_000,
                 output_tokens=500_000_000,
                 cached_input_tokens=900_000_000,
+                cache_write_input_tokens=100_000_000,
+                reasoning_output_tokens=250_000_000,
                 request_count=1_234,
                 cache_hit_percent=47,
+                api_cost_usd="1234.49",
+                api_cost_usd_rounded=1_234,
             ),
             last_30d_tokens=99_999_999_999,
             daily_30d=tuple(
@@ -368,6 +554,7 @@ class RendererTests(unittest.TestCase):
             reset_cards_fetched_at="2026-07-28T08:00:00+08:00",
             profile_fetched_at="2026-07-28T08:00:00+08:00",
             profile_usage_as_of="2026-07-27",
+            pricing_verified_on="2026-07-28",
             quota_available=True,
             reset_cards_source_available=True,
             profile_available=True,
