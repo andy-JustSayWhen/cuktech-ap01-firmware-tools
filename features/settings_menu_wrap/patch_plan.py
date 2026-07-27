@@ -25,8 +25,17 @@ EVIDENCE_PATH = (
 
 DRAFT_PLAN_STATUS = "draft-awaiting-user-approval"
 EXPECTED_BINUTILS_VERSION = "2.46.1"
-MAP_BASE_RUNTIME_ADDRESS = 0xA00F3D5A
 XIP_DELTA = 0x9FFFF000
+CODE_GAP_START = 0x01C008
+CODE_GAP_END = 0x01C100
+CODE_GAP_PREVIOUS_INSTRUCTION = (0x01C006, bytes.fromhex("8280"))
+CODE_GAP_NEXT_INSTRUCTION = (0x01C100, bytes.fromhex("23221500"))
+PRESERVED_LOG_RANGES = (
+    (0x0F912C, 0x0F914E, "右旋通用日志"),
+    (0x0F9172, 0x0F918C, "右旋系统设置日志"),
+    (0x0F96F8, 0x0F971A, "左旋通用日志"),
+    (0x0F973E, 0x0F9758, "左旋系统设置日志"),
+)
 
 
 class SettingsMenuWrapError(RuntimeError):
@@ -37,6 +46,7 @@ class SettingsMenuWrapError(RuntimeError):
 class PatchDefinition:
     name: str
     objective: str
+    section_name: str
     offset: int
     runtime_address: int
     expected_before: bytes
@@ -69,74 +79,40 @@ class PatchDefinition:
 
 PATCHES = (
     PatchDefinition(
-        name="右旋通用日志尾部",
-        objective="保留原厂寄存器初始化，并容纳右旋末项回到首项的等长处理",
-        offset=0x0F9134,
-        runtime_address=0xA00F8134,
-        expected_before=bytes.fromhex(
-            "37a74ca01307073c93064b8f1306606493854a770d45ef4098e5"
-        ),
+        name="首尾循环处理程序",
+        objective="在已验证零填充代码间隙中处理动态项目数和首尾循环",
+        section_name=".payload",
+        offset=0x01C008,
+        runtime_address=0xA001B008,
+        expected_before=b"\x00" * 118,
         expected_replacement=bytes.fromhex(
-            "29a893070003a380f40003a589009385faff0146efb03fc171b7"
+            "83c71400094763f4ea006fd06d0c938617fd63f4da006fd0ad0b"
+            "638456016fd0cd1793070003a380f40003a589009385faff0146"
+            "ef80fd516fd08d0983c71400094763f4ea006fd0ad08938607fd"
+            "63e456016fd0ed0799c26fd0ed709387fa02a380f40003a58900"
+            "81451386faffef805d4e6fd0ed05"
         ),
-        evidence_note="证据文档第 4、5 节：保留前置初始化，只替换日志尾部",
+        evidence_note="证据文档第 4 至 6 节：118 字节处理程序位于完整零填充函数间隙",
     ),
     PatchDefinition(
-        name="右旋设置日志",
-        objective="容纳项目数、状态边界检查并把内部项交回原厂处理",
-        offset=0x0F9172,
-        runtime_address=0xA00F8172,
-        expected_before=bytes.fromhex(
-            "37a74ca093064b8f93854a771307c73e1306e0640d45ef40b8e1"
-        ),
-        expected_replacement=bytes.fromhex(
-            "29a883c714000947e3efeaf4938617fde3ebdaf4e38856fb21a8"
-        ),
-        evidence_note="证据文档第 4、5 节：当次项目数小于 2 或状态越界即返回",
-    ),
-    PatchDefinition(
-        name="右旋状态读取",
+        name="右旋状态挂接",
         objective="把系统设置右旋状态检查交给版本限定处理",
+        section_name=".right_hook",
         offset=0x0F919E,
         runtime_address=0xA00F819E,
         expected_before=bytes.fromhex("83c71400"),
-        expected_replacement=bytes.fromhex("6ff07ffd"),
-        evidence_note="证据文档第 4、5 节：跳转目标为右旋边界检查",
+        expected_replacement=bytes.fromhex("6f20b2e6"),
+        evidence_note="证据文档第 5、6 节：跳转目标为 0xa001b008",
     ),
     PatchDefinition(
-        name="左旋通用日志尾部",
-        objective="保留原厂寄存器初始化，并容纳左旋首项回到末项的等长处理",
-        offset=0x0F9700,
-        runtime_address=0xA00F8700,
-        expected_before=bytes.fromhex(
-            "37a74ca01307875193864b8f1306a07793854a770d45ef40d888"
-        ),
-        expected_replacement=bytes.fromhex(
-            "29a89387fa02a380f40003a5890081451386faffefb06fe4c1b2"
-        ),
-        evidence_note="证据文档第 4、5 节：保留前置初始化，只替换日志尾部",
-    ),
-    PatchDefinition(
-        name="左旋设置日志",
-        objective="容纳项目数、状态边界检查并把内部项交回原厂处理",
-        offset=0x0F973E,
-        runtime_address=0xA00F873E,
-        expected_before=bytes.fromhex(
-            "37a74ca093854a771307c73e93864b8f130620780d45ef40f884"
-        ),
-        expected_replacement=bytes.fromhex(
-            "29a883c714000947e3e9ea98938607fde3f55699c5da29a80100"
-        ),
-        evidence_note="证据文档第 4、5 节：当次项目数小于 2 或状态越界即返回",
-    ),
-    PatchDefinition(
-        name="左旋状态读取",
+        name="左旋状态挂接",
         objective="把系统设置左旋状态检查交给版本限定处理",
+        section_name=".left_hook",
         offset=0x0F976A,
         runtime_address=0xA00F876A,
         expected_before=bytes.fromhex("83c71400"),
-        expected_replacement=bytes.fromhex("6ff07ffd"),
-        evidence_note="证据文档第 4、5 节：跳转目标为左旋边界检查",
+        expected_replacement=bytes.fromhex("6f20b28d"),
+        evidence_note="证据文档第 5、6 节：跳转目标为 0xa001b044",
     ),
 )
 
@@ -186,7 +162,30 @@ def _validate_definitions() -> None:
             raise SettingsMenuWrapError(f"修改前后字节数不一致：{patch.name}")
         if patch.end > AP01_1_0_2_0031.recovery_trailer_offset:
             raise SettingsMenuWrapError(f"修改区间越过主程序安全边界：{patch.name}")
+        for log_start, log_end, log_name in PRESERVED_LOG_RANGES:
+            if patch.offset < log_end and log_start < patch.end:
+                raise SettingsMenuWrapError(
+                    f"修改区间触碰必须保留的原厂日志：{log_name}"
+                )
         previous_end = patch.end
+
+
+def _validate_code_gap(firmware: bytes) -> None:
+    if firmware[CODE_GAP_START:CODE_GAP_END] != b"\x00" * (
+        CODE_GAP_END - CODE_GAP_START
+    ):
+        raise SettingsMenuWrapError("新增处理程序所在完整函数间隙不是全零")
+    previous_offset, previous_bytes = CODE_GAP_PREVIOUS_INSTRUCTION
+    if firmware[
+        previous_offset : previous_offset + len(previous_bytes)
+    ] != previous_bytes:
+        raise SettingsMenuWrapError("新增处理程序前一函数边界不匹配")
+    next_offset, next_bytes = CODE_GAP_NEXT_INSTRUCTION
+    if firmware[next_offset : next_offset + len(next_bytes)] != next_bytes:
+        raise SettingsMenuWrapError("新增处理程序后一函数边界不匹配")
+    payload = PATCHES[0]
+    if payload.offset != CODE_GAP_START or payload.end > CODE_GAP_END:
+        raise SettingsMenuWrapError("新增处理程序没有完整落在已验证函数间隙")
 
 
 def assemble_and_verify() -> dict[str, Any]:
@@ -208,7 +207,19 @@ def assemble_and_verify() -> dict[str, Any]:
         build_dir = Path(selected)
         object_path = build_dir / "settings-menu-wrap.o"
         elf_path = build_dir / "settings-menu-wrap.elf"
-        map_path = build_dir / "settings-menu-wrap-map.bin"
+        section_paths = {
+            patch.offset: build_dir / f"patch-{patch.offset:06x}.bin"
+            for patch in PATCHES
+        }
+        dump_sections: list[object] = [copier]
+        for patch in PATCHES:
+            dump_sections.extend(
+                (
+                    "--dump-section",
+                    f"{patch.section_name}={section_paths[patch.offset]}",
+                )
+            )
+        dump_sections.append(elf_path)
         commands = (
             (
                 assembler,
@@ -229,12 +240,7 @@ def assemble_and_verify() -> dict[str, Any]:
                 elf_path,
                 object_path,
             ),
-            (
-                copier,
-                "--dump-section",
-                f".patch_map={map_path}",
-                elf_path,
-            ),
+            tuple(dump_sections),
         )
         try:
             for command in commands:
@@ -247,23 +253,69 @@ def assemble_and_verify() -> dict[str, Any]:
         except (OSError, subprocess.SubprocessError) as error:
             raise SettingsMenuWrapError("设置菜单修改字节汇编或链接失败") from error
 
-        patch_map = map_path.read_bytes()
         generated: dict[int, bytes] = {}
         for patch in PATCHES:
-            start = patch.runtime_address - MAP_BASE_RUNTIME_ADDRESS
-            end = start + len(patch.expected_replacement)
-            replacement = patch_map[start:end]
+            replacement = section_paths[patch.offset].read_bytes()
             if replacement != patch.expected_replacement:
                 raise SettingsMenuWrapError(
                     f"汇编结果与已审查字节不一致：{patch.name}"
                 )
             generated[patch.offset] = replacement
 
+        try:
+            disassembly = subprocess.run(
+                [
+                    str(disassembler),
+                    "-d",
+                    "-M",
+                    "no-aliases,numeric",
+                    str(elf_path),
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+            ).stdout.lower()
+        except (OSError, subprocess.SubprocessError) as error:
+            raise SettingsMenuWrapError("无法反查设置菜单修改指令") from error
+        reviewed_external_edges = (
+            (0xA001B012, 0xA00F80D8),
+            (0xA001B01E, 0xA00F80D8),
+            (0xA001B026, 0xA00F81A2),
+            (0xA001B03C, 0xA00F3D5A),
+            (0xA001B040, 0xA00F80D8),
+            (0xA001B04E, 0xA00F80D8),
+            (0xA001B05A, 0xA00F80D8),
+            (0xA001B060, 0xA00F876E),
+            (0xA001B076, 0xA00F3D5A),
+            (0xA001B07A, 0xA00F80D8),
+            (0xA00F819E, 0xA001B008),
+            (0xA00F876A, 0xA001B044),
+        )
+        disassembly_lines = {
+            line.lstrip().split(":", 1)[0]: line.lower()
+            for line in disassembly.splitlines()
+            if ":" in line
+        }
+        for source, target in reviewed_external_edges:
+            instruction = disassembly_lines.get(f"{source:08x}", "")
+            if f"{target:08x}" not in instruction:
+                raise SettingsMenuWrapError(
+                    "反汇编控制流与已审查结果不一致："
+                    f"0x{source:08x} -> 0x{target:08x}"
+                )
+
     return {
         "version": EXPECTED_BINUTILS_VERSION,
         "tools": versions,
         "assembly_sha256": _sha256_file(ASSEMBLY_SOURCE),
         "linker_script_sha256": _sha256_file(LINKER_SCRIPT),
+        "verified_control_flow": [
+            {
+                "source_hex": f"0x{source:08x}",
+                "target_hex": f"0x{target:08x}",
+            }
+            for source, target in reviewed_external_edges
+        ],
         "replacements": generated,
     }
 
@@ -276,6 +328,7 @@ def build_draft_plan(
     """校验真实基线并返回无法用于构建的待批准清单。"""
 
     firmware, baseline = load_read_only_baseline(source, AP01_1_0_2_0031)
+    _validate_code_gap(firmware)
     toolchain = assemble_and_verify()
     replacements = toolchain.pop("replacements")
 
@@ -302,12 +355,24 @@ def build_draft_plan(
             "patch_count": len(entries),
             "firmware_output_allowed": False,
             "approval_required": (
-                "用户必须明确批准证据文档中的 6 个精确区间，"
+                "用户必须明确批准证据文档中的 3 个精确区间，"
                 "才能另行形成允许离线构建的清单"
             ),
-            "known_logging_change": (
-                "左右各减少一条通用调试日志和一条系统设置专用调试日志"
-            ),
+            "logging_changed": False,
+            "preserved_log_ranges": [
+                {
+                    "name": name,
+                    "start_hex": f"0x{start:x}",
+                    "end_exclusive_hex": f"0x{end:x}",
+                }
+                for start, end, name in PRESERVED_LOG_RANGES
+            ],
+            "code_gap": {
+                "start_hex": f"0x{CODE_GAP_START:x}",
+                "end_exclusive_hex": f"0x{CODE_GAP_END:x}",
+                "total_zero_bytes": CODE_GAP_END - CODE_GAP_START,
+                "used_bytes": len(PATCHES[0].expected_replacement),
+            },
         },
         "patches": entries,
     }

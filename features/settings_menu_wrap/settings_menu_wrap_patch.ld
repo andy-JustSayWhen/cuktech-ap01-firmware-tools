@@ -1,25 +1,31 @@
 OUTPUT_ARCH(riscv)
-ENTRY(right_log_tail)
+ENTRY(payload_start)
+
+selection_transition = 0xa00f3d5a;
+handler_return = 0xa00f80d8;
+right_original_switch = 0xa00f81a2;
+left_original_switch = 0xa00f876e;
 
 SECTIONS
 {
-    .patch_map 0xa00f3d5a :
+    .payload 0xa001b008 :
     {
-        KEEP(*(.patch_map))
+        KEEP(*(.payload))
     }
-    ASSERT(selection_transition == 0xa00f3d5a, "selection transition address mismatch")
-    ASSERT(handler_return == 0xa00f80d8, "handler return address mismatch")
-    ASSERT(right_log_tail == 0xa00f8134, "right log tail address mismatch")
-    ASSERT(right_original_path - right_log_tail == 26, "right log tail must be 26 bytes")
-    ASSERT(right_type_log == 0xa00f8172, "right type log address mismatch")
-    ASSERT(right_type_original_path - right_type_log == 26, "right type log must be 26 bytes")
-    ASSERT(right_state_load == 0xa00f819e, "right state load address mismatch")
-    ASSERT(left_log_tail == 0xa00f8700, "left log tail address mismatch")
-    ASSERT(left_original_path - left_log_tail == 26, "left log tail must be 26 bytes")
-    ASSERT(left_type_log == 0xa00f873e, "left type log address mismatch")
-    ASSERT(left_type_original_path - left_type_log == 26, "left type log must be 26 bytes")
-    ASSERT(left_state_load == 0xa00f876a, "left state load address mismatch")
-    ASSERT(SIZEOF(.patch_map) == 0x4a14, "patch map end mismatch")
+    ASSERT(SIZEOF(.payload) == 0x76, "payload size mismatch")
+    ASSERT(payload_end == 0xa001b07e, "payload end mismatch")
+
+    .right_hook 0xa00f819e :
+    {
+        KEEP(*(.right_hook))
+    }
+    ASSERT(SIZEOF(.right_hook) == 4, "right hook must be four bytes")
+
+    .left_hook 0xa00f876a :
+    {
+        KEEP(*(.left_hook))
+    }
+    ASSERT(SIZEOF(.left_hook) == 4, "left hook must be four bytes")
 
     /DISCARD/ :
     {
