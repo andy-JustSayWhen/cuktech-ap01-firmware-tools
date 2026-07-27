@@ -7,6 +7,10 @@ dist/
 build/
 *.log
 
+# Python
+__pycache__/
+*.py[cod]
+
 # 固件与构建产物
 artifacts/firmware/
 artifacts/build/
