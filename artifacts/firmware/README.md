@@ -9,3 +9,4 @@
 | 原厂详情兼容失败成品 | `artifacts/firmware/ap01-1.0.2_0031-agents-detail-compat-observation.bin` | 普通确认误入时间设定，“返回”触发重启，禁止安装。 |
 | 原厂确认键兼容失败成品 | `artifacts/firmware/ap01-1.0.2_0031-agents-confirm-compat-observation.bin` | “返回”仍触发重启，禁止安装；设备已回刷 `opt-setting.bin`。 |
 | AGENTS 九对象覆盖层失败成品 | `artifacts/firmware/ap01-1.0.2_0031-agents-pet-overlay-observation.bin` | 菜单“返回”触发重启，禁止安装；设备已回刷 `opt-setting.bin`。 |
+| AGENTS 原厂萌宠控件复用观察固件 | `artifacts/firmware/ap01-1.0.2_0031-agents-stock-pet-reuse-observation.bin` | 不新增界面对象，复用原厂萌宠动图控件；离线门禁已通过，待真机验收。 |
