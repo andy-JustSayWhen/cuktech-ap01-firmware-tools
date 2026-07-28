@@ -25,6 +25,16 @@
 python3 -m features.agents_dashboard.generate_actual
 ```
 
+启动本机真实数据同步服务：
+
+```shell
+python3 -m features.agents_dashboard.bridge --port 8765 --interval 300
+```
+
+首次启动会在被版本控制忽略的 `env/agents-dashboard-device.json` 生成设备专属配置，并把
+当前四页完整包写入被版本控制忽略的 `artifacts/agents-dashboard/`。完整包格式、授权字段、
+页面顺序和大小上限只见 DESIGN 第 8 节。服务日志只记录不带查询字段的请求路径。
+
 渲染前必须从 MiSans 官方下载页取得 Regular、Medium、Semibold、Bold 四个字重，并放入
 `env/fonts/`。具体字重角色只见效果图评审文档第 2 节。本模块生成的图片使用 MiSans 字体；
 字体文件不进入版本控制，也不随本项目转发。

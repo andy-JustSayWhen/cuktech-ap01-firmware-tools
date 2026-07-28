@@ -16,6 +16,7 @@ artifacts/firmware/*
 !artifacts/firmware/README.md
 artifacts/build/
 artifacts/rejected/
+artifacts/agents-dashboard/
 
 # 环境与密钥
 env/
