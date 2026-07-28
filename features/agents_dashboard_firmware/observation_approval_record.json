@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "status": "approved-for-one-installation",
+  "status": "installation-consumed",
   "approved_at_beijing": "2026-07-28T19:01:58+08:00",
   "target_model": "njcuk.enstor.ap01",
   "target_version": "1.0.2_0031",
@@ -14,5 +14,7 @@
     "不依赖设备正常启动和联网的独立恢复验证"
   ],
   "approval_statement": "批准第五次刷入；只限动态一级导航修正版",
-  "approved_scope": "左右旋转按实际页面数量在六个原厂一级页面与 AGENTS 页面之间首尾循环，并排除原厂米家详情对象"
+  "approved_scope": "左右旋转按实际页面数量在六个原厂一级页面与 AGENTS 页面之间首尾循环，并排除原厂米家详情对象",
+  "installation_consumed_at_beijing": "2026-07-28T19:09:14+08:00",
+  "installation_result": "上传对象完整回读一致；设备完成下载、安装、重启和重新上线，七次稳定性采样通过；等待用户物理验收"
 }
