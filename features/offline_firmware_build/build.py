@@ -24,7 +24,7 @@ from core.firmware_image import (
 TOOL_VERSION = "0.1.0"
 PLAN_SCHEMA_VERSION = 1
 APPROVED_PLAN_STATUS = "approved-for-offline-build"
-OUTPUT_FILENAME = "ap01-1.0.2_0031-opt.bin"
+OUTPUT_FILENAME = "opt-setting.bin"
 ALLOWED_REGION_KINDS = {
     "application-code",
     "application-read-only-data",

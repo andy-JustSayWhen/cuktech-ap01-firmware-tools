@@ -131,7 +131,7 @@ class OfflineFirmwareBuildTests(unittest.TestCase):
 
     def test_build_applies_asserted_patch_and_freezes_outputs(self) -> None:
         plan = self.write_plan([self.valid_patch()])
-        output = self.repo / "artifacts" / "ap01-1.0.2_0031-opt.bin"
+        output = self.repo / "artifacts" / "opt-setting.bin"
         manifest = self.repo / "artifacts" / "build-manifest.json"
 
         result = make_firmware(
@@ -155,11 +155,33 @@ class OfflineFirmwareBuildTests(unittest.TestCase):
         self.assertFalse(document["validation"]["installation_allowed"])
         self.assertTrue(document["validation"]["frozen_readback_sha256_matches"])
 
+    def test_settings_stage_rejects_final_firmware_name(self) -> None:
+        plan = self.write_plan([self.valid_patch()])
+        output = self.repo / "artifacts" / "ap01-1.0.2_0031-opt.bin"
+        manifest = self.repo / "artifacts" / "build-manifest.json"
+
+        with self.assertRaisesRegex(BuildGateError, "opt-setting.bin"):
+            make_firmware(
+                self.source,
+                plan,
+                output,
+                manifest,
+                repo_root=self.repo,
+                tool_revision={"commit": "test", "scoped_code_dirty": False},
+                cloud_version=self.definition.version,
+                cloud_md5=self.definition.md5,
+                cloud_checked_at=self.cloud_checked_at(),
+                definition=self.definition,
+            )
+
+        self.assertFalse(output.exists())
+        self.assertFalse(manifest.exists())
+
     def test_wrong_old_bytes_stop_before_output(self) -> None:
         patch = self.valid_patch()
         patch["expected_before_hex"] = "ffff"
         plan = self.write_plan([patch])
-        output = self.repo / "artifacts" / "ap01-1.0.2_0031-opt.bin"
+        output = self.repo / "artifacts" / "opt-setting.bin"
         manifest = self.repo / "artifacts" / "build-manifest.json"
 
         with self.assertRaisesRegex(BuildGateError, "旧字节断言失败"):
