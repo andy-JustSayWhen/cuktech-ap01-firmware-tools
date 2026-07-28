@@ -19,6 +19,10 @@ from features.offline_firmware_build import (
     inspect_baseline,
     make_firmware,
 )
+from features.optimized_firmware_build import (
+    OptimizedFirmwareBuildError,
+    inspect_optimized_baseline,
+)
 from features.settings_menu_wrap import (
     SettingsMenuWrapError,
     write_approved_plan,
@@ -84,6 +88,14 @@ def _parser() -> argparse.ArgumentParser:
     build_command.add_argument("--cloud-version", required=True)
     build_command.add_argument("--cloud-md5", required=True)
     build_command.add_argument("--cloud-checked-at", required=True)
+
+    optimized_inspect_command = commands.add_parser(
+        "opt-bin-inspect",
+        help="检查完整优化固件使用的原厂锚点和已验收阶段输入",
+    )
+    optimized_inspect_command.add_argument("--original", type=Path, required=True)
+    optimized_inspect_command.add_argument("--input", type=Path, required=True)
+    optimized_inspect_command.add_argument("--report", type=Path, required=True)
     return parser
 
 
@@ -158,6 +170,27 @@ def main(argv: list[str] | None = None) -> int:
             )
             return 0
 
+        if args.command == "opt-bin-inspect":
+            report = inspect_optimized_baseline(
+                args.original,
+                args.input,
+                args.report,
+                tool_revision=revision,
+            )
+            print(
+                json.dumps(
+                    {
+                        "result": "完整优化固件制作输入检查通过",
+                        "report": str(args.report.resolve()),
+                        "stage_input": report["stage_input"],
+                        "gates": report["gates"],
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                )
+            )
+            return 0
+
         result = make_firmware(
             args.input,
             args.plan,
@@ -188,6 +221,7 @@ def main(argv: list[str] | None = None) -> int:
     except (
         BuildGateError,
         FirmwareValidationError,
+        OptimizedFirmwareBuildError,
         SettingsMenuWrapError,
         OSError,
         subprocess.SubprocessError,
