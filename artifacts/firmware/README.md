@@ -13,3 +13,4 @@
 | AGENTS 原厂交互分派兼容失败成品 | `artifacts/firmware/ap01-1.0.2_0031-agents-stock-dispatch-observation.bin` | 页面切换入口与状态字段证据不成立，禁止安装；从未刷入。 |
 | AGENTS 原厂精确调用链失败成品 | `artifacts/firmware/ap01-1.0.2_0031-agents-stock-callchain-observation.bin` | 功率页按下后设备重启，禁止安装；设备已回刷 `opt-setting.bin`。 |
 | AGENTS 原厂确认键无栈透传失败成品 | `artifacts/firmware/ap01-1.0.2_0031-agents-stock-enter-gate-observation.bin` | 功率页按下后界面线程卡死，禁止安装；设备已回刷 `opt-setting.bin`。 |
+| AGENTS 原厂局部分支观察成品 | `artifacts/firmware/ap01-1.0.2_0031-agents-stock-local-branches-observation.bin` | 仅挂接功率左旋和萌宠三种键值局部分支；已通过离线门禁，等待真机验收。 |
