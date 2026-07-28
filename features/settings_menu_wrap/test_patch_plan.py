@@ -10,7 +10,6 @@ import features.settings_menu_wrap.patch_plan as patch_plan_module
 from features.offline_firmware_build import BuildGateError, load_patch_plan
 from features.settings_menu_wrap import (
     APPROVAL_RECORD_PATH,
-    APPROVED_PLAN_STATUS,
     CODE_GAP_END,
     CODE_GAP_START,
     DRAFT_PLAN_STATUS,
@@ -63,18 +62,29 @@ class SettingsMenuWrapTests(unittest.TestCase):
         self.assertEqual(
             report["verified_control_flow"],
             [
-                {"source_hex": "0xa001b012", "target_hex": "0xa00f80d8"},
-                {"source_hex": "0xa001b01e", "target_hex": "0xa00f80d8"},
-                {"source_hex": "0xa001b026", "target_hex": "0xa00f81a2"},
-                {"source_hex": "0xa001b03c", "target_hex": "0xa00f3d5a"},
-                {"source_hex": "0xa001b040", "target_hex": "0xa00f80d8"},
-                {"source_hex": "0xa001b04e", "target_hex": "0xa00f80d8"},
-                {"source_hex": "0xa001b05a", "target_hex": "0xa00f80d8"},
-                {"source_hex": "0xa001b060", "target_hex": "0xa00f876e"},
-                {"source_hex": "0xa001b076", "target_hex": "0xa00f3d5a"},
-                {"source_hex": "0xa001b07a", "target_hex": "0xa00f80d8"},
+                {"source_hex": "0xa001b00c", "target_hex": "0xa00c5fe4"},
+                {"source_hex": "0xa001b01c", "target_hex": "0xa00f80d8"},
+                {"source_hex": "0xa001b028", "target_hex": "0xa00f80d8"},
+                {"source_hex": "0xa001b030", "target_hex": "0xa00f81a2"},
+                {"source_hex": "0xa001b046", "target_hex": "0xa00f3d5a"},
+                {"source_hex": "0xa001b04a", "target_hex": "0xa00f80d8"},
+                {"source_hex": "0xa001b052", "target_hex": "0xa00c5fe4"},
+                {"source_hex": "0xa001b062", "target_hex": "0xa00f80d8"},
+                {"source_hex": "0xa001b06e", "target_hex": "0xa00f80d8"},
+                {"source_hex": "0xa001b074", "target_hex": "0xa00f876e"},
+                {"source_hex": "0xa001b08a", "target_hex": "0xa00f3d5a"},
+                {"source_hex": "0xa001b08e", "target_hex": "0xa00f80d8"},
                 {"source_hex": "0xa00f819e", "target_hex": "0xa001b008"},
-                {"source_hex": "0xa00f876a", "target_hex": "0xa001b044"},
+                {"source_hex": "0xa00f876a", "target_hex": "0xa001b04e"},
+            ],
+        )
+        self.assertEqual(
+            report["verified_list_count_loads"],
+            [
+                {"address_hex": "0xa001b008", "operands": "x10,8(x19)"},
+                {"address_hex": "0xa001b010", "operands": "x21,x10"},
+                {"address_hex": "0xa001b04e", "operands": "x10,8(x19)"},
+                {"address_hex": "0xa001b056", "operands": "x21,x10"},
             ],
         )
 
@@ -89,7 +99,7 @@ class SettingsMenuWrapTests(unittest.TestCase):
         self.assertEqual(firmware[CODE_GAP_START - 2 : CODE_GAP_START], b"\x82\x80")
         self.assertEqual(firmware[CODE_GAP_END : CODE_GAP_END + 4], bytes.fromhex("23221500"))
         self.assertEqual(PATCHES[0].offset, CODE_GAP_START)
-        self.assertEqual(PATCHES[0].end, 0x01C07E)
+        self.assertEqual(PATCHES[0].end, 0x01C092)
 
     @unittest.skipUnless(REAL_BASELINE.is_file(), "真实原厂基线不在本机")
     def test_candidate_bytes_preserve_every_reviewed_log_region(self) -> None:
@@ -118,7 +128,7 @@ class SettingsMenuWrapTests(unittest.TestCase):
         self.assertFalse(document["review"]["firmware_output_allowed"])
         self.assertFalse(document["review"]["logging_changed"])
         self.assertEqual(len(document["patches"]), 3)
-        self.assertEqual(document["review"]["code_gap"]["used_bytes"], 118)
+        self.assertEqual(document["review"]["code_gap"]["used_bytes"], 138)
 
     @unittest.skipUnless(REAL_BASELINE.is_file(), "真实原厂基线不在本机")
     def test_draft_plan_cannot_pass_offline_build_approval_gate(self) -> None:
@@ -134,24 +144,12 @@ class SettingsMenuWrapTests(unittest.TestCase):
                 load_patch_plan(plan_path, REPO_ROOT)
 
     @unittest.skipUnless(REAL_BASELINE.is_file(), "真实原厂基线不在本机")
-    def test_approval_record_is_bound_to_exact_reviewed_scope(self) -> None:
-        document = build_approved_plan(
-            REAL_BASELINE,
-            tool_revision={"commit": "test", "scoped_code_dirty": True},
-        )
-
-        self.assertEqual(document["status"], APPROVED_PLAN_STATUS)
-        self.assertTrue(document["review"]["firmware_output_allowed"])
-        self.assertFalse(document["review"]["experimental_download_allowed"])
-        self.assertFalse(document["review"]["installation_allowed"])
-        self.assertEqual(
-            document["approval"]["scope_sha256"],
-            "4445654562f7911b38adfbcdd53eb587c55341d1a6020e5298b28c5b9c11b7ff",
-        )
-        self.assertEqual(
-            [entry["offset"] for entry in document["patches"]],
-            [0x01C008, 0x0F919E, 0x0F976A],
-        )
+    def test_previous_approval_record_cannot_approve_corrected_scope(self) -> None:
+        with self.assertRaisesRegex(SettingsMenuWrapError, "必须重新审批"):
+            build_approved_plan(
+                REAL_BASELINE,
+                tool_revision={"commit": "test", "scoped_code_dirty": True},
+            )
 
     @unittest.skipUnless(REAL_BASELINE.is_file(), "真实原厂基线不在本机")
     def test_changed_approval_scope_is_rejected(self) -> None:
@@ -175,18 +173,16 @@ class SettingsMenuWrapTests(unittest.TestCase):
                     )
 
     @unittest.skipUnless(REAL_BASELINE.is_file(), "真实原厂基线不在本机")
-    def test_approved_plan_passes_offline_build_approval_gate(self) -> None:
+    def test_corrected_scope_cannot_write_approved_plan(self) -> None:
         with tempfile.TemporaryDirectory() as selected:
             plan_path = Path(selected) / "settings-menu-wrap-approved.json"
-            write_approved_plan(
-                REAL_BASELINE,
-                plan_path,
-                tool_revision={"commit": "test", "scoped_code_dirty": True},
-            )
-
-            plan = load_patch_plan(plan_path, REPO_ROOT)
-            self.assertEqual(plan.status, APPROVED_PLAN_STATUS)
-            self.assertEqual(len(plan.patches), 3)
+            with self.assertRaisesRegex(SettingsMenuWrapError, "必须重新审批"):
+                write_approved_plan(
+                    REAL_BASELINE,
+                    plan_path,
+                    tool_revision={"commit": "test", "scoped_code_dirty": True},
+                )
+            self.assertFalse(plan_path.exists())
 
 
 if __name__ == "__main__":

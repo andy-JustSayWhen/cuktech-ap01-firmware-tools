@@ -90,15 +90,16 @@ PATCHES = (
         section_name=".payload",
         offset=0x01C008,
         runtime_address=0xA001B008,
-        expected_before=b"\x00" * 118,
+        expected_before=b"\x00" * 138,
         expected_replacement=bytes.fromhex(
-            "83c71400094763f4ea006fd06d0c938617fd63f4da006fd0ad0b"
-            "638456016fd0cd1793070003a380f40003a589009385faff0146"
-            "ef80fd516fd08d0983c71400094763f4ea006fd0ad08938607fd"
-            "63e456016fd0ed0799c26fd0ed709387fa02a380f40003a58900"
-            "81451386faffef805d4e6fd0ed05"
+            "03a58900efa09a7daa8a83c71400094763f4ea006fd0cd0b9386"
+            "17fd63f4da006fd00d0b638456016fd02d1793070003a380f400"
+            "03a589009385faff0146ef805d516fd0ed0803a58900efa03a79"
+            "aa8a83c71400094763f4ea006fd06d07938607fd63e456016fd0"
+            "ad0699c26fd0ad6f9387fa02a380f40003a5890081451386faff"
+            "ef801d4d6fd0ad04"
         ),
-        evidence_note="证据文档第 4 至 6 节：118 字节处理程序位于完整零填充函数间隙",
+        evidence_note="证据文档第 15 节：138 字节处理程序从实际列表控件动态读取项目数",
     ),
     PatchDefinition(
         name="右旋状态挂接",
@@ -108,7 +109,7 @@ PATCHES = (
         runtime_address=0xA00F819E,
         expected_before=bytes.fromhex("83c71400"),
         expected_replacement=bytes.fromhex("6f20b2e6"),
-        evidence_note="证据文档第 5、6 节：跳转目标为 0xa001b008",
+        evidence_note="证据文档第 15 节：跳转目标为 0xa001b008",
     ),
     PatchDefinition(
         name="左旋状态挂接",
@@ -117,8 +118,8 @@ PATCHES = (
         offset=0x0F976A,
         runtime_address=0xA00F876A,
         expected_before=bytes.fromhex("83c71400"),
-        expected_replacement=bytes.fromhex("6f20b28d"),
-        evidence_note="证据文档第 5、6 节：跳转目标为 0xa001b044",
+        expected_replacement=bytes.fromhex("6f20528e"),
+        evidence_note="证据文档第 15 节：跳转目标为 0xa001b04e",
     ),
 )
 
@@ -284,18 +285,20 @@ def assemble_and_verify() -> dict[str, Any]:
         except (OSError, subprocess.SubprocessError) as error:
             raise SettingsMenuWrapError("无法反查设置菜单修改指令") from error
         reviewed_external_edges = (
-            (0xA001B012, 0xA00F80D8),
-            (0xA001B01E, 0xA00F80D8),
-            (0xA001B026, 0xA00F81A2),
-            (0xA001B03C, 0xA00F3D5A),
-            (0xA001B040, 0xA00F80D8),
-            (0xA001B04E, 0xA00F80D8),
-            (0xA001B05A, 0xA00F80D8),
-            (0xA001B060, 0xA00F876E),
-            (0xA001B076, 0xA00F3D5A),
-            (0xA001B07A, 0xA00F80D8),
+            (0xA001B00C, 0xA00C5FE4),
+            (0xA001B01C, 0xA00F80D8),
+            (0xA001B028, 0xA00F80D8),
+            (0xA001B030, 0xA00F81A2),
+            (0xA001B046, 0xA00F3D5A),
+            (0xA001B04A, 0xA00F80D8),
+            (0xA001B052, 0xA00C5FE4),
+            (0xA001B062, 0xA00F80D8),
+            (0xA001B06E, 0xA00F80D8),
+            (0xA001B074, 0xA00F876E),
+            (0xA001B08A, 0xA00F3D5A),
+            (0xA001B08E, 0xA00F80D8),
             (0xA00F819E, 0xA001B008),
-            (0xA00F876A, 0xA001B044),
+            (0xA00F876A, 0xA001B04E),
         )
         disassembly_lines = {
             line.lstrip().split(":", 1)[0]: line.lower()
@@ -309,6 +312,19 @@ def assemble_and_verify() -> dict[str, Any]:
                     "反汇编控制流与已审查结果不一致："
                     f"0x{source:08x} -> 0x{target:08x}"
                 )
+        reviewed_list_count_loads = (
+            (0xA001B008, "x10,8(x19)"),
+            (0xA001B010, "x21,x10"),
+            (0xA001B04E, "x10,8(x19)"),
+            (0xA001B056, "x21,x10"),
+        )
+        for address, operands in reviewed_list_count_loads:
+            instruction = disassembly_lines.get(f"{address:08x}", "")
+            if operands not in instruction:
+                raise SettingsMenuWrapError(
+                    "实际设置列表计数的数据流与已审查结果不一致："
+                    f"0x{address:08x}"
+                )
 
     return {
         "version": EXPECTED_BINUTILS_VERSION,
@@ -321,6 +337,13 @@ def assemble_and_verify() -> dict[str, Any]:
                 "target_hex": f"0x{target:08x}",
             }
             for source, target in reviewed_external_edges
+        ],
+        "verified_list_count_loads": [
+            {
+                "address_hex": f"0x{address:08x}",
+                "operands": operands,
+            }
+            for address, operands in reviewed_list_count_loads
         ],
         "replacements": generated,
     }

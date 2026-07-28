@@ -5,6 +5,9 @@
 payload_start:
     .globl right_validate
 right_validate:
+    lw a0, 8(s3)
+    jal ra, list_item_count
+    c.mv s5, a0
     lbu a5, 1(s1)
     c.li a4, 2
     bltu s5, a4, handler_return
@@ -23,6 +26,9 @@ right_wrap:
 
     .globl left_validate
 left_validate:
+    lw a0, 8(s3)
+    jal ra, list_item_count
+    c.mv s5, a0
     lbu a5, 1(s1)
     c.li a4, 2
     bltu s5, a4, handler_return

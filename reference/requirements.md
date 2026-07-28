@@ -16,7 +16,7 @@
 | MiSans | 绘制 AGENTS 看板中文、数字和单位 | 字体 | 官方 Regular、Medium、Semibold、Bold 四个字重已放入被忽略的 `env/fonts/` | 是 | 官方下载页为 `https://hyperos.mi.com/font/en/download/`；成品注明“使用 MiSans 字体”；不提交、改造或转发字体文件 |
 | Material Design Icons | 提供活动、插件、输入、输出和缓存语义图标 | 图标资源 | 本轮接入官方矢量图标、许可与来源 | 是 | 上游为 `https://github.com/google/material-design-icons`，只保留本功能实际使用的图标 |
 | Requests（访问网络接口的程序库） | 访问 Codex、小米云和固件分发地址 | 软件库 | 参考项目已验证，本项目尚未接入 | 是 | 必须设置超时、有限重试和敏感信息过滤 |
-| RISC-V 编译工具 | 编译适用于 AP01 处理器的设备端载荷 | 构建工具 | 本机 GNU Binutils（把汇编文字变成处理器字节并反查结果的工具组）2.46.1 已接入系统设置菜单修改字节复现；其他设备端载荷尚未接入 | 是 | 当前使用 `/opt/homebrew/bin/riscv64-elf-as`、`riscv64-elf-ld`、`riscv64-elf-objcopy` 和 `riscv64-elf-objdump`；版本或输出变化时停止构建 |
+| RISC-V 编译工具 | 编译适用于 AP01 处理器的设备端载荷 | 构建工具 | 本机 GNU Binutils（把汇编文字变成处理器字节并反查结果的工具组）2.46.1 已逐字节复现设置菜单修正版 138 字节处理程序和两个挂接；其他设备端载荷尚未接入 | 是 | 当前使用 `/opt/homebrew/bin/riscv64-elf-as`、`riscv64-elf-ld`、`riscv64-elf-objcopy` 和 `riscv64-elf-objdump`；版本或输出变化时停止构建 |
 | Codex 当前登录态 | 授权读取额度、重置卡和个人统计 | 软件 / 账号 | 本机已登录并完成三个官方地址实测 | 是 | 直接读取 Codex 登录文件；不依赖 Cockpit Tools、CC Switch 或 Codex 桌面端安装，不要求再次输入密码 |
 | Codex 本地会话记录 | 汇总今日新增输入、输出、缓存命中和请求数 | 本地数据 | 本机存在，已按 CC Switch 3.16.1 原代码确认解析口径 | 是 | 直接扫描 Codex 会话目录；不读取 CC Switch 数据库，不输出提示词、回复正文和本机路径 |
 | ChatGPT 官方额度与重置卡接口 | 取得一周额度窗口和主动重置卡明细 | 网络服务 | 本机已实测返回一周窗口及两张可用重置卡 | 是 | 复现 Cockpit Tools 取数规则并维护本模块安全缓存；缺失字段不编造 |
