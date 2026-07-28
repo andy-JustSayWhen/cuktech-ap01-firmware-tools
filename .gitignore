@@ -14,6 +14,7 @@ __pycache__/
 # 固件与构建产物
 artifacts/firmware/
 artifacts/build/
+artifacts/rejected/
 
 # 环境与密钥
 env/
