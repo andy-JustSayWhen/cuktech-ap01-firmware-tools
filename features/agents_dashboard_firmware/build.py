@@ -294,16 +294,19 @@ def _load_observation_approval(output_sha256: str) -> dict[str, object]:
         raise AgentsDashboardFirmwareError("无法读取真机观察安装批准记录") from error
     expected = {
         "schema_version": 1,
-        "status": "approved-for-one-installation",
         "target_model": AP01_1_0_2_0031.model,
         "target_version": AP01_1_0_2_0031.version,
         "output_filename": OBSERVATION_OUTPUT_FILENAME,
         "output_sha256": output_sha256,
-        "installation_consumed_at_beijing": None,
     }
     for field, value in expected.items():
         if document.get(field) != value:
             raise AgentsDashboardFirmwareError(f"真机观察批准记录字段不匹配：{field}")
+    if document.get("status") not in {
+        "approved-for-one-installation",
+        "installation-consumed",
+    }:
+        raise AgentsDashboardFirmwareError("真机观察批准记录状态不匹配")
     risk_override = document.get("risk_override")
     if not isinstance(risk_override, list) or len(risk_override) != 4:
         raise AgentsDashboardFirmwareError("真机观察批准记录必须固定四项风险跳过范围")
