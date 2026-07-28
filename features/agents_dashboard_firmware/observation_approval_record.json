@@ -1,20 +1,18 @@
 {
   "schema_version": 1,
-  "status": "installation-consumed",
-  "approved_at_beijing": "2026-07-28T19:01:58+08:00",
+  "status": "approved-for-one-installation",
+  "approved_at_beijing": "2026-07-28T19:19:49+08:00",
   "target_model": "njcuk.enstor.ap01",
   "target_version": "1.0.2_0031",
   "target_device": "当前账号唯一匹配的 AP01 专用测试设备",
   "output_filename": "ap01-1.0.2_0031-agents-observation.bin",
-  "output_sha256": "3f113ef1f8d121dae767754ac7ab9418b81c82ac31d26ce2f213a11032b41986",
+  "output_sha256": "2ef4305bd3f29873d7817a495097b074e06f62ba0189e4f35f0be65b77c55813",
   "risk_override": [
     "当前槽、更新槽与实际写入目标证据",
     "两份逐字节一致的同机全闪存备份",
     "同机原厂固件回刷验证",
     "不依赖设备正常启动和联网的独立恢复验证"
   ],
-  "approval_statement": "批准第五次刷入；只限动态一级导航修正版",
-  "approved_scope": "左右旋转按实际页面数量在六个原厂一级页面与 AGENTS 页面之间首尾循环，并排除原厂米家详情对象",
-  "installation_consumed_at_beijing": "2026-07-28T19:09:14+08:00",
-  "installation_result": "上传对象完整回读一致；设备完成下载、安装、重启和重新上线，七次稳定性采样通过；等待用户物理验收"
+  "approval_statement": "用户授权修复完成后直接刷机且无需再次批准；只限第六次 C1、C2 条件页排除修正版",
+  "approved_scope": "一级循环固定使用对象序号 0、3、4、5、6、7、8；C1、C2 条件页和米家详情继续交由原厂逻辑处理"
 }

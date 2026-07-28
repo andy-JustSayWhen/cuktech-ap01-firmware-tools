@@ -72,10 +72,12 @@ REQUIRED_CALLEES = (
     0xA007C256,
     0xA00BBFEE,
 )
-EXPECTED_PAYLOAD_SIZE = 27_560
+EXPECTED_PAYLOAD_SIZE = 27_628
 EXPECTED_PAYLOAD_SHA256 = (
-    "664ea5210f2755a9555e3700371d0e4d5d7a0556a9208616aefc613450c97f9f"
+    "4114b9c925f948b4bc9b73105f236b807e5c82ce2779d1acb7772878b1f38ba9"
 )
+PRIMARY_PAGE_INDICES = (0, 3, 4, 5, 6, 7, 8)
+CONDITIONAL_PORT_INDICES = (1, 2)
 OBSERVATION_OUTPUT_FILENAME = "ap01-1.0.2_0031-agents-observation.bin"
 STAGE_SIZE = 6_804_520
 STAGE_SHA256 = "348d0843ac3f3f380eb155170c4104fd8467a018ddfd13670d67be998f269dc1"
@@ -546,6 +548,11 @@ def build_page_registration_payload(
             }
             for asset in assets
         ],
+        "primary_navigation": {
+            "normal_sequence": list(PRIMARY_PAGE_INDICES),
+            "stock_conditional_port_indices": list(CONDITIONAL_PORT_INDICES),
+            "stock_mijia_detail_index": 9,
+        },
         "draft_modifications": [
             {
                 "name": "原厂第一张动图数据长度",

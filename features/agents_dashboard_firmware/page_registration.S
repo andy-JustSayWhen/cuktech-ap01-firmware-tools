@@ -155,18 +155,33 @@ ap01_agents_key_event:
     j .Lshow_detail_index
 
 .Loverview_left:
+    lw t0, 12(sp)
+    sw t0, 8(sp)
     mv a0, s1
-    lw a1, 12(sp)
-    bnez a1, .Loverview_left_previous
     call window_get_count
-    addi a1, a0, -2
+    addi t1, a0, -2
+    lw t0, 8(sp)
+    bltu t1, t0, .Lstock_key_event
+    beqz t0, .Loverview_left_wrap
+    li t2, 3
+    bltu t0, t2, .Lstock_key_event
+    beq t0, t2, .Loverview_left_power
+    addi a1, t0, -1
     mv a0, s1
     li a2, 2
     call window_set_active
     j .Lkey_consumed
 
-.Loverview_left_previous:
-    addi a1, a1, -1
+.Loverview_left_wrap:
+    mv a1, t1
+    mv a0, s1
+    li a2, 2
+    call window_set_active
+    j .Lkey_consumed
+
+.Loverview_left_power:
+    li a1, 0
+    mv a0, s1
     li a2, 2
     call window_set_active
     j .Lkey_consumed
@@ -182,14 +197,25 @@ ap01_agents_key_event:
 
 .Loverview_right:
     lw t0, 12(sp)
-    addi t0, t0, 1
     sw t0, 8(sp)
     mv a0, s1
     call window_get_count
-    addi a0, a0, -1
-    lw a1, 8(sp)
-    bltu a1, a0, .Loverview_right_target_ready
+    addi t1, a0, -2
+    lw t0, 8(sp)
+    bltu t1, t0, .Lstock_key_event
+    beq t0, t1, .Loverview_right_wrap
+    beqz t0, .Loverview_right_time
+    li t2, 3
+    bltu t0, t2, .Lstock_key_event
+    addi a1, t0, 1
+    j .Loverview_right_target_ready
+
+.Loverview_right_wrap:
     li a1, 0
+    j .Loverview_right_target_ready
+
+.Loverview_right_time:
+    li a1, 3
 
 .Loverview_right_target_ready:
     mv a0, s1

@@ -40,8 +40,20 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
         self.assertTrue(document["gates"]["dynamic_primary_count_present"])
         self.assertTrue(document["gates"]["initial_x_call_present"])
         self.assertFalse(document["gates"]["firmware_output_allowed"])
-        self.assertEqual(document["payload"]["size"], 27_560)
-        self.assertEqual(document["payload"]["remaining"], 33_374)
+        self.assertEqual(
+            document["primary_navigation"]["normal_sequence"],
+            [0, 3, 4, 5, 6, 7, 8],
+        )
+        self.assertEqual(
+            document["primary_navigation"]["stock_conditional_port_indices"],
+            [1, 2],
+        )
+        self.assertEqual(
+            document["primary_navigation"]["stock_mijia_detail_index"],
+            9,
+        )
+        self.assertEqual(document["payload"]["size"], 27_628)
+        self.assertEqual(document["payload"]["remaining"], 33_306)
         self.assertEqual(len(document["fallback_assets"]), 4)
         self.assertEqual(
             document["draft_modifications"][0]["expected_before_hex"],
@@ -82,7 +94,7 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
         self.assertEqual(result.output.name, OBSERVATION_OUTPUT_FILENAME)
         self.assertEqual(
             result.sha256,
-            "3f113ef1f8d121dae767754ac7ab9418b81c82ac31d26ce2f213a11032b41986",
+            "2ef4305bd3f29873d7817a495097b074e06f62ba0189e4f35f0be65b77c55813",
         )
         self.assertIn('"outside_allowed_ranges_identical": true', manifest_text)
         self.assertFalse(output_mode & stat.S_IWUSR)
