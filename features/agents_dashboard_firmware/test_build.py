@@ -172,6 +172,12 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
         )[0]
         self.assertGreaterEqual(key_event.count("addi\tt1,a0,-1"), 2)
         self.assertGreaterEqual(key_event.count("addi\tt2,a0,-2"), 2)
+        self.assertIn("lw\tt0,52(s1)", key_event)
+        self.assertIn("li\tt1,9", key_event)
+        self.assertIn("li\tt1,8", key_event)
+        self.assertIn("sw\tt1,52(s1)", key_event)
+        self.assertIn("sw\tt0,52(s1)", key_event)
+        self.assertIn("<stock_key_event>", key_event)
 
     def test_request_formats_fit_without_positional_printf(self) -> None:
         credentials = DeviceCredentials(

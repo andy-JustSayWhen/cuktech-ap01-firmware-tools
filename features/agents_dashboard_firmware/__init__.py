@@ -11,6 +11,7 @@ from .fallback_assets import (
     build_fallback_assets,
 )
 from .sync_build import (
+    CONFIRM_COMPAT_OUTPUT_FILENAME,
     DETAIL_COMPAT_OUTPUT_FILENAME,
     SYNC_OUTPUT_FILENAME,
     SyncFirmwareResult,
@@ -25,6 +26,7 @@ __all__ = [
     "build_observation_firmware",
     "build_fallback_assets",
     "build_page_registration_payload",
+    "CONFIRM_COMPAT_OUTPUT_FILENAME",
     "DETAIL_COMPAT_OUTPUT_FILENAME",
     "SYNC_OUTPUT_FILENAME",
     "SyncFirmwareResult",

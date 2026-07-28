@@ -5,6 +5,8 @@
     .equ KEY_LEFT, 19
     .equ KEY_RIGHT, 20
     .equ KEY_ENTER, 10
+    .equ STOCK_LAST_INDEX, 8
+    .equ AUGMENTED_LAST_INDEX, 9
 
     .section .payload, "ax", @progbits
     .align 2
@@ -391,6 +393,30 @@ ap01_agents_key_event:
     ret
 
 .Lstock_key_event:
+    .ifdef SYNC_LOADER
+    /*
+     * The stock enter dispatcher reads offset 52 as a fixed 0..8 page
+     * selector.  Hide the appended AGENTS child only for the duration of the
+     * synchronous stock callback, then restore the augmented boundary.
+     */
+    beqz s1, .Lcall_stock_key_event
+    lw t0, 52(s1)
+    li t1, AUGMENTED_LAST_INDEX
+    bne t0, t1, .Lcall_stock_key_event
+    sw t0, 4(sp)
+    li t1, STOCK_LAST_INDEX
+    sw t1, 52(s1)
+    mv a0, s0
+    call stock_key_event
+    lw t0, 4(sp)
+    sw t0, 52(s1)
+    j .Lkey_consumed
+
+.Lcall_stock_key_event:
+    mv a0, s0
+    call stock_key_event
+    j .Lkey_consumed
+    .else
     mv a0, s0
     lw ra, 28(sp)
     lw s0, 24(sp)
@@ -398,6 +424,7 @@ ap01_agents_key_event:
     lw s2, 16(sp)
     addi sp, sp, 32
     tail stock_key_event
+    .endif
 
     .size ap01_agents_key_event, .-ap01_agents_key_event
 
