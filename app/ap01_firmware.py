@@ -19,6 +19,10 @@ from features.offline_firmware_build import (
     inspect_baseline,
     make_firmware,
 )
+from features.firmware_payload_space import (
+    FirmwarePayloadSpaceError,
+    inspect_payload_space,
+)
 from features.optimized_firmware_build import (
     OptimizedFirmwareBuildError,
     inspect_optimized_baseline,
@@ -108,6 +112,14 @@ def _parser() -> argparse.ArgumentParser:
     navigation_inspect_command.add_argument("--original", type=Path, required=True)
     navigation_inspect_command.add_argument("--input", type=Path, required=True)
     navigation_inspect_command.add_argument("--report", type=Path, required=True)
+
+    payload_space_command = commands.add_parser(
+        "payload-space-inspect",
+        help="无损优化固定原厂动图并检查载荷候选空间",
+    )
+    payload_space_command.add_argument("--input", type=Path, required=True)
+    payload_space_command.add_argument("--optimized-gif", type=Path, required=True)
+    payload_space_command.add_argument("--report", type=Path, required=True)
     return parser
 
 
@@ -224,6 +236,28 @@ def main(argv: list[str] | None = None) -> int:
             )
             return 0
 
+        if args.command == "payload-space-inspect":
+            report = inspect_payload_space(
+                args.input,
+                args.optimized_gif,
+                args.report,
+                tool_revision=revision,
+            )
+            print(
+                json.dumps(
+                    {
+                        "result": "原厂动图无损优化与载荷空间检查通过",
+                        "optimized_gif": str(args.optimized_gif.resolve()),
+                        "report": str(args.report.resolve()),
+                        "payload_space": report["payload_space"],
+                        "gates": report["gates"],
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                )
+            )
+            return 0
+
         result = make_firmware(
             args.input,
             args.plan,
@@ -253,6 +287,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     except (
         BuildGateError,
+        FirmwarePayloadSpaceError,
         FirmwareValidationError,
         OptimizedFirmwareBuildError,
         PrimaryPageNavigationError,
