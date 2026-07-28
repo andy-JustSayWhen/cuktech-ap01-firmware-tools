@@ -89,7 +89,7 @@ def generate(output: Path = DEFAULT_OUTPUT, font_directory: Path = DEFAULT_FONTS
         "",
         f"- 生成时间：`{snapshot.generated_at}`",
         "- 画布：`320×240`",
-        "- 字体：使用 MiSans 字体",
+        "- 字体：主数字使用 Michroma，其余文字使用 MiSans",
         (
             "- 字段口径：见 "
             "[`SPEC` 第 4.2 节](../../../../SPEC.md#42-看板字段口径)"

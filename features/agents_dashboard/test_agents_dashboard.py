@@ -38,7 +38,14 @@ from .pricing import (
     markdown_rate_row,
     round_usd,
 )
-from .renderer import FONT_ROLE_FILES, FontBook, _countdown, render_all
+from .renderer import (
+    FONT_ROLE_FILES,
+    FontBook,
+    _countdown,
+    _remaining_days,
+    _short_date,
+    render_all,
+)
 
 
 BEIJING = ZoneInfo("Asia/Shanghai")
@@ -477,11 +484,11 @@ class CollectorTests(unittest.TestCase):
 
 
 class RendererTests(unittest.TestCase):
-    def test_font_roles_use_four_distinct_weights(self) -> None:
+    def test_font_roles_use_display_font_and_three_text_weights(self) -> None:
         self.assertEqual(
             FONT_ROLE_FILES,
             {
-                "hero": "MiSans-Regular.ttf",
+                "hero": "Michroma-Regular.ttf",
                 "secondary": "MiSans-Medium.ttf",
                 "body": "MiSans-Semibold.ttf",
                 "emphasis": "MiSans-Bold.ttf",
@@ -497,6 +504,12 @@ class RendererTests(unittest.TestCase):
         self.assertEqual(countdown, "5天0小时")
         self.assertEqual(reset_time, "08月02日 03:18")
 
+    def test_reset_card_compact_date_and_remaining_days(self) -> None:
+        generated_at = "2026-07-28T08:00:00+08:00"
+        expires_at = "2026-08-12T05:08:56+08:00"
+        self.assertEqual(_short_date(expires_at), "08/12")
+        self.assertEqual(_remaining_days(expires_at, generated_at), "15")
+
     def test_missing_fonts_fail_closed(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             with self.assertRaises(FileNotFoundError):
@@ -504,20 +517,21 @@ class RendererTests(unittest.TestCase):
 
     @unittest.skipUnless(
         all((FONT_DIRECTORY / name).is_file() for name in FONT_ROLE_FILES.values()),
-        "本机未放置完整 MiSans 字重",
+        "本机未放置完整看板字体",
     )
-    def test_font_role_ink_increases_with_hierarchy(self) -> None:
+    def test_text_font_role_ink_increases_with_hierarchy(self) -> None:
         fonts = FontBook(FONT_DIRECTORY)
         ink = [
             sum(fonts.get(7, role).getmask("活动洞察请求数"))
-            for role in ("hero", "secondary", "body", "emphasis")
+            for role in ("secondary", "body", "emphasis")
         ]
         self.assertEqual(ink, sorted(ink))
-        self.assertEqual(len(set(ink)), 4)
+        self.assertEqual(len(set(ink)), 3)
+        self.assertIn("Michroma", fonts.get(12, "hero").getname()[0])
 
     @unittest.skipUnless(
         all((FONT_DIRECTORY / name).is_file() for name in FONT_ROLE_FILES.values()),
-        "本机未放置完整 MiSans 字重",
+        "本机未放置完整看板字体",
     )
     def test_four_pages_are_exact_size_and_rgb(self) -> None:
         snapshot = DashboardSnapshot(

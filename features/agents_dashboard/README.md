@@ -49,8 +49,8 @@ python3 app/ap01_firmware.py agents-sync-build \
 
 构建只生成候选文件和清单，不上传、不下发、不安装。
 
-渲染前必须从 MiSans 官方下载页取得 Regular、Medium、Semibold、Bold 四个字重，并放入
-`env/fonts/`。具体字重角色只见效果图评审文档第 2 节。本模块生成的图片使用 MiSans 字体；
-字体文件不进入版本控制，也不随本项目转发。
+渲染前必须从 Google Fonts 取得 Michroma Regular，并从 MiSans 官方下载页取得 Regular、
+Medium、Semibold、Bold 四个字重，统一放入 `env/fonts/`。具体字体角色只见效果图评审文档
+第 2 节。字体文件不进入版本控制，也不随本项目转发。
 
 图标来源、文件对应关系和许可见 [`assets/icons/SOURCES.md`](assets/icons/SOURCES.md)。

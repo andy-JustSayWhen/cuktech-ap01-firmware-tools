@@ -1,7 +1,7 @@
 {
-  "generated_at": "2026-07-28T05:26:38+08:00",
-  "weekly_remaining_percent": 31,
-  "weekly_reset_at": "2026-08-02T03:18:35+08:00",
+  "generated_at": "2026-07-28T21:31:15+08:00",
+  "weekly_remaining_percent": 71,
+  "weekly_reset_at": "2026-08-04T11:13:30+08:00",
   "reset_cards_available": 2,
   "reset_cards": [
     {
@@ -18,33 +18,33 @@
     }
   ],
   "today": {
-    "total_tokens": 189074322,
-    "fresh_input_tokens": 7528683,
-    "raw_input_tokens": 188199403,
-    "output_tokens": 874919,
-    "cached_input_tokens": 180670720,
+    "total_tokens": 397284683,
+    "fresh_input_tokens": 14324135,
+    "raw_input_tokens": 395629735,
+    "output_tokens": 1654948,
+    "cached_input_tokens": 381305600,
     "cache_write_input_tokens": 0,
-    "reasoning_output_tokens": 367362,
-    "request_count": 1439,
+    "reasoning_output_tokens": 632568,
+    "request_count": 2923,
     "cache_hit_percent": 96,
-    "api_cost_usd": "155.872239",
-    "api_cost_usd_rounded": 156,
+    "api_cost_usd": "313.567809",
+    "api_cost_usd_rounded": 314,
     "model_usage": [
       {
         "model": "gpt-5.6-sol",
-        "raw_input_tokens": 188199403,
-        "fresh_input_tokens": 7528683,
-        "cached_input_tokens": 180670720,
+        "raw_input_tokens": 395629735,
+        "fresh_input_tokens": 14324135,
+        "cached_input_tokens": 381305600,
         "cache_write_input_tokens": 0,
-        "output_tokens": 874919,
-        "reasoning_output_tokens": 367362,
-        "request_count": 1439,
+        "output_tokens": 1654948,
+        "reasoning_output_tokens": 632568,
+        "request_count": 2923,
         "long_context_request_count": 2,
-        "api_cost_usd": "155.872239"
+        "api_cost_usd": "313.567809"
       }
     ]
   },
-  "last_30d_tokens": 15852929368,
+  "last_30d_tokens": 16335186708,
   "daily_30d": [
     [
       "2026-06-29",
@@ -156,11 +156,11 @@
     ],
     [
       "2026-07-26",
-      5939374
+      461561556
     ],
     [
       "2026-07-27",
-      0
+      26635158
     ],
     [
       "2026-07-28",
@@ -168,12 +168,12 @@
     ]
   ],
   "activity": {
-    "fast_mode_percent": 38,
+    "fast_mode_percent": 37,
     "reasoning_label": "高",
     "reasoning_percent": 43,
     "explored_skills": 86,
-    "skill_uses": 1392,
-    "task_count": 4129,
+    "skill_uses": 1407,
+    "task_count": 4235,
     "longest_task_minutes": 1310
   },
   "common_plugins": [
@@ -183,25 +183,25 @@
     },
     {
       "name": "browser",
-      "count": 172
+      "count": 176
     },
     {
       "name": "computer-use",
-      "count": 127
+      "count": 130
     },
     {
       "name": "product-design",
-      "count": 102
+      "count": 105
     },
     {
       "name": "github",
       "count": 73
     }
   ],
-  "quota_fetched_at": "2026-07-28T05:26:38+08:00",
-  "reset_cards_fetched_at": "2026-07-28T05:26:38+08:00",
-  "profile_fetched_at": "2026-07-28T04:30:32+08:00",
-  "profile_usage_as_of": "2026-07-26",
+  "quota_fetched_at": "2026-07-28T21:30:56+08:00",
+  "reset_cards_fetched_at": "2026-07-28T21:30:56+08:00",
+  "profile_fetched_at": "2026-07-28T19:45:05+08:00",
+  "profile_usage_as_of": "2026-07-27",
   "pricing_verified_on": "2026-07-28",
   "quota_available": true,
   "reset_cards_source_available": true,

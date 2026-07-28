@@ -27,7 +27,7 @@ RED = "#FF2228"
 GREEN = "#58F20D"
 ICON_DIR = Path(__file__).parent / "assets" / "icons"
 FONT_ROLE_FILES = {
-    "hero": "MiSans-Regular.ttf",
+    "hero": "Michroma-Regular.ttf",
     "secondary": "MiSans-Medium.ttf",
     "body": "MiSans-Semibold.ttf",
     "emphasis": "MiSans-Bold.ttf",
@@ -42,7 +42,7 @@ class FontBook:
         }
         missing = [path.name for path in paths.values() if not path.is_file()]
         if missing:
-            raise FileNotFoundError(f"Missing required MiSans files: {', '.join(missing)}")
+            raise FileNotFoundError(f"Missing required dashboard fonts: {', '.join(missing)}")
         self.paths = paths
 
     def get(self, size: float, role: str = "body") -> ImageFont.FreeTypeFont:
@@ -119,7 +119,7 @@ class Canvas:
     def glow(self, bounds: tuple[float, float, float, float], color: str, blur: float) -> None:
         layer = Image.new("RGBA", self.image.size, (0, 0, 0, 0))
         layer_draw = ImageDraw.Draw(layer)
-        layer_draw.ellipse(self.rect(bounds), fill=ImageColor.getrgb(color) + (110,))
+        layer_draw.ellipse(self.rect(bounds), fill=ImageColor.getrgb(color) + (160,))
         layer = layer.filter(ImageFilter.GaussianBlur(self.s(blur)))
         self.image.alpha_composite(layer)
 
@@ -168,6 +168,31 @@ def _draw_gradient_arc(
             fill=quality_color(absolute_percent),
             width=canvas.s(width),
         )
+
+
+def _draw_quality_arc(
+    canvas: Canvas,
+    bounds: tuple[float, float, float, float],
+    start: float,
+    span: float,
+    percent: int,
+    width: float,
+) -> None:
+    bounded = max(0, min(100, percent))
+    canvas.draw.arc(
+        canvas.rect(bounds),
+        start=start,
+        end=start + span,
+        fill=DARK,
+        width=canvas.s(width),
+    )
+    canvas.draw.arc(
+        canvas.rect(bounds),
+        start=start,
+        end=start + span * bounded / 100,
+        fill=quality_color(bounded),
+        width=canvas.s(width),
+    )
 
 
 def _fit_font(
@@ -250,7 +275,7 @@ def render_overview(snapshot: DashboardSnapshot, fonts: FontBook) -> Image.Image
     remaining = snapshot.weekly_remaining_percent
     if remaining is None:
         remaining = 0
-    _draw_gradient_arc(canvas, (24, 34, 139, 149), -90, 360, remaining, 4.5)
+    _draw_quality_arc(canvas, (24, 34, 139, 149), -90, 360, remaining, 4.5)
     canvas.text((79, 93), format_integer(remaining), 41, WHITE, "hero", "mm")
     number_bounds = canvas.draw.textbbox(
         (0, 0), format_integer(remaining), font=canvas.fonts.get(41, "hero")
@@ -269,9 +294,9 @@ def render_overview(snapshot: DashboardSnapshot, fonts: FontBook) -> Image.Image
     today = format_token_count(snapshot.today.total_tokens)
     last_30 = format_token_count(snapshot.last_30d_tokens)
     canvas.text((178, 38), "今日消耗", 7, YELLOW, "emphasis")
-    _draw_token_pair(canvas, today, 258, 79, 265, (38, 31, 27), 82, 7)
+    _draw_token_pair(canvas, today, 258, 79, 265, (38, 31, 27, 23, 20), 82, 7)
     canvas.text((178, 104), "近30天消耗", 7, ORANGE, "emphasis")
-    _draw_token_pair(canvas, last_30, 258, 145, 265, (38, 31, 27), 82, 7)
+    _draw_token_pair(canvas, last_30, 258, 145, 265, (38, 31, 27, 23, 20), 82, 7)
 
     canvas.text((16, 170), "近7天消耗", 7, CYAN, "emphasis")
     _sparkline(canvas, [tokens for _, tokens in snapshot.daily_30d[-7:]])
@@ -298,6 +323,22 @@ def _short_timestamp(value: str | None) -> str:
         return "无法获取"
     parsed = datetime.fromisoformat(value)
     return f"{parsed.month:02d}月{parsed.day:02d}日 {parsed.hour:02d}:{parsed.minute:02d}"
+
+
+def _short_date(value: str | None) -> str:
+    if not value:
+        return "--/--"
+    parsed = datetime.fromisoformat(value)
+    return f"{parsed.month:02d}/{parsed.day:02d}"
+
+
+def _remaining_days(value: str | None, generated_at: str) -> str:
+    if not value:
+        return "--"
+    expires = datetime.fromisoformat(value)
+    generated = datetime.fromisoformat(generated_at)
+    seconds = max(0, int((expires - generated).total_seconds()))
+    return format_integer((seconds + 86_399) // 86_400)
 
 
 def render_weekly(snapshot: DashboardSnapshot, fonts: FontBook) -> Image.Image:
@@ -349,23 +390,13 @@ def render_weekly(snapshot: DashboardSnapshot, fonts: FontBook) -> Image.Image:
     available_size = _fit_font(canvas, available_text, (7, 6), 75, "body")
     canvas.text((267, 114), available_text, available_size, CYAN, "body", "mm")
 
-    canvas.line(((10, 146), (308, 146)), "#3B2708", 0.7)
-    canvas.text((14, 160), "重置卡明细", 9, WHITE, "body", "lm")
-    canvas.text(
-        (304, 160),
-        f"共 {available} 张",
-        7,
-        MUTED,
-        "secondary",
-        "rm",
-    )
+    canvas.line(((10, 146), (308, 146)), "#4A2B08", 0.8)
     cards = list(snapshot.reset_cards[:2])
     if not cards:
-        canvas.line(((10, 174), (308, 174)), "#251E12", 0.5)
         canvas.text(
-            (14, 203),
+            (14, 193),
             "当前账号未返回可核验的重置卡数据",
-            8,
+            9,
             DIM,
             "body",
             "lm",
@@ -373,33 +404,24 @@ def render_weekly(snapshot: DashboardSnapshot, fonts: FontBook) -> Image.Image:
         return canvas.finish()
 
     for index, card in enumerate(cards):
-        y = 181 + index * 29
-        canvas.draw.ellipse(
-            canvas.rect((14, y - 6, 24, y + 4)),
-            outline=CYAN,
-            width=canvas.s(0.8),
-        )
-        canvas.text((19, y - 1), str(index + 1), 6, CYAN, "body", "mm")
-        canvas.text((31, y - 5), "获得", 6, DIM, "secondary", "lm")
+        y = 173 + index * 35
+        canvas.text((14, y), f"重置卡 {index + 1}", 11, WHITE, "secondary", "lm")
+        canvas.line(((88, y - 10), (88, y + 10)), YELLOW, 0.8)
+        canvas.text((99, y), "剩余", 7, DIM, "body", "lm")
         canvas.text(
-            (55, y - 5),
-            _short_timestamp(card.granted_at),
-            7,
-            MUTED,
-            "body",
+            (121, y),
+            f"{_remaining_days(card.expires_at, snapshot.generated_at)}天",
+            8,
+            YELLOW,
+            "emphasis",
             "lm",
         )
-        canvas.text((31, y + 7), "失效", 6, DIM, "secondary", "lm")
-        canvas.text(
-            (55, y + 7),
-            _short_timestamp(card.expires_at),
-            7,
-            MUTED,
-            "body",
-            "lm",
-        )
+        canvas.text((165, y), "发放", 7, DIM, "body", "lm")
+        canvas.text((188, y), _short_date(card.granted_at), 8, MUTED, "body", "lm")
+        canvas.text((238, y), "到期", 7, DIM, "body", "lm")
+        canvas.text((261, y), _short_date(card.expires_at), 8, ORANGE, "body", "lm")
         if index == 0 and len(cards) > 1:
-            canvas.line(((14, 196), (304, 196)), "#251E12", 0.5)
+            canvas.line(((14, 190), (304, 190)), "#35200B", 0.6)
     return canvas.finish()
 
 
@@ -426,7 +448,7 @@ def render_today(snapshot: DashboardSnapshot, fonts: FontBook) -> Image.Image:
     canvas.text((14, 25), "总消耗", 7, MUTED, "body")
 
     total = format_token_count(snapshot.today.total_tokens)
-    _draw_token_pair(canvas, total, 178, 92, 186, (62, 46), 164, 9, WHITE, WHITE)
+    _draw_token_pair(canvas, total, 144, 92, 153, (56, 48, 45, 42, 36), 134, 9, WHITE, WHITE)
 
     canvas.line(((240, 22), (240, 100)), "#343535", 0.8)
     canvas.text((258, 21), "请求数", 7, YELLOW, "emphasis")
@@ -459,13 +481,13 @@ def render_today(snapshot: DashboardSnapshot, fonts: FontBook) -> Image.Image:
         canvas,
         16,
         "新增输入",
-        "arrow",
+        "arrow-circle",
         BLUE,
         format_token_count(snapshot.today.fresh_input_tokens),
         True,
     )
     _draw_metric_column(
-        canvas, 119, "输出", "arrow", CYAN, format_token_count(snapshot.today.output_tokens)
+        canvas, 119, "输出", "arrow-circle", CYAN, format_token_count(snapshot.today.output_tokens)
     )
     _draw_metric_column(
         canvas, 222, "缓存命中", "cache", YELLOW, format_token_count(snapshot.today.cached_input_tokens)
@@ -527,8 +549,8 @@ def render_last_30_days(snapshot: DashboardSnapshot, fonts: FontBook) -> Image.I
         107,
         79,
         115,
-        (47, 38, 32),
-        88,
+        (47, 40, 36, 32, 27, 23, 20),
+        100,
         8,
         WHITE,
         WHITE,
@@ -536,8 +558,8 @@ def render_last_30_days(snapshot: DashboardSnapshot, fonts: FontBook) -> Image.I
     canvas.text((190, 38), "最长任务", 7, MUTED, "body")
     hours_value, minutes_value = divmod(snapshot.activity.longest_task_minutes, 60)
     duration = f"{format_integer(hours_value)}时{minutes_value}分"
-    duration_size = _fit_font(canvas, duration, (32, 27, 23), 119, "hero")
-    canvas.text((304, 79), duration, duration_size, WHITE, "hero", "rs")
+    duration_size = _fit_font(canvas, duration, (32, 27, 23), 119, "secondary")
+    canvas.text((304, 79), duration, duration_size, WHITE, "secondary", "rs")
 
     canvas.icon("activity", (21, 98), 11, YELLOW)
     canvas.text((36, 104), "活动洞察", 7, MUTED, "body", "lm")

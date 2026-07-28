@@ -16,6 +16,7 @@
 | Gifsicle（无损整理动图编码的工具） | 在保持原厂动图逐帧像素与时序一致的前提下释放设备端载荷空间 | 构建工具 | 本机 1.96 已安装并固定第 1、9 个原厂动图的确定性输出 | 是 | 只接受 `-O3` 固定结果；版本、输出指纹或逐帧等价检查变化时停止构建 |
 | FFmpeg（用另一套程序独立解码画面的工具） | 复核优化前后动图的实际播放帧完全一致 | 构建工具 | 本机 8.1.1 已安装并完成第 1 个原厂动图的逐帧复核 | 是 | 与 Pillow 的逐帧结果必须同时通过；任一解码结果变化时停止构建 |
 | MiSans | 绘制 AGENTS 看板中文、数字和单位 | 字体 | 官方 Regular、Medium、Semibold、Bold 四个字重已放入被忽略的 `env/fonts/` | 是 | 官方下载页为 `https://hyperos.mi.com/font/en/download/`；成品注明“使用 MiSans 字体”；不提交、改造或转发字体文件 |
+| Michroma | 绘制 AGENTS 看板超大主数字和主要 Token 数字 | 字体 | Google Fonts 官方 Regular 字重已取得并通过设备动图帧对照，待用户真机复核 | 是 | 上游为 `https://github.com/google/fonts/tree/main/ofl/michroma`，使用 SIL Open Font License 1.1；字体文件只放在被忽略的 `env/fonts/` |
 | Material Design Icons | 提供活动、插件、输入、输出和缓存语义图标 | 图标资源 | 本轮接入官方矢量图标、许可与来源 | 是 | 上游为 `https://github.com/google/material-design-icons`，只保留本功能实际使用的图标 |
 | B-Con crypto-algorithms | 提供设备端 SHA-256 与响应授权校验的无标准库实现基础 | 源码参考 | 已把公开领域 SHA-256 实现改造成 AP01 独立版本，并通过主机端已知结果与流式整包测试 | 是 | 上游为 `https://github.com/B-Con/crypto-algorithms`；设备端不调用尚未定位的原厂加密接口 |
 | Requests（访问网络接口的程序库） | 参考项目访问网络接口 | 软件库 | 本项目当前使用 Python 标准库完成 Codex 与看板服务请求，未采用本依赖 | 否 | 后续若引入，必须设置超时、有限重试和敏感信息过滤 |
