@@ -3,7 +3,6 @@ from __future__ import annotations
 import hashlib
 import hmac
 import shutil
-import stat
 import subprocess
 import tempfile
 import unittest
@@ -64,8 +63,8 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
             document["primary_navigation"]["stock_mijia_detail_index"],
             9,
         )
-        self.assertEqual(document["payload"]["size"], 27_628)
-        self.assertEqual(document["payload"]["remaining"], 33_306)
+        self.assertEqual(document["payload"]["size"], 27_688)
+        self.assertEqual(document["payload"]["remaining"], 33_246)
         self.assertEqual(len(document["fallback_assets"]), 4)
         self.assertEqual(
             document["draft_modifications"][0]["expected_before_hex"],
@@ -84,32 +83,24 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
             "9385e5fe",
         )
 
-    def test_installed_dynamic_navigation_candidate_is_reproducible(self) -> None:
+    def test_changed_page_payload_cannot_reuse_observation_approval(self) -> None:
         if not STAGE.is_file() or not shutil.which("riscv64-elf-as"):
             self.skipTest("本机没有阶段固件或固定编译工具")
         with tempfile.TemporaryDirectory() as selected:
             root = Path(selected)
             output = root / OBSERVATION_OUTPUT_FILENAME
             manifest = root / "manifest.json"
-            result = build_observation_firmware(
-                STAGE,
-                output,
-                manifest,
-                root / "build",
-                tool_revision={"commit": "test", "scoped_code_dirty": False},
-            )
-            output_bytes = output.read_bytes()
-            manifest_text = manifest.read_text(encoding="utf-8")
-            output_mode = output.stat().st_mode
-
-        self.assertEqual(len(output_bytes), STAGE.stat().st_size)
-        self.assertEqual(result.output.name, OBSERVATION_OUTPUT_FILENAME)
-        self.assertEqual(
-            result.sha256,
-            "2ef4305bd3f29873d7817a495097b074e06f62ba0189e4f35f0be65b77c55813",
-        )
-        self.assertIn('"outside_allowed_ranges_identical": true', manifest_text)
-        self.assertFalse(output_mode & stat.S_IWUSR)
+            with self.assertRaisesRegex(
+                RuntimeError,
+                "真机观察批准记录字段不匹配：output_sha256",
+            ):
+                build_observation_firmware(
+                    STAGE,
+                    output,
+                    manifest,
+                    root / "build",
+                    tool_revision={"commit": "test", "scoped_code_dirty": False},
+                )
 
     def test_sync_payload_fits_and_full_candidate_is_bounded(self) -> None:
         if (

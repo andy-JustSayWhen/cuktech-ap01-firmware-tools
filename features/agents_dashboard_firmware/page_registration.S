@@ -53,6 +53,28 @@ ap01_agents_page_register:
     li a2, 240
     call lv_obj_set_size
 
+    /* Match stock 320x240 pages: no frame, padding, scrolling, or scrollbar. */
+    mv a0, s0
+    li a1, 0
+    li a2, 0
+    call lv_obj_set_style_border_width
+
+    mv a0, s0
+    li a1, 0
+    li a2, 0
+    call lv_obj_set_style_pad_all
+
+    mv a0, s0
+    call lv_obj_center
+
+    mv a0, s0
+    li a1, 0x10
+    call lv_obj_remove_flag
+
+    mv a0, s0
+    li a1, 0
+    call lv_obj_set_scrollbar_mode
+
     mv a0, s0
     li a1, 320
     call lv_obj_set_x

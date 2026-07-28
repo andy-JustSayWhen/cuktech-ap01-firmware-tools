@@ -9,6 +9,11 @@ MEMORY
 PROVIDE(lv_obj_create = 0xA00C1EC6);
 PROVIDE(lv_obj_del = 0xA00BEBEE);
 PROVIDE(lv_obj_set_size = 0xA00C0060);
+PROVIDE(lv_obj_set_style_border_width = 0xA00C7B56);
+PROVIDE(lv_obj_set_style_pad_all = 0xA00B14B0);
+PROVIDE(lv_obj_center = 0xA00C0710);
+PROVIDE(lv_obj_remove_flag = 0xA00C1680);
+PROVIDE(lv_obj_set_scrollbar_mode = 0xA019397A);
 PROVIDE(lv_obj_set_x = 0xA00BF942);
 PROVIDE(lv_obj_get_child = 0xA00C5D84);
 PROVIDE(lv_obj_add_event_cb = 0xA01AA0B6);
