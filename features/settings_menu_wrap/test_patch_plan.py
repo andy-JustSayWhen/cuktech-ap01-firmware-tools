@@ -9,6 +9,7 @@ from unittest.mock import patch
 import features.settings_menu_wrap.patch_plan as patch_plan_module
 from features.offline_firmware_build import BuildGateError, load_patch_plan
 from features.settings_menu_wrap import (
+    APPROVAL_LIMIT,
     APPROVAL_RECORD_PATH,
     APPROVED_PLAN_STATUS,
     CODE_GAP_END,
@@ -36,7 +37,7 @@ class SettingsMenuWrapTests(unittest.TestCase):
     def test_patch_definitions_are_ordered_equal_length_and_non_overlapping(self) -> None:
         self.assertEqual(
             [patch.offset for patch in PATCHES],
-            [0x01C008, 0x0F919E, 0x0F976A],
+            [0x01C008, 0x0F919E, 0x0F976A, 0x108E20],
         )
         previous_end = 0
         for patch in PATCHES:
@@ -79,6 +80,7 @@ class SettingsMenuWrapTests(unittest.TestCase):
                 {"source_hex": "0xa001b0a8", "target_hex": "0xa00f80d8"},
                 {"source_hex": "0xa00f819e", "target_hex": "0xa001b008"},
                 {"source_hex": "0xa00f876a", "target_hex": "0xa001b05a"},
+                {"source_hex": "0xa0107e20", "target_hex": "0xa0107cbc"},
             ],
         )
         self.assertEqual(
@@ -131,17 +133,18 @@ class SettingsMenuWrapTests(unittest.TestCase):
                 self.assertEqual(candidate[start:end], original[start:end])
 
     @unittest.skipUnless(REAL_BASELINE.is_file(), "真实原厂基线不在本机")
-    def test_real_baseline_builds_three_range_draft(self) -> None:
+    def test_real_baseline_builds_four_range_draft(self) -> None:
         document = build_draft_plan(
             REAL_BASELINE,
             tool_revision={"commit": "test", "scoped_code_dirty": True},
         )
 
         self.assertEqual(document["status"], DRAFT_PLAN_STATUS)
-        self.assertEqual(document["review"]["patch_count"], 3)
+        self.assertEqual(document["review"]["patch_count"], 4)
         self.assertFalse(document["review"]["firmware_output_allowed"])
-        self.assertFalse(document["review"]["logging_changed"])
-        self.assertEqual(len(document["patches"]), 3)
+        self.assertTrue(document["review"]["logging_changed"])
+        self.assertIn("日志正文", document["review"]["logging_behavior_change"])
+        self.assertEqual(len(document["patches"]), 4)
         self.assertEqual(document["review"]["code_gap"]["used_bytes"], 164)
 
     @unittest.skipUnless(REAL_BASELINE.is_file(), "真实原厂基线不在本机")
@@ -158,24 +161,18 @@ class SettingsMenuWrapTests(unittest.TestCase):
                 load_patch_plan(plan_path, REPO_ROOT)
 
     @unittest.skipUnless(REAL_BASELINE.is_file(), "真实原厂基线不在本机")
-    def test_current_approval_record_matches_direct_position_scope(self) -> None:
-        document = build_approved_plan(
-            REAL_BASELINE,
-            tool_revision={"commit": "test", "scoped_code_dirty": True},
-        )
-        approval = json.loads(APPROVAL_RECORD_PATH.read_text(encoding="utf-8"))
-        self.assertEqual(document["status"], APPROVED_PLAN_STATUS)
-        self.assertTrue(document["review"]["firmware_output_allowed"])
-        self.assertFalse(document["review"]["experimental_download_allowed"])
-        self.assertFalse(document["review"]["installation_allowed"])
-        self.assertEqual(
-            approval["installation_statement"],
-            "批准生成并刷入第 21 节首尾立即定位修正版 opt-setting.bin",
-        )
+    def test_current_three_range_approval_is_rejected(self) -> None:
+        with self.assertRaisesRegex(SettingsMenuWrapError, "修改区间数量不匹配"):
+            build_approved_plan(
+                REAL_BASELINE,
+                tool_revision={"commit": "test", "scoped_code_dirty": True},
+            )
 
     @unittest.skipUnless(REAL_BASELINE.is_file(), "真实原厂基线不在本机")
     def test_changed_approval_scope_is_rejected(self) -> None:
         approval = json.loads(APPROVAL_RECORD_PATH.read_text(encoding="utf-8"))
+        approval["patch_count"] = 4
+        approval["approval_limit"] = APPROVAL_LIMIT
         approval["scope_sha256"] = "0" * 64
         with tempfile.TemporaryDirectory() as selected:
             changed_record = Path(selected) / "approval-record.json"
@@ -203,6 +200,8 @@ class SettingsMenuWrapTests(unittest.TestCase):
                 tool_revision={"commit": "test", "scoped_code_dirty": True},
             )
             approval = json.loads(APPROVAL_RECORD_PATH.read_text(encoding="utf-8"))
+            approval["patch_count"] = 4
+            approval["approval_limit"] = APPROVAL_LIMIT
             approval["scope_sha256"] = patch_plan_module._approval_scope_sha256(draft)
             approval["approved_at_beijing"] = "test-only"
             matching_record = Path(selected) / "approval-record.json"
@@ -223,7 +222,7 @@ class SettingsMenuWrapTests(unittest.TestCase):
 
             plan = load_patch_plan(plan_path, REPO_ROOT)
             self.assertEqual(plan.status, APPROVED_PLAN_STATUS)
-            self.assertEqual(len(plan.patches), 3)
+            self.assertEqual(len(plan.patches), 4)
 
 
 if __name__ == "__main__":

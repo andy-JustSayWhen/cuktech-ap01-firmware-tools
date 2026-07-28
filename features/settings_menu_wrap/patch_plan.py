@@ -13,10 +13,17 @@ from pathlib import Path
 from typing import Any
 
 from core.firmware_image import AP01_1_0_2_0031, load_read_only_baseline
+from core.rotary_encoder import (
+    AP01_DIRECTION_FILTER,
+    PRESERVED_ENCODER_LOG_RANGES,
+)
 
 
 MODULE_DIR = Path(__file__).resolve().parent
 ASSEMBLY_SOURCE = MODULE_DIR / "settings_menu_wrap_patch.S"
+ENCODER_ASSEMBLY_SOURCE = (
+    MODULE_DIR.parents[1] / "core/rotary_encoder/ap01_direction_filter.S"
+)
 LINKER_SCRIPT = MODULE_DIR / "settings_menu_wrap_patch.ld"
 APPROVAL_RECORD_PATH = MODULE_DIR / "approval_record.json"
 EVIDENCE_PATH = (
@@ -28,7 +35,7 @@ DRAFT_PLAN_STATUS = "draft-awaiting-user-approval"
 APPROVED_PLAN_STATUS = "approved-for-offline-build"
 APPROVAL_RECORD_SCHEMA_VERSION = 1
 APPROVAL_LIMIT = (
-    "仅批准证据文档中的 3 个精确修改区间用于离线构建，不允许下载或安装"
+    "仅批准证据文档中的 4 个精确修改区间用于离线构建，不允许下载或安装"
 )
 EXPECTED_BINUTILS_VERSION = "2.46.1"
 XIP_DELTA = 0x9FFFF000
@@ -41,6 +48,10 @@ PRESERVED_LOG_RANGES = (
     (0x0F9172, 0x0F918C, "右旋系统设置日志"),
     (0x0F96F8, 0x0F971A, "左旋通用日志"),
     (0x0F973E, 0x0F9758, "左旋系统设置日志"),
+) + PRESERVED_ENCODER_LOG_RANGES
+LOGGING_BEHAVIOR_CHANGE = (
+    "被过滤的中途反向边沿不再执行原厂强制完成日志；"
+    "日志正文和日志调用代码字节保持不变"
 )
 
 
@@ -120,6 +131,16 @@ PATCHES = (
         expected_before=bytes.fromhex("83c71400"),
         expected_replacement=bytes.fromhex("6f20128f"),
         evidence_note="证据文档第 21 节：跳转目标为 0xa001b05a",
+    ),
+    PatchDefinition(
+        name=AP01_DIRECTION_FILTER.name,
+        objective="忽略活动旋转步骤中的相反方向边沿，不强制上报反方向",
+        section_name=AP01_DIRECTION_FILTER.section_name,
+        offset=AP01_DIRECTION_FILTER.offset,
+        runtime_address=AP01_DIRECTION_FILTER.runtime_address,
+        expected_before=AP01_DIRECTION_FILTER.expected_before,
+        expected_replacement=AP01_DIRECTION_FILTER.expected_replacement,
+        evidence_note="证据文档第 22 节：跳转目标为 0xa0107cbc",
     ),
 )
 
@@ -213,6 +234,7 @@ def assemble_and_verify() -> dict[str, Any]:
     with tempfile.TemporaryDirectory(prefix="ap01-settings-menu-wrap-") as selected:
         build_dir = Path(selected)
         object_path = build_dir / "settings-menu-wrap.o"
+        encoder_object_path = build_dir / "encoder-direction-filter.o"
         elf_path = build_dir / "settings-menu-wrap.elf"
         section_paths = {
             patch.offset: build_dir / f"patch-{patch.offset:06x}.bin"
@@ -237,6 +259,14 @@ def assemble_and_verify() -> dict[str, Any]:
                 ASSEMBLY_SOURCE,
             ),
             (
+                assembler,
+                "-march=rv32imac",
+                "-mabi=ilp32",
+                "-o",
+                encoder_object_path,
+                ENCODER_ASSEMBLY_SOURCE,
+            ),
+            (
                 linker,
                 "-m",
                 "elf32lriscv",
@@ -246,6 +276,7 @@ def assemble_and_verify() -> dict[str, Any]:
                 "-o",
                 elf_path,
                 object_path,
+                encoder_object_path,
             ),
             tuple(dump_sections),
         )
@@ -301,6 +332,10 @@ def assemble_and_verify() -> dict[str, Any]:
             (0xA001B0A8, 0xA00F80D8),
             (0xA00F819E, 0xA001B008),
             (0xA00F876A, 0xA001B05A),
+            (
+                AP01_DIRECTION_FILTER.runtime_address,
+                AP01_DIRECTION_FILTER.return_runtime_address,
+            ),
         )
         disassembly_lines = {
             line.lstrip().split(":", 1)[0]: line.lower()
@@ -347,6 +382,7 @@ def assemble_and_verify() -> dict[str, Any]:
         "version": EXPECTED_BINUTILS_VERSION,
         "tools": versions,
         "assembly_sha256": _sha256_file(ASSEMBLY_SOURCE),
+        "encoder_assembly_sha256": _sha256_file(ENCODER_ASSEMBLY_SOURCE),
         "linker_script_sha256": _sha256_file(LINKER_SCRIPT),
         "verified_control_flow": [
             {
@@ -408,10 +444,11 @@ def build_draft_plan(
             "patch_count": len(entries),
             "firmware_output_allowed": False,
             "approval_required": (
-                "用户必须明确批准证据文档中的 3 个精确区间，"
+                "用户必须明确批准证据文档中的 4 个精确区间，"
                 "才能另行形成允许离线构建的清单"
             ),
-            "logging_changed": False,
+            "logging_changed": True,
+            "logging_behavior_change": LOGGING_BEHAVIOR_CHANGE,
             "preserved_log_ranges": [
                 {
                     "name": name,
@@ -440,6 +477,7 @@ def _approval_scope(document: dict[str, Any]) -> dict[str, Any]:
         "review": {
             "patch_count": review["patch_count"],
             "logging_changed": review["logging_changed"],
+            "logging_behavior_change": review["logging_behavior_change"],
             "preserved_log_ranges": review["preserved_log_ranges"],
             "code_gap": review["code_gap"],
         },

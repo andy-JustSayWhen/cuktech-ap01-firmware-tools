@@ -2,6 +2,7 @@
 
 from .patch_plan import (
     APPROVAL_RECORD_PATH,
+    APPROVAL_LIMIT,
     APPROVED_PLAN_STATUS,
     CODE_GAP_END,
     CODE_GAP_START,
@@ -18,6 +19,7 @@ from .patch_plan import (
 
 __all__ = [
     "APPROVAL_RECORD_PATH",
+    "APPROVAL_LIMIT",
     "APPROVED_PLAN_STATUS",
     "CODE_GAP_END",
     "CODE_GAP_START",
