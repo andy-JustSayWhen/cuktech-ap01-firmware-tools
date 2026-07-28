@@ -19,7 +19,8 @@ typedef unsigned long long u64;
 #define ATTR_NOINLINE __attribute__((noinline))
 
 #define VA_STOCK_UI_TIMER                 0xa00bb5dau
-#define VA_WINDOW_BY_INDEX                0xa00c5d84u
+#define VA_STOCK_GET_DISPATCH             0xa00be388u
+#define VA_STOCK_GET_CHILD                0xa00be3cau
 #define VA_LV_GIF_SET_SRC                 0xa00cf8d8u
 #define VA_WEBCLIENT_PERFORM              0xa00d86bau
 #define VA_OPEN                           0xa003f448u
@@ -44,14 +45,17 @@ typedef unsigned long long u64;
 #define META_MAGIC                        0x47415041u /* "APAG" */
 #define META_SALT                         0x5101a501u
 #define META_GENERATION_MASK              0x7fffffffu
-#define AGENTS_ACTIVE_MASK                0x80000000u
-#define AGENTS_PAGE_MASK                  0x60000000u
-#define AGENTS_PAGE_SHIFT                 29u
+#define AGENTS_TAIL_MAGIC                 0xa5010000u
+#define AGENTS_TAIL_MAGIC_MASK            0xffff0000u
+#define AGENTS_STATE_CLOSED               0u
+#define AGENTS_STATE_OVERVIEW             1u
+#define AGENTS_STATE_LAST_30_DAYS         4u
 #define WEBCLIENT_SINK_ARG_OFFSET         64u
 #define WEBCLIENT_HTTP_STATUS_OFFSET      96u
 
 typedef void (*void_one_arg_fn)(void *);
-typedef void *(*window_by_index_fn)(void *, int);
+typedef int (*stock_get_dispatch_fn)(void *);
+typedef void *(*stock_get_child_fn)(void *, int);
 typedef void (*gif_set_src_fn)(void *, const void *);
 typedef int (*webclient_perform_fn)(void *);
 typedef int (*open_fn)(const char *, int, int);
@@ -84,8 +88,11 @@ struct stock_pet_state
   void *gif;
   u32 stock_field_4;
   u32 stock_field_8;
-  u32 navigation;
+  u32 stock_field_12;
+  u32 agents_state;
 };
+
+extern int ap01_agents_restore_pet(void *);
 
 struct download_state
 {
@@ -185,6 +192,23 @@ static u32 read_u32(const u8 *source)
          ((u32)source[1] << 8u) |
          ((u32)source[2] << 16u) |
          ((u32)source[3] << 24u);
+}
+
+static int agents_state_decode(u32 encoded, u32 *state)
+{
+  u32 value;
+  if ((encoded & AGENTS_TAIL_MAGIC_MASK) != AGENTS_TAIL_MAGIC)
+    {
+      return 0;
+    }
+  value = (encoded >> 8u) & 0xffu;
+  if (value > AGENTS_STATE_LAST_30_DAYS ||
+      (encoded & 0xffu) != ((value ^ 0xffu) & 0xffu))
+    {
+      return 0;
+    }
+  *state = value;
+  return 1;
 }
 
 static ATTR_NOINLINE int fw_open(const char *path, int flags, int mode)
@@ -769,21 +793,20 @@ ATTR_ENTRY int ap01_agents_apply_current(void *argument)
 {
   struct stock_pet_state *state = (struct stock_pet_state *)argument;
   struct agents_meta meta;
-  u32 page;
+  u32 agents_state;
   if (state == (void *)0 || state->gif == (void *)0 ||
-      (state->navigation & AGENTS_ACTIVE_MASK) == 0u ||
-      read_record(meta_path, &meta) < 0)
+      !agents_state_decode(state->agents_state, &agents_state) ||
+      agents_state == AGENTS_STATE_CLOSED)
     {
       return 0;
     }
-  page = (state->navigation & AGENTS_PAGE_MASK) >> AGENTS_PAGE_SHIFT;
-  if (page >= PAGE_COUNT)
+  if (read_record(meta_path, &meta) < 0)
     {
-      return 0;
+      return 1;
     }
   ((gif_set_src_fn)VA_LV_GIF_SET_SRC)(
       state->gif,
-      page_path(meta.slot, page));
+      page_path(meta.slot, agents_state - AGENTS_STATE_OVERVIEW));
   if (*(void **)((u8 *)state->gif + 0x5cu) == (void *)0)
     {
       return 0;
@@ -800,6 +823,7 @@ ATTR_ENTRY void ap01_agents_ui_timer_wrapper(void *timer)
   struct stock_pet_state *state;
   struct agents_meta meta;
   struct agents_meta ack;
+  u32 agents_state;
   ((void_one_arg_fn)VA_STOCK_UI_TIMER)(timer);
   if (timer == (void *)0)
     {
@@ -810,7 +834,11 @@ ATTR_ENTRY void ap01_agents_ui_timer_wrapper(void *timer)
     {
       return;
     }
-  pet = ((window_by_index_fn)VA_WINDOW_BY_INDEX)(theme, 7);
+  if (((stock_get_dispatch_fn)VA_STOCK_GET_DISPATCH)(theme) != 7)
+    {
+      return;
+    }
+  pet = ((stock_get_child_fn)VA_STOCK_GET_CHILD)(theme, 7);
   if (pet == (void *)0)
     {
       return;
@@ -821,9 +849,21 @@ ATTR_ENTRY void ap01_agents_ui_timer_wrapper(void *timer)
       return;
     }
   state = (struct stock_pet_state *)*(void **)((u8 *)wrapper + 4u);
-  if (state == (void *)0 || state->gif == (void *)0 ||
-      (state->navigation & AGENTS_ACTIVE_MASK) == 0u)
+  if (state == (void *)0 || state->gif == (void *)0)
     {
+      return;
+    }
+  if (!agents_state_decode(state->agents_state, &agents_state))
+    {
+      (void)ap01_agents_restore_pet(state);
+      return;
+    }
+  if (agents_state == AGENTS_STATE_CLOSED)
+    {
+      if (*(void **)((u8 *)state->gif + 0x5cu) == (void *)0)
+        {
+          (void)ap01_agents_restore_pet(state);
+        }
       return;
     }
   if (read_record(meta_path, &meta) < 0)
@@ -836,5 +876,8 @@ ATTR_ENTRY void ap01_agents_ui_timer_wrapper(void *timer)
     {
       return;
     }
-  (void)ap01_agents_apply_current(state);
+  if (!ap01_agents_apply_current(state))
+    {
+      (void)ap01_agents_restore_pet(state);
+    }
 }

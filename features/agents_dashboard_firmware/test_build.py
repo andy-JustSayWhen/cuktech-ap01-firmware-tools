@@ -2,13 +2,14 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import json
 import shutil
 import subprocess
 import tempfile
 import unittest
+from dataclasses import dataclass
 from pathlib import Path
 
-from features.agents_dashboard.result_package import DeviceCredentials
 from features.agents_dashboard.result_package import encode_package
 from features.agents_dashboard_firmware import (
     build_observation_firmware,
@@ -23,15 +24,30 @@ from features.agents_dashboard_firmware.build import (
 )
 from features.agents_dashboard_firmware.sync_build import (
     LOADER_SOURCE,
-    STOCK_DISPATCH_OUTPUT_FILENAME,
+    PET_STATE_SIZE_EXTENDED,
+    PET_STATE_SIZE_OFFSET,
+    PET_STATE_SIZE_ORIGINAL,
+    STOCK_CALLCHAIN_OUTPUT_FILENAME,
     _request_formats,
+    build_stock_callchain_firmware,
     build_sync_firmware,
     build_sync_payload,
+    decode_agents_state,
+    encode_agents_state,
+    route_stock_callchain,
+    validate_stock_callchain_routes,
 )
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 STAGE = REPO_ROOT / "artifacts/firmware/opt-setting.bin"
+
+
+@dataclass(frozen=True)
+class TestCredentials:
+    device_id: str
+    access_token: str
+    secret_key: bytes
 
 
 class AgentsDashboardFirmwareTests(unittest.TestCase):
@@ -115,7 +131,7 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
             or not shutil.which("riscv64-elf-gcc")
         ):
             self.skipTest("本机没有阶段固件或固定编译工具")
-        credentials = DeviceCredentials(
+        credentials = TestCredentials(
             device_id="1234abcd",
             access_token="0123456789abcdef",
             secret_key=bytes(range(32)),
@@ -135,9 +151,9 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
                 capture_output=True,
                 text=True,
             ).stdout
-            output = root / STOCK_DISPATCH_OUTPUT_FILENAME
+            output = root / STOCK_CALLCHAIN_OUTPUT_FILENAME
             manifest = root / "manifest.json"
-            result = build_sync_firmware(
+            result = build_stock_callchain_firmware(
                 STAGE,
                 output,
                 manifest,
@@ -146,10 +162,9 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
                 url_base="http://192.168.31.139:8765/a",
                 refresh_seconds=300,
                 tool_revision={"commit": "test", "scoped_code_dirty": False},
-                expected_output_name=STOCK_DISPATCH_OUTPUT_FILENAME,
-                reuse_stock_pet=True,
             )
             manifest_text = manifest.read_text(encoding="utf-8")
+            manifest_document = json.loads(manifest_text)
             output_bytes = output.read_bytes()
 
         self.assertLess(payload.size, 60_934)
@@ -163,7 +178,50 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
         self.assertIn('"installation_allowed": false', manifest_text)
         self.assertIn('"download_state_heap_bytes": 0', manifest_text)
         self.assertIn('"stock_pet_object_reused": true', manifest_text)
+        self.assertEqual(
+            payload.route_validation,
+            {
+                "dispatch_key_cases": 27,
+                "detail_rotation_cases": 6,
+                "invalid_tail_cases": 5,
+                "valid_tail_cases": 5,
+                "switch_failure_recovery_cases": 3,
+                "gif_failure_recovery_cases": 2,
+                "lifecycle_recovery_cases": 2,
+            },
+        )
+        self.assertIsNotNone(payload.callchain_evidence)
+        self.assertTrue(
+            manifest_document["validation"]["stock_callchain_verified"]
+        )
+        callchain_gates = manifest_document["callchain_gates"]
+        self.assertEqual(
+            callchain_gates["route_validation"]["dispatch_key_cases"],
+            27,
+        )
+        self.assertIn(
+            "switch_failure_restore_call",
+            callchain_gates["disassembly"],
+        )
+        self.assertIn(
+            "gif_failure_restore_call",
+            callchain_gates["disassembly"],
+        )
         stage_bytes = STAGE.read_bytes()
+        self.assertEqual(
+            stage_bytes[
+                PET_STATE_SIZE_OFFSET :
+                PET_STATE_SIZE_OFFSET + len(PET_STATE_SIZE_ORIGINAL)
+            ],
+            PET_STATE_SIZE_ORIGINAL,
+        )
+        self.assertEqual(
+            output_bytes[
+                PET_STATE_SIZE_OFFSET :
+                PET_STATE_SIZE_OFFSET + len(PET_STATE_SIZE_EXTENDED)
+            ],
+            PET_STATE_SIZE_EXTENDED,
+        )
         self.assertEqual(
             output_bytes[HOOK_OFFSET : HOOK_OFFSET + len(HOOK_ORIGINAL)],
             stage_bytes[HOOK_OFFSET : HOOK_OFFSET + len(HOOK_ORIGINAL)],
@@ -180,13 +238,17 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
         )
         page_register = disassembly.split(
             "<ap01_agents_page_register>:", 1
-        )[1].split("<ap01_agents_find_pet_state>:", 1)[0]
+        )[1].split("<ap01_agents_state_read>:", 1)[0]
         self.assertIn("ret", page_register)
         self.assertNotIn("call", page_register)
         for forbidden in (
             "# a00c1ec6 <lv_obj_create>",
             "# a01930fe <lv_gif_create>",
             "# a00bebee <lv_obj_del>",
+            "# a00c5d84 <lv_obj_get_child>",
+            "# a00c5fe4 <lv_obj_get_child_count>",
+            "# a00b0290 <window_get_active>",
+            "# a00b06f4 <window_set_active>",
             "# a007e1c4 <malloc>",
             "# a007c256 <free>",
         ):
@@ -196,24 +258,102 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
         )[0]
         self.assertIn("<ap01_agents_find_pet_state>", key_event)
         self.assertIn("<stock_get_dispatch_index>", key_event)
-        self.assertNotIn("<window_get_active>", key_event)
+        self.assertIn("<stock_switch_page>", key_event)
+        self.assertIn("<ap01_agents_stock_passthrough>", key_event)
         self.assertNotIn("52(s1)", key_event)
-        self.assertNotIn("52(s2)", key_event)
-        self.assertEqual(key_event.count("<ap01_agents_restore_pet>"), 2)
-        self.assertIn("li\ta1,7", key_event)
-        self.assertIn("li\ta1,6", key_event)
-        self.assertIn("li\ta1,3", key_event)
+        self.assertNotIn("56(s1)", key_event)
+        self.assertNotIn("60(s1)", key_event)
         self.assertIn("<stock_key_event>", key_event)
+        state_write = disassembly.split(
+            "<ap01_agents_state_write>:", 1
+        )[1].split("<ap01_agents_find_pet_state>:", 1)[0]
+        self.assertIn("16(a0)", state_write)
+        for offset in (0, 4, 8, 12):
+            self.assertNotIn(f"{offset}(a0)", state_write)
         find_state = disassembly.split("<ap01_agents_find_pet_state>:", 1)[1].split(
             "<ap01_agents_key_event>:", 1
         )[0]
         self.assertIn("li\ta1,7", find_state)
-        self.assertIn("# a00c5d84 <lv_obj_get_child>", find_state)
+        self.assertIn("# a00be3ca <stock_get_child>", find_state)
         self.assertIn("16(a0)", find_state)
         self.assertIn("4(t0)", find_state)
 
+    def test_stock_callchain_routes_all_dispatch_key_pairs(self) -> None:
+        report = validate_stock_callchain_routes()
+        self.assertEqual(report["dispatch_key_cases"], 27)
+        for dispatch in (1, 2, 8):
+            for key in (19, 20, 10):
+                self.assertEqual(
+                    route_stock_callchain(dispatch, key, 1).action,
+                    "stock-callback",
+                )
+        for dispatch in (0, 3, 4, 5, 6):
+            self.assertEqual(
+                route_stock_callchain(dispatch, 10, 1).action,
+                "stock-callback",
+            )
+        self.assertEqual(
+            route_stock_callchain(7, 10, 1).target_state,
+            2,
+        )
+        for state in (2, 3, 4):
+            self.assertEqual(
+                route_stock_callchain(7, 10, state).target_state,
+                1,
+            )
+        self.assertEqual(
+            route_stock_callchain(7, 19, None).target_dispatch,
+            6,
+        )
+        self.assertEqual(
+            route_stock_callchain(7, 20, None).target_state,
+            1,
+        )
+
+    def test_independent_tail_detects_all_defined_corruption_classes(self) -> None:
+        for state in range(5):
+            encoded = encode_agents_state(state)
+            self.assertEqual(decode_agents_state(encoded), state)
+        for encoded in (
+            0,
+            0xA50000FF,
+            0xA50101FF,
+            encode_agents_state(4) ^ 1,
+            0xA50105FA,
+        ):
+            self.assertIsNone(decode_agents_state(encoded))
+
+    def test_retired_stock_reuse_name_cannot_build(self) -> None:
+        credentials = TestCredentials(
+            device_id="1234abcd",
+            access_token="0123456789abcdef",
+            secret_key=bytes(range(32)),
+        )
+        with tempfile.TemporaryDirectory() as selected:
+            root = Path(selected)
+            retired = "ap01-1.0.2_0031-agents-stock-dispatch-observation.bin"
+            with self.assertRaisesRegex(
+                RuntimeError,
+                "旧 AGENTS 固件路径已停用",
+            ):
+                build_sync_firmware(
+                    STAGE,
+                    root / retired,
+                    root / "manifest.json",
+                    root / "build",
+                    credentials,
+                    url_base="http://192.168.31.139:8765/a",
+                    refresh_seconds=300,
+                    tool_revision={
+                        "commit": "test",
+                        "scoped_code_dirty": False,
+                    },
+                    expected_output_name=retired,
+                    reuse_stock_pet=True,
+                )
+
     def test_request_formats_fit_without_positional_printf(self) -> None:
-        credentials = DeviceCredentials(
+        credentials = TestCredentials(
             device_id="1234abcd",
             access_token="0123456789abcdef",
             secret_key=bytes(range(32)),
@@ -245,6 +385,10 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
                         (
                             "const unsigned char agents_secret_key[32] = "
                             f"{{{secret_values}}};"
+                        ),
+                        (
+                            "int ap01_agents_restore_pet(void *p) "
+                            "{ (void)p; return 1; }"
                         ),
                         f'#include "{LOADER_SOURCE}"',
                         "#include <stdio.h>",
@@ -280,7 +424,7 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
         compiler = shutil.which("cc")
         if not compiler:
             self.skipTest("本机没有主机 C 编译器")
-        credentials = DeviceCredentials(
+        credentials = TestCredentials(
             device_id="1234abcd",
             access_token="0123456789abcdef",
             secret_key=bytes(range(32)),
@@ -311,6 +455,10 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
                         (
                             "const unsigned char agents_secret_key[32] = "
                             f"{{{secret_values}}};"
+                        ),
+                        (
+                            "int ap01_agents_restore_pet(void *p) "
+                            "{ (void)p; return 1; }"
                         ),
                         "static unsigned char files[4][32];",
                         "static unsigned int sizes[4];",
