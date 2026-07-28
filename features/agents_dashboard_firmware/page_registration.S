@@ -320,3 +320,42 @@ ap01_agents_key_event:
     tail stock_key_event
 
     .size ap01_agents_key_event, .-ap01_agents_key_event
+
+    .ifdef SYNC_LOADER
+    .align 2
+    .global ap01_agents_detail_active
+    .type ap01_agents_detail_active, @function
+
+ap01_agents_detail_active:
+    addi sp, sp, -32
+    sw ra, 28(sp)
+    sw s0, 24(sp)
+    sw s1, 20(sp)
+    mv s0, a0
+    lw s1, 0(s0)
+    beqz s1, .Lagents_detail_no
+    mv a0, s1
+    call window_get_active
+    mv a1, a0
+    mv a0, s1
+    call lv_obj_get_child
+    beqz a0, .Lagents_detail_no
+    lw t0, 16(a0)
+    beqz t0, .Lagents_detail_no
+    lw t1, 0(t0)
+    li t2, AGENTS_STATE_MAGIC
+    bne t1, t2, .Lagents_detail_no
+    lw a0, 8(t0)
+    snez a0, a0
+    j .Lagents_detail_done
+.Lagents_detail_no:
+    li a0, 0
+.Lagents_detail_done:
+    lw ra, 28(sp)
+    lw s0, 24(sp)
+    lw s1, 20(sp)
+    addi sp, sp, 32
+    ret
+
+    .size ap01_agents_detail_active, .-ap01_agents_detail_active
+    .endif

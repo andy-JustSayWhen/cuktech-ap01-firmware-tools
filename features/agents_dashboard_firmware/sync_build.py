@@ -11,6 +11,7 @@ import subprocess
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
+from typing import Callable
 from zoneinfo import ZoneInfo
 
 from core.firmware_image import (
@@ -248,6 +249,8 @@ def build_sync_payload(
     credentials: DeviceCredentials,
     *,
     tool_revision: dict[str, object],
+    extra_objects: tuple[Path, ...] = (),
+    required_extra_symbols: tuple[str, ...] = (),
 ) -> SyncPayloadResult:
     stage_selected, stage = _read_stage(stage_path)
     if len(stage) != STAGE_SIZE or hashlib.sha256(stage).hexdigest() != STAGE_SHA256:
@@ -298,6 +301,13 @@ def build_sync_payload(
     readelf_path = selected / "agents-sync.readelf.txt"
     _write_asset_assembly(assets_source, assets)
     _config_assembly(config_source, credentials)
+
+    resolved_extra_objects: list[Path] = []
+    for item in extra_objects:
+        resolved = item.expanduser().resolve(strict=True)
+        if not resolved.is_file():
+            raise AgentsDashboardFirmwareError(f"组合目标文件无效：{resolved}")
+        resolved_extra_objects.append(resolved)
 
     _run(
         [
@@ -374,6 +384,7 @@ def build_sync_payload(
             page_object,
             loader_object,
             config_object,
+            *resolved_extra_objects,
             assets_object,
         ]
     )
@@ -382,7 +393,7 @@ def build_sync_payload(
     if not payload or len(payload) > PAYLOAD_CAPACITY:
         raise AgentsDashboardFirmwareError("同步载荷为空或超过固定候选空间")
     symbols = _symbols(nm, elf)
-    for name in REQUIRED_SYMBOLS:
+    for name in REQUIRED_SYMBOLS + required_extra_symbols:
         address = symbols.get(name)
         if address is None or not PAYLOAD_VA <= address < PAYLOAD_VA + len(payload):
             raise AgentsDashboardFirmwareError(f"同步载荷符号缺失或越界：{name}")
@@ -446,13 +457,21 @@ def build_sync_firmware(
     url_base: str,
     refresh_seconds: int,
     tool_revision: dict[str, object],
+    extra_objects: tuple[Path, ...] = (),
+    required_extra_symbols: tuple[str, ...] = (),
+    key_callback_symbol: str = "ap01_agents_key_event",
+    candidate_mutators: tuple[
+        Callable[[bytearray, dict[str, int]], list[ByteRange]], ...
+    ] = (),
+    expected_output_name: str = SYNC_OUTPUT_FILENAME,
+    implemented_scope_extra: tuple[str, ...] = (),
 ) -> SyncFirmwareResult:
     if tool_revision.get("scoped_code_dirty") is not False:
         raise AgentsDashboardFirmwareError("制作代码尚未提交，不能冻结同步实验成品")
     output = output_path.expanduser().resolve()
-    if output.name != SYNC_OUTPUT_FILENAME:
+    if output.name != expected_output_name:
         raise AgentsDashboardFirmwareError(
-            f"同步实验成品文件名必须是 {SYNC_OUTPUT_FILENAME}"
+            f"同步实验成品文件名必须是 {expected_output_name}"
         )
     try:
         url_bytes = url_base.encode("ascii")
@@ -475,6 +494,8 @@ def build_sync_firmware(
         build_directory,
         credentials,
         tool_revision=tool_revision,
+        extra_objects=extra_objects,
+        required_extra_symbols=required_extra_symbols,
     )
     payload = payload_result.binary.read_bytes()
     optimized = payload_result.optimized_source.read_bytes()
@@ -512,7 +533,11 @@ def build_sync_firmware(
             "页面跳板",
         )
     )
-    key_event = payload_result.symbols["ap01_agents_key_event"]
+    key_event = payload_result.symbols.get(key_callback_symbol)
+    if key_event is None:
+        raise AgentsDashboardFirmwareError(
+            f"一级键值组合入口缺失：{key_callback_symbol}"
+        )
     key_high, key_low = _absolute_lui_addi(key_event, register=11)
     allowed.append(
         _replace(
@@ -523,6 +548,9 @@ def build_sync_firmware(
             "一级键值回调地址高位",
         )
     )
+
+    for mutate in candidate_mutators:
+        allowed.extend(mutate(candidate, payload_result.symbols))
     allowed.append(
         _replace(
             candidate,
@@ -717,6 +745,7 @@ def build_sync_firmware(
             "三组临时槽原子提交",
             "界面线程只切换已提交页面",
             "五分钟后台刷新",
+            *implemented_scope_extra,
         ],
         "pending_scope": [
             "重启后保留最后成功包",

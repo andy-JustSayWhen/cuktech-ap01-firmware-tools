@@ -15,8 +15,11 @@ PROVIDE(lv_obj_center = 0xA00C0710);
 PROVIDE(lv_obj_remove_flag = 0xA00C1680);
 PROVIDE(lv_obj_set_scrollbar_mode = 0xA019397A);
 PROVIDE(lv_obj_set_x = 0xA00BF942);
+PROVIDE(lv_obj_set_y = 0xA00BFE62);
 PROVIDE(lv_obj_get_child = 0xA00C5D84);
+PROVIDE(lv_obj_get_child_count = 0xA00C5FE4);
 PROVIDE(lv_obj_add_event_cb = 0xA01AA0B6);
+PROVIDE(lv_obj_add_flag = 0xA00C1400);
 PROVIDE(lv_gif_create = 0xA01930FE);
 PROVIDE(lv_gif_set_src = 0xA00CF8D8);
 PROVIDE(lv_event_get_key = 0xA00BF7EA);
@@ -26,6 +29,10 @@ PROVIDE(window_set_active = 0xA00B06F4);
 PROVIDE(malloc = 0xA007E1C4);
 PROVIDE(free = 0xA007C256);
 PROVIDE(stock_key_event = 0xA00BBFEE);
+PROVIDE(stock_settings_key_event = 0xA00F8096);
+PROVIDE(stock_settings_row_create = 0xA0192FB4);
+PROVIDE(stock_scroll_to_y = 0xA00C6DFE);
+PROVIDE(stock_selection_transition = 0xA00F3D5A);
 
 SECTIONS
 {

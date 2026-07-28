@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -40,6 +41,12 @@ from features.optimized_firmware_build import (
 from features.primary_page_navigation import (
     PrimaryPageNavigationError,
     inspect_primary_page_navigation,
+)
+from features.primary_page_settings import (
+    REQUIRED_SYMBOLS as PAGE_SETTINGS_SYMBOLS,
+    PrimaryPageSettingsBuildError,
+    apply_page_settings_patches,
+    build_page_settings_objects,
 )
 from features.settings_menu_wrap import (
     SettingsMenuWrapError,
@@ -159,7 +166,53 @@ def _parser() -> argparse.ArgumentParser:
     sync_command.add_argument("--config", type=Path, required=True)
     sync_command.add_argument("--url-base", required=True)
     sync_command.add_argument("--refresh-seconds", type=int, default=300)
+
+    optimized_build_command = commands.add_parser(
+        "opt-build",
+        help="组合页面开关与 AGENTS 看板，生成完整优化固件",
+    )
+    optimized_build_command.add_argument("--input", type=Path, required=True)
+    optimized_build_command.add_argument("--output", type=Path, required=True)
+    optimized_build_command.add_argument("--manifest", type=Path, required=True)
+    optimized_build_command.add_argument("--build-dir", type=Path, required=True)
+    optimized_build_command.add_argument("--config", type=Path, required=True)
+    optimized_build_command.add_argument("--url-base", required=True)
+    optimized_build_command.add_argument(
+        "--refresh-seconds",
+        type=int,
+        default=300,
+    )
     return parser
+
+
+def _required_tool(name: str) -> Path:
+    selected = shutil.which(name)
+    if selected is None:
+        fallback = Path("/opt/homebrew/bin") / name
+        if fallback.is_file():
+            return fallback
+        raise PrimaryPageSettingsBuildError(f"缺少构建工具：{name}")
+    return Path(selected)
+
+
+def _build_primary_router(build_directory: Path, assembler: Path) -> Path:
+    selected = build_directory.expanduser().resolve()
+    selected.mkdir(parents=True, exist_ok=True)
+    output = selected / "combined-primary-key-event.o"
+    subprocess.run(
+        [
+            str(assembler),
+            "-march=rv32imac",
+            "-mabi=ilp32",
+            "-o",
+            str(output),
+            str(REPO_ROOT / "app/combined_primary_key_event.S"),
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return output
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -372,6 +425,60 @@ def main(argv: list[str] | None = None) -> int:
             )
             return 0
 
+        if args.command == "opt-build":
+            assembler = _required_tool("riscv64-elf-as")
+            compiler = _required_tool("riscv64-elf-gcc")
+            settings = build_page_settings_objects(
+                args.build_dir / "page-settings",
+                REPO_ROOT / "env/fonts",
+                assembler=assembler,
+                compiler=compiler,
+            )
+            router = _build_primary_router(args.build_dir / "composition", assembler)
+            credentials = load_or_create_credentials(args.config)
+            result = build_sync_firmware(
+                args.input,
+                args.output,
+                args.manifest,
+                args.build_dir / "firmware",
+                credentials,
+                url_base=args.url_base,
+                refresh_seconds=args.refresh_seconds,
+                tool_revision=revision,
+                extra_objects=(*settings.objects, router),
+                required_extra_symbols=(
+                    *PAGE_SETTINGS_SYMBOLS,
+                    "ap01_agents_detail_active",
+                    "ap01_combined_primary_key_event",
+                ),
+                key_callback_symbol="ap01_combined_primary_key_event",
+                candidate_mutators=(apply_page_settings_patches,),
+                expected_output_name="ap01-1.0.2_0031-opt.bin",
+                implemented_scope_extra=(
+                    "设置菜单新增开关一级页面",
+                    "六个一级页面复选状态",
+                    "两份页面开关记录轮换保存",
+                    "一级导航跳过关闭页面",
+                ),
+            )
+            print(
+                json.dumps(
+                    {
+                        "result": "完整优化固件制作完成",
+                        "output": str(result.output),
+                        "manifest": str(result.manifest),
+                        "output_sha256": result.sha256,
+                        "output_md5": result.md5,
+                        "payload_size": result.payload_size,
+                        "payload_remaining": result.payload_remaining,
+                        "installation_allowed": False,
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                )
+            )
+            return 0
+
         result = make_firmware(
             args.input,
             args.plan,
@@ -406,6 +513,7 @@ def main(argv: list[str] | None = None) -> int:
         FirmwareValidationError,
         OptimizedFirmwareBuildError,
         PrimaryPageNavigationError,
+        PrimaryPageSettingsBuildError,
         ResultPackageError,
         SettingsMenuWrapError,
         OSError,
