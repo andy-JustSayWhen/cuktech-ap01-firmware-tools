@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "status": "approved-for-one-installation",
+  "status": "installation-consumed",
   "approved_at_beijing": "2026-07-28",
   "target_model": "njcuk.enstor.ap01",
   "target_version": "1.0.2_0031",
@@ -13,5 +13,9 @@
     "同机原厂固件回刷验证",
     "不依赖设备正常启动和联网的独立恢复验证"
   ],
-  "approval_statement": "缺少的这4个，列为可跳过，因为无法实现；做好了就刷入；根据首次真机观察修正事件路由后继续"
+  "approval_statement": "缺少的这4个，列为可跳过，因为无法实现；做好了就刷入；根据首次真机观察修正事件路由后继续",
+  "installation_consumed_at_beijing": "2026-07-28T18:13:00+08:00",
+  "installation_result": "上传对象完整回读一致；设备完成下载、安装、重启和重新上线，120 秒稳定性检查通过；真机确认左右无反应、确认进入原厂设置页",
+  "pending_candidate_sha256": "25c94c9114876b97b07eb7d41f104fdcf496abc59862a33f6964ed28f4b3a200",
+  "pending_candidate_scope": "按当前对象的 AGENTS 状态标记路由事件，并以实际当前序号计算左右相邻页；尚未批准生成或安装"
 }

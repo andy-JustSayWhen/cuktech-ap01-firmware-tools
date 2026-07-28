@@ -1,6 +1,5 @@
     .option norelax
     .equ AGENTS_STATE_MAGIC, 0x41504754
-    .equ AGENTS_INDEX, 6
     .equ EVENT_KEY, 17
     .equ EVENT_DELETE, 41
     .equ KEY_LEFT, 19
@@ -108,8 +107,7 @@ ap01_agents_key_event:
     beqz s1, .Lstock_key_event
     mv a0, s1
     call window_get_active
-    li t1, AGENTS_INDEX
-    bne a0, t1, .Lstock_key_event
+    sw a0, 12(sp)
     lw t0, 8(s0)
     li t1, 0xffff7fff
     and t0, t0, t1
@@ -117,7 +115,7 @@ ap01_agents_key_event:
     bne t0, t1, .Lstock_key_event
 
     mv a0, s1
-    li a1, AGENTS_INDEX
+    lw a1, 12(sp)
     call lv_obj_get_child
     beqz a0, .Lstock_key_event
     lw s2, 16(a0)
@@ -148,7 +146,8 @@ ap01_agents_key_event:
 
 .Loverview_left:
     mv a0, s1
-    li a1, 5
+    lw a1, 12(sp)
+    addi a1, a1, -1
     li a2, 2
     call window_set_active
     j .Lkey_consumed
@@ -163,7 +162,8 @@ ap01_agents_key_event:
 
 .Loverview_right:
     mv a0, s1
-    li a1, 7
+    lw a1, 12(sp)
+    addi a1, a1, 1
     li a2, 1
     call window_set_active
     j .Lkey_consumed
