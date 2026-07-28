@@ -12,7 +12,8 @@ __pycache__/
 *.py[cod]
 
 # 固件与构建产物
-artifacts/firmware/
+artifacts/firmware/*
+!artifacts/firmware/README.md
 artifacts/build/
 artifacts/rejected/
 
