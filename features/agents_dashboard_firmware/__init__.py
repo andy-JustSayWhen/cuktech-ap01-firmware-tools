@@ -13,6 +13,7 @@ from .fallback_assets import (
 from .sync_build import (
     CONFIRM_COMPAT_OUTPUT_FILENAME,
     DETAIL_COMPAT_OUTPUT_FILENAME,
+    PET_OVERLAY_OUTPUT_FILENAME,
     SYNC_OUTPUT_FILENAME,
     SyncFirmwareResult,
     build_sync_firmware,
@@ -28,6 +29,7 @@ __all__ = [
     "build_page_registration_payload",
     "CONFIRM_COMPAT_OUTPUT_FILENAME",
     "DETAIL_COMPAT_OUTPUT_FILENAME",
+    "PET_OVERLAY_OUTPUT_FILENAME",
     "SYNC_OUTPUT_FILENAME",
     "SyncFirmwareResult",
     "build_sync_firmware",

@@ -23,6 +23,7 @@ from features.agents_dashboard_firmware import (
     AgentsDashboardFirmwareError,
     CONFIRM_COMPAT_OUTPUT_FILENAME,
     DETAIL_COMPAT_OUTPUT_FILENAME,
+    PET_OVERLAY_OUTPUT_FILENAME,
     build_observation_firmware,
     build_page_registration_payload,
     build_sync_firmware,
@@ -199,6 +200,22 @@ def _parser() -> argparse.ArgumentParser:
     confirm_compat_command.add_argument("--config", type=Path, required=True)
     confirm_compat_command.add_argument("--url-base", required=True)
     confirm_compat_command.add_argument(
+        "--refresh-seconds",
+        type=int,
+        default=300,
+    )
+
+    pet_overlay_command = commands.add_parser(
+        "agents-pet-overlay-build",
+        help="生成保持原厂九个一级对象的 AGENTS 覆盖层观察固件",
+    )
+    pet_overlay_command.add_argument("--input", type=Path, required=True)
+    pet_overlay_command.add_argument("--output", type=Path, required=True)
+    pet_overlay_command.add_argument("--manifest", type=Path, required=True)
+    pet_overlay_command.add_argument("--build-dir", type=Path, required=True)
+    pet_overlay_command.add_argument("--config", type=Path, required=True)
+    pet_overlay_command.add_argument("--url-base", required=True)
+    pet_overlay_command.add_argument(
         "--refresh-seconds",
         type=int,
         default=300,
@@ -524,6 +541,42 @@ def main(argv: list[str] | None = None) -> int:
                 json.dumps(
                     {
                         "result": "原厂确认键边界兼容观察固件制作完成",
+                        "output": str(result.output),
+                        "manifest": str(result.manifest),
+                        "output_sha256": result.sha256,
+                        "output_md5": result.md5,
+                        "payload_size": result.payload_size,
+                        "payload_remaining": result.payload_remaining,
+                        "installation_allowed": False,
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                )
+            )
+            return 0
+
+        if args.command == "agents-pet-overlay-build":
+            credentials = load_or_create_credentials(args.config)
+            result = build_sync_firmware(
+                args.input,
+                args.output,
+                args.manifest,
+                args.build_dir,
+                credentials,
+                url_base=args.url_base,
+                refresh_seconds=args.refresh_seconds,
+                tool_revision=revision,
+                expected_output_name=PET_OVERLAY_OUTPUT_FILENAME,
+                implemented_scope_extra=(
+                    "保持原厂九个一级对象",
+                    "萌宠根对象内的 AGENTS 独立覆盖层",
+                    "AGENTS 虚拟一级导航状态",
+                ),
+            )
+            print(
+                json.dumps(
+                    {
+                        "result": "AGENTS 九对象覆盖层观察固件制作完成",
                         "output": str(result.output),
                         "manifest": str(result.manifest),
                         "output_sha256": result.sha256,

@@ -72,6 +72,9 @@ DETAIL_COMPAT_OUTPUT_FILENAME = (
 CONFIRM_COMPAT_OUTPUT_FILENAME = (
     "ap01-1.0.2_0031-agents-confirm-compat-observation.bin"
 )
+PET_OVERLAY_OUTPUT_FILENAME = (
+    "ap01-1.0.2_0031-agents-pet-overlay-observation.bin"
+)
 XIP_DELTA = 0x9FFFF000
 LOADER_TRAMPOLINE_OFFSET = 0x01C0B4
 LOADER_TRAMPOLINE_VA = XIP_DELTA + LOADER_TRAMPOLINE_OFFSET
@@ -130,7 +133,7 @@ REQUIRED_SYMBOLS = (
 REQUIRED_LOADER_CALLEES = (
     0xA00BB5DA,
     0xA00C5D84,
-    0xA00B0570,
+    0xA00C5FE4,
     0xA00CF8D8,
     0xA00D86BA,
     0xA003F448,
@@ -247,6 +250,78 @@ def _request_formats(credentials: DeviceCredentials) -> tuple[bytes, bytes]:
     if len(location) + 1 > 44 or len(city) + 1 > 48:
         raise AgentsDashboardFirmwareError("设备授权请求格式超过原厂固定区域")
     return location, city
+
+
+def _symbol_block(disassembly: str, start: str, end: str) -> str:
+    marker = f"<{start}>:"
+    end_marker = f"<{end}>:"
+    if marker not in disassembly or end_marker not in disassembly:
+        raise AgentsDashboardFirmwareError(f"静态反汇编缺少函数：{start}")
+    return disassembly.split(marker, 1)[1].split(end_marker, 1)[0]
+
+
+def _validate_pet_overlay_disassembly(disassembly: str) -> None:
+    page_register = _symbol_block(
+        disassembly,
+        "ap01_agents_page_register",
+        "ap01_agents_delete_event",
+    )
+    create_marker = "# a00c1ec6 <lv_obj_create>"
+    create_offsets = [
+        offset
+        for offset in range(len(page_register))
+        if page_register.startswith(create_marker, offset)
+    ]
+    malloc_offset = page_register.find("# a007e1c4 <malloc>")
+    pet_lookup_offset = page_register.find("# a00c5d84 <lv_obj_get_child>")
+    if (
+        len(create_offsets) != 2
+        or pet_lookup_offset < 0
+        or malloc_offset < 0
+        or not pet_lookup_offset < create_offsets[0] < malloc_offset < create_offsets[1]
+        or "x11,7" not in page_register
+        or "x10,x0,32" not in page_register
+    ):
+        raise AgentsDashboardFirmwareError(
+            "AGENTS 覆盖层父对象、状态大小或原厂详情创建顺序未通过"
+        )
+
+    find_state = _symbol_block(
+        disassembly,
+        "ap01_agents_find_state",
+        "ap01_agents_key_event",
+    )
+    if (
+        "x11,7" not in find_state
+        or "# a00c5fe4 <lv_obj_get_child_count>" not in find_state
+        or "28(x5)" not in find_state
+    ):
+        raise AgentsDashboardFirmwareError("AGENTS 覆盖层查找边界未通过")
+
+    key_event = _symbol_block(
+        disassembly,
+        "ap01_agents_key_event",
+        "ap01_agents_detail_active",
+    )
+    if (
+        "52(x9)" in key_event
+        or "<ap01_agents_find_state>" not in key_event
+        or key_event.count("# a00bf942 <lv_obj_set_x>") < 5
+        or "# a00bbfee <stock_key_event>" not in key_event
+    ):
+        raise AgentsDashboardFirmwareError("AGENTS 虚拟导航或原厂事件透传未通过")
+
+    timer_wrapper = _symbol_block(
+        disassembly,
+        "ap01_agents_ui_timer_wrapper",
+        "agents_device_id",
+    )
+    if (
+        "x11,7" not in timer_wrapper
+        or "# a00c5fe4 <lv_obj_get_child_count>" not in timer_wrapper
+        or "<ap01_agents_apply_current>" not in timer_wrapper
+    ):
+        raise AgentsDashboardFirmwareError("AGENTS 覆盖层刷新对象检查未通过")
 
 
 def build_sync_payload(
@@ -415,6 +490,7 @@ def build_sync_payload(
             raise AgentsDashboardFirmwareError(
                 f"同步载荷缺少已定位原厂调用：0x{address:08x}"
             )
+    _validate_pet_overlay_disassembly(disassembly)
     disassembly_path.write_text(disassembly, encoding="utf-8")
     readelf_output = _run(
         [readelf, "-h", "-S", "-s", "-r", elf],

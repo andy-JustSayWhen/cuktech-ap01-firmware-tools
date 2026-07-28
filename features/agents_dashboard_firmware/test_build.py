@@ -17,7 +17,7 @@ from features.agents_dashboard_firmware import (
 from features.agents_dashboard_firmware.build import OBSERVATION_OUTPUT_FILENAME
 from features.agents_dashboard_firmware.sync_build import (
     LOADER_SOURCE,
-    SYNC_OUTPUT_FILENAME,
+    PET_OVERLAY_OUTPUT_FILENAME,
     _request_formats,
     build_sync_firmware,
     build_sync_payload,
@@ -128,7 +128,7 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
                 capture_output=True,
                 text=True,
             ).stdout
-            output = root / SYNC_OUTPUT_FILENAME
+            output = root / PET_OVERLAY_OUTPUT_FILENAME
             manifest = root / "manifest.json"
             result = build_sync_firmware(
                 STAGE,
@@ -139,6 +139,7 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
                 url_base="http://192.168.31.139:8765/a",
                 refresh_seconds=300,
                 tool_revision={"commit": "test", "scoped_code_dirty": False},
+                expected_output_name=PET_OVERLAY_OUTPUT_FILENAME,
             )
             manifest_text = manifest.read_text(encoding="utf-8")
             output_bytes = output.read_bytes()
@@ -163,21 +164,41 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
         self.assertEqual(len(stock_create_calls), 2)
         self.assertLess(stock_create_calls[0], stock_create_calls[1])
         self.assertLess(
-            stock_create_calls[1],
+            stock_create_calls[0],
             page_register.index("# a007e1c4 <malloc>"),
         )
+        self.assertLess(
+            page_register.index("# a007e1c4 <malloc>"),
+            stock_create_calls[1],
+        )
+        self.assertIn("li\ta1,7", page_register)
+        self.assertLess(
+            page_register.index("# a00c5d84 <lv_obj_get_child>"),
+            stock_create_calls[0],
+        )
         self.assertIn("mv\ta0,s2", page_register)
+        self.assertIn("mv\ta0,s4", page_register)
+        self.assertIn("li\ta0,32", page_register)
         key_event = disassembly.split("<ap01_agents_key_event>:", 1)[1].split(
             "<ap01_agents_detail_active>:", 1
         )[0]
-        self.assertGreaterEqual(key_event.count("addi\tt1,a0,-1"), 2)
-        self.assertGreaterEqual(key_event.count("addi\tt2,a0,-2"), 2)
-        self.assertIn("lw\tt0,52(s1)", key_event)
-        self.assertIn("li\tt1,9", key_event)
-        self.assertIn("li\tt1,8", key_event)
-        self.assertIn("sw\tt1,52(s1)", key_event)
-        self.assertIn("sw\tt0,52(s1)", key_event)
+        self.assertIn("<ap01_agents_find_state>", key_event)
+        self.assertNotIn("52(s1)", key_event)
+        self.assertGreaterEqual(key_event.count("24(s2)"), 6)
+        self.assertGreaterEqual(
+            key_event.count("# a00bf942 <lv_obj_set_x>"),
+            5,
+        )
+        self.assertIn("li\ta1,7", key_event)
+        self.assertIn("li\ta1,6", key_event)
+        self.assertIn("li\ta1,3", key_event)
         self.assertIn("<stock_key_event>", key_event)
+        find_state = disassembly.split("<ap01_agents_find_state>:", 1)[1].split(
+            "<ap01_agents_key_event>:", 1
+        )[0]
+        self.assertIn("li\ta1,7", find_state)
+        self.assertIn("# a00c5fe4 <lv_obj_get_child_count>", find_state)
+        self.assertIn("28(t0)", find_state)
 
     def test_request_formats_fit_without_positional_printf(self) -> None:
         credentials = DeviceCredentials(

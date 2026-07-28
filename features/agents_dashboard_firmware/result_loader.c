@@ -20,7 +20,7 @@ typedef unsigned long long u64;
 
 #define VA_STOCK_UI_TIMER                 0xa00bb5dau
 #define VA_WINDOW_BY_INDEX                0xa00c5d84u
-#define VA_WINDOW_GET_COUNT               0xa00b0570u
+#define VA_OBJECT_GET_CHILD_COUNT         0xa00c5fe4u
 #define VA_LV_GIF_SET_SRC                 0xa00cf8d8u
 #define VA_WEBCLIENT_PERFORM              0xa00d86bau
 #define VA_OPEN                           0xa003f448u
@@ -54,7 +54,7 @@ typedef unsigned long long u64;
 
 typedef void (*void_one_arg_fn)(void *);
 typedef void *(*window_by_index_fn)(void *, int);
-typedef int (*window_get_count_fn)(void *);
+typedef int (*object_get_child_count_fn)(void *);
 typedef void (*gif_set_src_fn)(void *, const void *);
 typedef int (*webclient_perform_fn)(void *);
 typedef int (*open_fn)(const char *, int, int);
@@ -92,6 +92,8 @@ struct agents_ui_state
   u32 applied_generation;
   u32 applied_slot;
   u32 applied_page;
+  u32 active;
+  void *root;
 };
 
 struct download_state
@@ -812,9 +814,11 @@ ATTR_ENTRY int ap01_agents_apply_current(void *argument)
 ATTR_ENTRY void ap01_agents_ui_timer_wrapper(void *timer)
 {
   void *theme;
-  void *window;
+  void *pet;
+  void *root;
   struct agents_ui_state *state;
   int count;
+  int index;
   ((void_one_arg_fn)VA_STOCK_UI_TIMER)(timer);
   if (timer == (void *)0)
     {
@@ -825,16 +829,27 @@ ATTR_ENTRY void ap01_agents_ui_timer_wrapper(void *timer)
     {
       return;
     }
-  count = ((window_get_count_fn)VA_WINDOW_GET_COUNT)(theme);
-  if (count < 2)
+  pet = ((window_by_index_fn)VA_WINDOW_BY_INDEX)(theme, 7);
+  if (pet == (void *)0)
     {
       return;
     }
-  window = ((window_by_index_fn)VA_WINDOW_BY_INDEX)(theme, count - 2);
-  if (window == (void *)0)
+  count = ((object_get_child_count_fn)VA_OBJECT_GET_CHILD_COUNT)(pet);
+  for (index = count - 1; index >= 0; --index)
     {
-      return;
+      root = ((window_by_index_fn)VA_WINDOW_BY_INDEX)(pet, index);
+      if (root == (void *)0)
+        {
+          continue;
+        }
+      state = (struct agents_ui_state *)*(void **)((u8 *)root + 16u);
+      if (state != (void *)0 &&
+          state->magic == AGENTS_STATE_MAGIC &&
+          state->gif != (void *)0 &&
+          state->root == root)
+        {
+          (void)ap01_agents_apply_current(state);
+          return;
+        }
     }
-  state = (struct agents_ui_state *)*(void **)((u8 *)window + 16u);
-  (void)ap01_agents_apply_current(state);
 }
