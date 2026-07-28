@@ -158,14 +158,20 @@ class SettingsMenuWrapTests(unittest.TestCase):
                 load_patch_plan(plan_path, REPO_ROOT)
 
     @unittest.skipUnless(REAL_BASELINE.is_file(), "真实原厂基线不在本机")
-    def test_current_approval_record_is_rejected_for_visual_sync_scope(self) -> None:
-        with self.assertRaisesRegex(SettingsMenuWrapError, "必须重新审批"):
-            build_approved_plan(
-                REAL_BASELINE,
-                tool_revision={"commit": "test", "scoped_code_dirty": True},
-            )
+    def test_current_approval_record_matches_direct_position_scope(self) -> None:
+        document = build_approved_plan(
+            REAL_BASELINE,
+            tool_revision={"commit": "test", "scoped_code_dirty": True},
+        )
         approval = json.loads(APPROVAL_RECORD_PATH.read_text(encoding="utf-8"))
-        self.assertEqual(approval["installation_statement"], "批准，生成固件并刷机")
+        self.assertEqual(document["status"], APPROVED_PLAN_STATUS)
+        self.assertTrue(document["review"]["firmware_output_allowed"])
+        self.assertFalse(document["review"]["experimental_download_allowed"])
+        self.assertFalse(document["review"]["installation_allowed"])
+        self.assertEqual(
+            approval["installation_statement"],
+            "批准生成并刷入第 21 节首尾立即定位修正版 opt-setting.bin",
+        )
 
     @unittest.skipUnless(REAL_BASELINE.is_file(), "真实原厂基线不在本机")
     def test_changed_approval_scope_is_rejected(self) -> None:
