@@ -23,6 +23,10 @@ from features.optimized_firmware_build import (
     OptimizedFirmwareBuildError,
     inspect_optimized_baseline,
 )
+from features.primary_page_navigation import (
+    PrimaryPageNavigationError,
+    inspect_primary_page_navigation,
+)
 from features.settings_menu_wrap import (
     SettingsMenuWrapError,
     write_approved_plan,
@@ -96,6 +100,14 @@ def _parser() -> argparse.ArgumentParser:
     optimized_inspect_command.add_argument("--original", type=Path, required=True)
     optimized_inspect_command.add_argument("--input", type=Path, required=True)
     optimized_inspect_command.add_argument("--report", type=Path, required=True)
+
+    navigation_inspect_command = commands.add_parser(
+        "primary-page-inspect",
+        help="检查一级页面注册、动态导航和新增页挂接候选",
+    )
+    navigation_inspect_command.add_argument("--original", type=Path, required=True)
+    navigation_inspect_command.add_argument("--input", type=Path, required=True)
+    navigation_inspect_command.add_argument("--report", type=Path, required=True)
     return parser
 
 
@@ -191,6 +203,27 @@ def main(argv: list[str] | None = None) -> int:
             )
             return 0
 
+        if args.command == "primary-page-inspect":
+            report = inspect_primary_page_navigation(
+                args.original,
+                args.input,
+                args.report,
+                tool_revision=revision,
+            )
+            print(
+                json.dumps(
+                    {
+                        "result": "一级页面注册与导航检查通过",
+                        "report": str(args.report.resolve()),
+                        "page_hook_candidate": report["page_hook_candidate"],
+                        "gates": report["gates"],
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                )
+            )
+            return 0
+
         result = make_firmware(
             args.input,
             args.plan,
@@ -222,6 +255,7 @@ def main(argv: list[str] | None = None) -> int:
         BuildGateError,
         FirmwareValidationError,
         OptimizedFirmwareBuildError,
+        PrimaryPageNavigationError,
         SettingsMenuWrapError,
         OSError,
         subprocess.SubprocessError,
