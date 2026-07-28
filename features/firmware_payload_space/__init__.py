@@ -5,6 +5,7 @@ from .optimizer import (
     GIF_SIZE_OFFSET,
     OPTIMIZED_SIZE,
     ORIGINAL_SIZE,
+    ORIGINAL_SHA256,
     PAYLOAD_CAPACITY,
     PAYLOAD_END,
     PAYLOAD_START,
@@ -20,6 +21,7 @@ __all__ = [
     "GIF_SIZE_OFFSET",
     "OPTIMIZED_SIZE",
     "ORIGINAL_SIZE",
+    "ORIGINAL_SHA256",
     "FirmwarePayloadSpaceError",
     "inspect_payload_space",
 ]

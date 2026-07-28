@@ -16,6 +16,7 @@ if str(REPO_ROOT) not in sys.path:
 from core.firmware_image import FirmwareValidationError
 from features.agents_dashboard_firmware import (
     AgentsDashboardFirmwareError,
+    build_observation_firmware,
     build_page_registration_payload,
 )
 from features.offline_firmware_build import (
@@ -132,6 +133,15 @@ def _parser() -> argparse.ArgumentParser:
     agents_page_payload_command.add_argument("--input", type=Path, required=True)
     agents_page_payload_command.add_argument("--build-dir", type=Path, required=True)
     agents_page_payload_command.add_argument("--report", type=Path, required=True)
+
+    observation_command = commands.add_parser(
+        "agents-observation-build",
+        help="生成专用测试设备的 AGENTS 首次真机观察固件",
+    )
+    observation_command.add_argument("--input", type=Path, required=True)
+    observation_command.add_argument("--output", type=Path, required=True)
+    observation_command.add_argument("--manifest", type=Path, required=True)
+    observation_command.add_argument("--build-dir", type=Path, required=True)
     return parser
 
 
@@ -284,6 +294,30 @@ def main(argv: list[str] | None = None) -> int:
                         "report": str(args.report.resolve()),
                         "payload": report["payload"],
                         "gates": report["gates"],
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                )
+            )
+            return 0
+
+        if args.command == "agents-observation-build":
+            result = build_observation_firmware(
+                args.input,
+                args.output,
+                args.manifest,
+                args.build_dir,
+                tool_revision=revision,
+            )
+            print(
+                json.dumps(
+                    {
+                        "result": "AGENTS 首次真机观察固件制作完成",
+                        "output": str(result.output),
+                        "manifest": str(result.manifest),
+                        "output_sha256": result.sha256,
+                        "output_md5": result.md5,
+                        "recovery_crc": f"0x{result.recovery_crc:08x}",
                     },
                     ensure_ascii=False,
                     indent=2,

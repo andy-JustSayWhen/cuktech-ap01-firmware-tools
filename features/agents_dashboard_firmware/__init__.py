@@ -2,6 +2,8 @@
 
 from .build import (
     AgentsDashboardFirmwareError,
+    ObservationBuildResult,
+    build_observation_firmware,
     build_page_registration_payload,
 )
 from .fallback_assets import (
@@ -12,6 +14,8 @@ from .fallback_assets import (
 __all__ = [
     "AgentsDashboardFirmwareError",
     "FallbackAssetError",
+    "ObservationBuildResult",
+    "build_observation_firmware",
     "build_fallback_assets",
     "build_page_registration_payload",
 ]

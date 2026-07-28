@@ -14,11 +14,18 @@ from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
+from core.firmware_image import (
+    AP01_1_0_2_0031,
+    ByteRange,
+    refresh_recovery_crc,
+    validate_candidate,
+)
 from features.firmware_payload_space import (
     GIF_DATA_OFFSET,
     GIF_SIZE_OFFSET,
     OPTIMIZED_SIZE,
     ORIGINAL_SIZE,
+    ORIGINAL_SHA256,
     PAYLOAD_CAPACITY,
     PAYLOAD_START,
     inspect_payload_space,
@@ -33,6 +40,7 @@ from .fallback_assets import (
 MODULE_DIR = Path(__file__).resolve().parent
 SOURCE = MODULE_DIR / "page_registration.S"
 LINKER = MODULE_DIR / "page_registration.ld"
+OBSERVATION_APPROVAL = MODULE_DIR / "observation_approval_record.json"
 FONT_DIRECTORY = MODULE_DIR.parents[1] / "env/fonts"
 XIP_DELTA = 0x9FFFF000
 PAYLOAD_VA = XIP_DELTA + PAYLOAD_START
@@ -65,6 +73,9 @@ EXPECTED_PAYLOAD_SIZE = 27_472
 EXPECTED_PAYLOAD_SHA256 = (
     "0ef5f27dbf2e37014d3523667e2b597d88a226f4ca2d416dcae79e6b8e9ed910"
 )
+OBSERVATION_OUTPUT_FILENAME = "ap01-1.0.2_0031-agents-observation.bin"
+STAGE_SIZE = 6_804_520
+STAGE_SHA256 = "348d0843ac3f3f380eb155170c4104fd8467a018ddfd13670d67be998f269dc1"
 
 
 class AgentsDashboardFirmwareError(RuntimeError):
@@ -80,6 +91,15 @@ class PayloadResult:
     trampoline: bytes
     binary: Path
     elf: Path
+
+
+@dataclass(frozen=True)
+class ObservationBuildResult:
+    output: Path
+    manifest: Path
+    sha256: str
+    md5: str
+    recovery_crc: int
 
 
 def _tool(name: str) -> Path:
@@ -243,6 +263,51 @@ def _write_report(path: Path, document: dict[str, object]) -> None:
     finally:
         if temporary.exists():
             temporary.unlink()
+
+
+def _write_frozen(path: Path, payload: bytes) -> None:
+    selected = path.expanduser().resolve()
+    if selected.exists():
+        raise AgentsDashboardFirmwareError(f"不可覆盖已经存在的观察成品：{selected}")
+    selected.parent.mkdir(parents=True, exist_ok=True)
+    temporary = selected.with_name(selected.name + ".part")
+    if temporary.exists():
+        raise AgentsDashboardFirmwareError(f"发现未处理的临时成品：{temporary}")
+    try:
+        with temporary.open("xb") as stream:
+            stream.write(payload)
+            stream.flush()
+            os.fsync(stream.fileno())
+        if temporary.read_bytes() != payload:
+            raise AgentsDashboardFirmwareError("观察成品写后回读不一致")
+        os.replace(temporary, selected)
+        selected.chmod(0o444)
+    finally:
+        if temporary.exists():
+            temporary.unlink()
+
+
+def _load_observation_approval(output_sha256: str) -> dict[str, object]:
+    try:
+        document = json.loads(OBSERVATION_APPROVAL.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as error:
+        raise AgentsDashboardFirmwareError("无法读取真机观察安装批准记录") from error
+    expected = {
+        "schema_version": 1,
+        "status": "approved-for-one-installation",
+        "target_model": AP01_1_0_2_0031.model,
+        "target_version": AP01_1_0_2_0031.version,
+        "output_filename": OBSERVATION_OUTPUT_FILENAME,
+        "output_sha256": output_sha256,
+        "installation_consumed_at_beijing": None,
+    }
+    for field, value in expected.items():
+        if document.get(field) != value:
+            raise AgentsDashboardFirmwareError(f"真机观察批准记录字段不匹配：{field}")
+    risk_override = document.get("risk_override")
+    if not isinstance(risk_override, list) or len(risk_override) != 4:
+        raise AgentsDashboardFirmwareError("真机观察批准记录必须固定四项风险跳过范围")
+    return document
 
 
 def build_page_registration_payload(
@@ -537,3 +602,200 @@ def build_page_registration_payload(
     }
     _write_report(report_path, document)
     return document
+
+
+def build_observation_firmware(
+    stage_path: Path,
+    output_path: Path,
+    manifest_path: Path,
+    build_directory: Path,
+    *,
+    tool_revision: dict[str, object],
+) -> ObservationBuildResult:
+    """把已验证页面载荷组合成专用测试设备的首次真机观察成品。"""
+
+    if tool_revision.get("scoped_code_dirty") is not False:
+        raise AgentsDashboardFirmwareError("制作代码尚未提交，不能冻结真机观察成品")
+    output = output_path.expanduser().resolve()
+    if output.name != OBSERVATION_OUTPUT_FILENAME:
+        raise AgentsDashboardFirmwareError(
+            f"观察成品文件名必须是 {OBSERVATION_OUTPUT_FILENAME}"
+        )
+    stage_selected, stage = _read_stage(stage_path)
+    if (
+        len(stage) != STAGE_SIZE
+        or hashlib.sha256(stage).hexdigest() != STAGE_SHA256
+    ):
+        raise AgentsDashboardFirmwareError("已验收设置菜单阶段成品身份不匹配")
+
+    selected_build = build_directory.expanduser().resolve()
+    payload_report_path = selected_build / "payload-report.json"
+    payload_report = build_page_registration_payload(
+        stage_selected,
+        selected_build / "payload",
+        payload_report_path,
+        tool_revision=tool_revision,
+    )
+    payload = Path(str(payload_report["payload"]["file"])).read_bytes()
+    optimized = Path(
+        str(payload_report["optimized_source_resource"]["file"])
+    ).read_bytes()
+    draft = payload_report["draft_modifications"]
+    if not isinstance(draft, list) or len(draft) != 7:
+        raise AgentsDashboardFirmwareError("页面载荷修改清单结构不匹配")
+
+    candidate = bytearray(stage)
+
+    def replace(
+        offset: int,
+        expected: bytes,
+        replacement: bytes,
+        name: str,
+    ) -> ByteRange:
+        end = offset + len(expected)
+        if len(expected) != len(replacement):
+            raise AgentsDashboardFirmwareError(f"{name} 修改前后长度不一致")
+        if bytes(candidate[offset:end]) != expected:
+            raise AgentsDashboardFirmwareError(f"{name} 修改前旧字节不匹配")
+        candidate[offset:end] = replacement
+        return ByteRange(offset, end)
+
+    allowed: list[ByteRange] = []
+    allowed.append(
+        replace(
+            GIF_SIZE_OFFSET,
+            struct.pack("<I", ORIGINAL_SIZE),
+            struct.pack("<I", OPTIMIZED_SIZE),
+            "原厂第一张动图数据长度",
+        )
+    )
+    original_gif = bytes(
+        candidate[GIF_DATA_OFFSET : GIF_DATA_OFFSET + ORIGINAL_SIZE]
+    )
+    if hashlib.sha256(original_gif).hexdigest() != ORIGINAL_SHA256:
+        raise AgentsDashboardFirmwareError("原厂第一张动图修改前指纹不匹配")
+    candidate[GIF_DATA_OFFSET : GIF_DATA_OFFSET + len(optimized)] = optimized
+    allowed.append(ByteRange(GIF_DATA_OFFSET, GIF_DATA_OFFSET + len(optimized)))
+    allowed.append(
+        replace(
+            HOOK_OFFSET,
+            HOOK_ORIGINAL,
+            bytes.fromhex(draft[2]["replacement_hex"]),
+            "页面挂接",
+        )
+    )
+    allowed.append(
+        replace(
+            TRAMPOLINE_OFFSET,
+            TRAMPOLINE_ORIGINAL,
+            bytes.fromhex(draft[3]["replacement_hex"]),
+            "页面跳板",
+        )
+    )
+    allowed.append(
+        replace(
+            KEY_CALLBACK_HIGH_OFFSET,
+            KEY_CALLBACK_HIGH_ORIGINAL,
+            bytes.fromhex(draft[4]["replacement_hex"]),
+            "一级键值回调地址高位",
+        )
+    )
+    allowed.append(
+        replace(
+            KEY_CALLBACK_LOW_OFFSET,
+            KEY_CALLBACK_LOW_ORIGINAL,
+            bytes.fromhex(draft[5]["replacement_hex"]),
+            "一级键值回调地址低位",
+        )
+    )
+    payload_before = bytes(candidate[PAYLOAD_START : PAYLOAD_START + len(payload)])
+    candidate[PAYLOAD_START : PAYLOAD_START + len(payload)] = payload
+    if payload_before == payload:
+        raise AgentsDashboardFirmwareError("页面载荷写入前后完全相同")
+    allowed.append(ByteRange(PAYLOAD_START, PAYLOAD_START + len(payload)))
+
+    recovery_crc = refresh_recovery_crc(candidate, AP01_1_0_2_0031)
+    recovery_range = ByteRange(
+        AP01_1_0_2_0031.recovery_trailer_offset + 36,
+        AP01_1_0_2_0031.recovery_trailer_offset + 40,
+    )
+    allowed.append(recovery_range)
+    candidate_report = validate_candidate(
+        stage,
+        bytes(candidate),
+        allowed,
+        AP01_1_0_2_0031,
+    )
+    approval = _load_observation_approval(candidate_report.sha256)
+    manifest: dict[str, object] = {
+        "schema_version": 1,
+        "manifest_type": "agents-observation-firmware",
+        "built_at_beijing": datetime.now(ZoneInfo("Asia/Shanghai")).isoformat(
+            timespec="seconds"
+        ),
+        "tool": tool_revision,
+        "input": {
+            "path": str(stage_selected),
+            "size": len(stage),
+            "sha256": hashlib.sha256(stage).hexdigest(),
+            "read_only": True,
+        },
+        "output": {
+            "path": str(output),
+            "read_only": True,
+            **candidate_report.to_dict(),
+        },
+        "payload_report": str(payload_report_path),
+        "approval": approval,
+        "allowed_ranges": [item.to_dict() for item in allowed],
+        "recovery_crc_after_build": f"0x{recovery_crc:08x}",
+        "implemented_scope": [
+            "AGENTS 一级页面",
+            "四张内置等待页",
+            "概览进入详情",
+            "三个详情首尾循环",
+            "返回概览",
+        ],
+        "pending_measurements": [
+            "任务栈上限",
+            "接收与解码缓冲峰值",
+            "/data 可用空间",
+            "连续刷新内存变化",
+            "断电恢复结果",
+        ],
+        "validation": {
+            "old_bytes_asserted": True,
+            "total_length_preserved": True,
+            "immutable_header_preserved": True,
+            "recovery_structure_preserved": True,
+            "outside_allowed_ranges_identical": True,
+            "installation_scope": "专用测试设备单次真机观察",
+        },
+    }
+    output_written = False
+    try:
+        _write_frozen(output, bytes(candidate))
+        output_written = True
+        readback = output.read_bytes()
+        readback_report = validate_candidate(
+            stage,
+            readback,
+            allowed,
+            AP01_1_0_2_0031,
+        )
+        if readback_report.sha256 != candidate_report.sha256:
+            raise AgentsDashboardFirmwareError("观察成品回读指纹不一致")
+        _write_report(manifest_path, manifest)
+        manifest_path.expanduser().resolve().chmod(0o444)
+    except Exception:
+        if output_written and output.exists():
+            output.chmod(0o644)
+            output.unlink()
+        raise
+    return ObservationBuildResult(
+        output=output,
+        manifest=manifest_path.expanduser().resolve(),
+        sha256=candidate_report.sha256,
+        md5=candidate_report.md5,
+        recovery_crc=recovery_crc,
+    )

@@ -1,11 +1,16 @@
 from __future__ import annotations
 
 import shutil
+import stat
 import tempfile
 import unittest
 from pathlib import Path
 
-from features.agents_dashboard_firmware import build_page_registration_payload
+from features.agents_dashboard_firmware import (
+    build_observation_firmware,
+    build_page_registration_payload,
+)
+from features.agents_dashboard_firmware.build import OBSERVATION_OUTPUT_FILENAME
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -51,6 +56,33 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
             document["draft_modifications"][5]["expected_before_hex"],
             "9385e5fe",
         )
+
+    def test_real_stage_builds_frozen_observation_firmware(self) -> None:
+        if not STAGE.is_file() or not shutil.which("riscv64-elf-as"):
+            self.skipTest("本机没有阶段固件或固定编译工具")
+        with tempfile.TemporaryDirectory() as selected:
+            root = Path(selected)
+            output = root / OBSERVATION_OUTPUT_FILENAME
+            manifest = root / "manifest.json"
+            result = build_observation_firmware(
+                STAGE,
+                output,
+                manifest,
+                root / "build",
+                tool_revision={"commit": "test", "scoped_code_dirty": False},
+            )
+            output_bytes = output.read_bytes()
+            manifest_text = manifest.read_text(encoding="utf-8")
+            output_mode = output.stat().st_mode
+
+        self.assertEqual(len(output_bytes), STAGE.stat().st_size)
+        self.assertEqual(result.output.name, OBSERVATION_OUTPUT_FILENAME)
+        self.assertEqual(
+            result.sha256,
+            "289e61602be4fe09e320bf8f8a3fc231eae48429ec7d0be74941d0d8b8834d5f",
+        )
+        self.assertIn('"outside_allowed_ranges_identical": true', manifest_text)
+        self.assertFalse(output_mode & stat.S_IWUSR)
 
 
 if __name__ == "__main__":

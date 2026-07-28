@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "status": "approved-for-one-installation",
+  "approved_at_beijing": "2026-07-28",
+  "target_model": "njcuk.enstor.ap01",
+  "target_version": "1.0.2_0031",
+  "target_device": "当前账号唯一匹配的 AP01 专用测试设备",
+  "output_filename": "ap01-1.0.2_0031-agents-observation.bin",
+  "output_sha256": "289e61602be4fe09e320bf8f8a3fc231eae48429ec7d0be74941d0d8b8834d5f",
+  "risk_override": [
+    "当前槽、更新槽与实际写入目标证据",
+    "两份逐字节一致的同机全闪存备份",
+    "同机原厂固件回刷验证",
+    "不依赖设备正常启动和联网的独立恢复验证"
+  ],
+  "approval_statement": "缺少的这4个，列为可跳过，因为无法实现；做好了就刷入",
+  "installation_consumed_at_beijing": null,
+  "installation_result": null
+}
