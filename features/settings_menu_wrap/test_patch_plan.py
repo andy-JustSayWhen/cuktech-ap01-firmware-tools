@@ -95,10 +95,10 @@ class SettingsMenuWrapTests(unittest.TestCase):
             [
                 {"address_hex": "0xa001b034", "operands": "x10,8(x19)"},
                 {"address_hex": "0xa001b038", "operands": "x11,0"},
-                {"address_hex": "0xa001b03a", "operands": "x12,1"},
+                {"address_hex": "0xa001b03a", "operands": "x12,0"},
                 {"address_hex": "0xa001b084", "operands": "x10,8(x19)"},
                 {"address_hex": "0xa001b088", "operands": "x11,x0,400"},
-                {"address_hex": "0xa001b08c", "operands": "x12,1"},
+                {"address_hex": "0xa001b08c", "operands": "x12,0"},
             ],
         )
 

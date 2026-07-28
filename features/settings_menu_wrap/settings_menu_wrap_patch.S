@@ -18,7 +18,7 @@ right_validate:
 right_wrap:
     lw a0, 8(s3)
     c.li a1, 0
-    c.li a2, 1
+    c.li a2, 0
     jal ra, list_position_adjust
     li a5, 48
     sb a5, 1(s1)
@@ -43,7 +43,7 @@ left_validate:
 left_wrap:
     lw a0, 8(s3)
     li a1, 400
-    c.li a2, 1
+    c.li a2, 0
     jal ra, list_position_adjust
     addi a5, s5, 47
     sb a5, 1(s1)

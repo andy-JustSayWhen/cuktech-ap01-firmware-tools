@@ -92,15 +92,14 @@ PATCHES = (
         runtime_address=0xA001B008,
         expected_before=b"\x00" * 164,
         expected_replacement=bytes.fromhex(
-            "03a58900efa09a7daa8a83c71400094763f4ea006fd0cd0b9386"
-            "17fd63f4da006fd00d0b638456016fd02d1703a5890081450546"
-            "efb03a5c93070003a380f40003a589009385faff0146ef809d50"
-            "6fd02d0803a58900efa07a78aa8a83c71400094763f4ea006fd0"
-            "ad06938607fd63e456016fd0ed0599c26fd0ed6e03a589009305"
-            "00190546efb01a579387fa02a380f40003a5890081451386faff"
-            "ef807d4b6fd00d03"
+            "03a58900efa09a7daa8a83c71400094763f4ea006fd0cd0b938617fd63f4"
+            "da006fd00d0b638456016fd02d1703a5890081450146efb03a5c93070003"
+            "a380f40003a589009385faff0146ef809d506fd02d0803a58900efa07a78"
+            "aa8a83c71400094763f4ea006fd0ad06938607fd63e456016fd0ed0599c2"
+            "6fd0ed6e03a58900930500190146efb01a579387fa02a380f40003a58900"
+            "81451386faffef807d4b6fd00d03"
         ),
-        evidence_note="证据文档第 20 节：164 字节处理程序同步项目数、选中项与列表位置",
+        evidence_note="证据文档第 21 节：164 字节处理程序立即同步首尾列表位置",
     ),
     PatchDefinition(
         name="右旋状态挂接",
@@ -110,7 +109,7 @@ PATCHES = (
         runtime_address=0xA00F819E,
         expected_before=bytes.fromhex("83c71400"),
         expected_replacement=bytes.fromhex("6f20b2e6"),
-        evidence_note="证据文档第 15 节：跳转目标为 0xa001b008",
+        evidence_note="证据文档第 21 节：跳转目标为 0xa001b008",
     ),
     PatchDefinition(
         name="左旋状态挂接",
@@ -120,7 +119,7 @@ PATCHES = (
         runtime_address=0xA00F876A,
         expected_before=bytes.fromhex("83c71400"),
         expected_replacement=bytes.fromhex("6f20128f"),
-        evidence_note="证据文档第 20 节：跳转目标为 0xa001b05a",
+        evidence_note="证据文档第 21 节：跳转目标为 0xa001b05a",
     ),
 )
 
@@ -331,10 +330,10 @@ def assemble_and_verify() -> dict[str, Any]:
         reviewed_position_sync_setup = (
             (0xA001B034, "x10,8(x19)"),
             (0xA001B038, "x11,0"),
-            (0xA001B03A, "x12,1"),
+            (0xA001B03A, "x12,0"),
             (0xA001B084, "x10,8(x19)"),
             (0xA001B088, "x11,x0,400"),
-            (0xA001B08C, "x12,1"),
+            (0xA001B08C, "x12,0"),
         )
         for address, operands in reviewed_position_sync_setup:
             instruction = disassembly_lines.get(f"{address:08x}", "")
