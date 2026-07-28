@@ -14,6 +14,10 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from core.firmware_image import FirmwareValidationError
+from features.agents_dashboard_firmware import (
+    AgentsDashboardFirmwareError,
+    build_page_registration_payload,
+)
 from features.offline_firmware_build import (
     BuildGateError,
     inspect_baseline,
@@ -120,6 +124,14 @@ def _parser() -> argparse.ArgumentParser:
     payload_space_command.add_argument("--input", type=Path, required=True)
     payload_space_command.add_argument("--optimized-gif", type=Path, required=True)
     payload_space_command.add_argument("--report", type=Path, required=True)
+
+    agents_page_payload_command = commands.add_parser(
+        "agents-page-payload",
+        help="构建并检查 AGENTS 独立页面注册载荷",
+    )
+    agents_page_payload_command.add_argument("--input", type=Path, required=True)
+    agents_page_payload_command.add_argument("--build-dir", type=Path, required=True)
+    agents_page_payload_command.add_argument("--report", type=Path, required=True)
     return parser
 
 
@@ -258,6 +270,27 @@ def main(argv: list[str] | None = None) -> int:
             )
             return 0
 
+        if args.command == "agents-page-payload":
+            report = build_page_registration_payload(
+                args.input,
+                args.build_dir,
+                args.report,
+                tool_revision=revision,
+            )
+            print(
+                json.dumps(
+                    {
+                        "result": "AGENTS 独立页面注册载荷构建通过",
+                        "report": str(args.report.resolve()),
+                        "payload": report["payload"],
+                        "gates": report["gates"],
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                )
+            )
+            return 0
+
         result = make_firmware(
             args.input,
             args.plan,
@@ -286,6 +319,7 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 0
     except (
+        AgentsDashboardFirmwareError,
         BuildGateError,
         FirmwarePayloadSpaceError,
         FirmwareValidationError,
