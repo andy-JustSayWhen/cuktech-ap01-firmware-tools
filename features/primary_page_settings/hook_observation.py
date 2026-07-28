@@ -19,7 +19,7 @@ from core.firmware_image import (
     refresh_recovery_crc,
     validate_candidate,
 )
-from features.firmware_payload_space import PAYLOAD_CAPACITY, PAYLOAD_START
+from core.firmware_payload_space import PAYLOAD_CAPACITY, PAYLOAD_START
 
 
 MODULE_DIR = Path(__file__).resolve().parent

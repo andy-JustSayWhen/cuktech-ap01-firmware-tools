@@ -35,7 +35,7 @@ from features.offline_firmware_build import (
     inspect_baseline,
     make_firmware,
 )
-from features.firmware_payload_space import (
+from core.firmware_payload_space import (
     FirmwarePayloadSpaceError,
     inspect_payload_space,
 )

@@ -12,7 +12,7 @@ import subprocess
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Callable
+from typing import Callable, Protocol
 from zoneinfo import ZoneInfo
 
 from core.firmware_image import (
@@ -21,8 +21,7 @@ from core.firmware_image import (
     refresh_recovery_crc,
     validate_candidate,
 )
-from features.agents_dashboard.result_package import DeviceCredentials
-from features.firmware_payload_space import (
+from core.firmware_payload_space import (
     GIF_DATA_OFFSET,
     GIF_SIZE_OFFSET,
     OPTIMIZED_SIZE,
@@ -32,7 +31,6 @@ from features.firmware_payload_space import (
     PAYLOAD_START,
     inspect_payload_space,
 )
-
 from .build import (
     FONT_DIRECTORY,
     HOOK_OFFSET,
@@ -61,6 +59,12 @@ from .build import (
     _write_report,
 )
 from .fallback_assets import FallbackAssetError, build_fallback_assets
+
+
+class DeviceCredentialsLike(Protocol):
+    device_id: str
+    access_token: str
+    secret_key: bytes
 
 
 MODULE_DIR = Path(__file__).resolve().parent
@@ -217,7 +221,7 @@ def _gcc_version(tool: Path) -> str:
     return first
 
 
-def _config_assembly(path: Path, credentials: DeviceCredentials) -> None:
+def _config_assembly(path: Path, credentials: DeviceCredentialsLike) -> None:
     device = credentials.device_id.encode("ascii").ljust(16, b"\0")
     lines = [
         '    .section .rodata, "a", @progbits',
@@ -269,7 +273,7 @@ def _replace(
     return ByteRange(offset, end)
 
 
-def _request_formats(credentials: DeviceCredentials) -> tuple[bytes, bytes]:
+def _request_formats(credentials: DeviceCredentialsLike) -> tuple[bytes, bytes]:
     compact_device = credentials.device_id[-4:]
     compact_token = credentials.access_token[-12:]
     location = (
@@ -503,7 +507,7 @@ def _validate_stock_pet_reuse_disassembly(disassembly: str) -> None:
 def build_sync_payload(
     stage_path: Path,
     build_directory: Path,
-    credentials: DeviceCredentials,
+    credentials: DeviceCredentialsLike,
     *,
     tool_revision: dict[str, object],
     extra_objects: tuple[Path, ...] = (),
@@ -721,7 +725,7 @@ def build_sync_firmware(
     output_path: Path,
     manifest_path: Path,
     build_directory: Path,
-    credentials: DeviceCredentials,
+    credentials: DeviceCredentialsLike,
     *,
     url_base: str,
     refresh_seconds: int,

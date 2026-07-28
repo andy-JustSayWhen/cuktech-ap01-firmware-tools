@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from features.firmware_payload_space import (
+from core.firmware_payload_space import (
     PAYLOAD_CAPACITY,
     PAYLOAD_END,
     PAYLOAD_START,

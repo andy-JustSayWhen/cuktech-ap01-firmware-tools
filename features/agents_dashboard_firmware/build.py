@@ -20,7 +20,7 @@ from core.firmware_image import (
     refresh_recovery_crc,
     validate_candidate,
 )
-from features.firmware_payload_space import (
+from core.firmware_payload_space import (
     GIF_DATA_OFFSET,
     GIF_SIZE_OFFSET,
     OPTIMIZED_SIZE,
