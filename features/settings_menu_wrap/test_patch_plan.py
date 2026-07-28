@@ -10,6 +10,7 @@ import features.settings_menu_wrap.patch_plan as patch_plan_module
 from features.offline_firmware_build import BuildGateError, load_patch_plan
 from features.settings_menu_wrap import (
     APPROVAL_RECORD_PATH,
+    APPROVED_PLAN_STATUS,
     CODE_GAP_END,
     CODE_GAP_START,
     DRAFT_PLAN_STATUS,
@@ -144,12 +145,22 @@ class SettingsMenuWrapTests(unittest.TestCase):
                 load_patch_plan(plan_path, REPO_ROOT)
 
     @unittest.skipUnless(REAL_BASELINE.is_file(), "真实原厂基线不在本机")
-    def test_previous_approval_record_cannot_approve_corrected_scope(self) -> None:
-        with self.assertRaisesRegex(SettingsMenuWrapError, "必须重新审批"):
-            build_approved_plan(
-                REAL_BASELINE,
-                tool_revision={"commit": "test", "scoped_code_dirty": True},
-            )
+    def test_current_approval_record_is_bound_to_corrected_scope(self) -> None:
+        document = build_approved_plan(
+            REAL_BASELINE,
+            tool_revision={"commit": "test", "scoped_code_dirty": True},
+        )
+
+        self.assertEqual(document["status"], APPROVED_PLAN_STATUS)
+        self.assertTrue(document["review"]["firmware_output_allowed"])
+        self.assertFalse(document["review"]["experimental_download_allowed"])
+        self.assertFalse(document["review"]["installation_allowed"])
+        self.assertEqual(
+            document["approval"]["scope_sha256"],
+            "e61d2e2235b64172008d5e07085fbb2e89b1d0c653a6049a175860d4f28a4a6e",
+        )
+        approval = json.loads(APPROVAL_RECORD_PATH.read_text(encoding="utf-8"))
+        self.assertEqual(approval["installation_statement"], "批准，生成固件并刷机")
 
     @unittest.skipUnless(REAL_BASELINE.is_file(), "真实原厂基线不在本机")
     def test_changed_approval_scope_is_rejected(self) -> None:
@@ -173,16 +184,18 @@ class SettingsMenuWrapTests(unittest.TestCase):
                     )
 
     @unittest.skipUnless(REAL_BASELINE.is_file(), "真实原厂基线不在本机")
-    def test_corrected_scope_cannot_write_approved_plan(self) -> None:
+    def test_corrected_scope_writes_approved_plan(self) -> None:
         with tempfile.TemporaryDirectory() as selected:
             plan_path = Path(selected) / "settings-menu-wrap-approved.json"
-            with self.assertRaisesRegex(SettingsMenuWrapError, "必须重新审批"):
-                write_approved_plan(
-                    REAL_BASELINE,
-                    plan_path,
-                    tool_revision={"commit": "test", "scoped_code_dirty": True},
-                )
-            self.assertFalse(plan_path.exists())
+            write_approved_plan(
+                REAL_BASELINE,
+                plan_path,
+                tool_revision={"commit": "test", "scoped_code_dirty": True},
+            )
+
+            plan = load_patch_plan(plan_path, REPO_ROOT)
+            self.assertEqual(plan.status, APPROVED_PLAN_STATUS)
+            self.assertEqual(len(plan.patches), 3)
 
 
 if __name__ == "__main__":
