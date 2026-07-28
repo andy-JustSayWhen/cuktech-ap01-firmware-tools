@@ -21,6 +21,7 @@ from features.agents_dashboard.result_package import (
 )
 from features.agents_dashboard_firmware import (
     AgentsDashboardFirmwareError,
+    DETAIL_COMPAT_OUTPUT_FILENAME,
     build_observation_firmware,
     build_page_registration_payload,
     build_sync_firmware,
@@ -169,6 +170,22 @@ def _parser() -> argparse.ArgumentParser:
     sync_command.add_argument("--config", type=Path, required=True)
     sync_command.add_argument("--url-base", required=True)
     sync_command.add_argument("--refresh-seconds", type=int, default=300)
+
+    detail_compat_command = commands.add_parser(
+        "agents-detail-compat-build",
+        help="生成保留原厂详情对象序号的 AGENTS 四页观察固件",
+    )
+    detail_compat_command.add_argument("--input", type=Path, required=True)
+    detail_compat_command.add_argument("--output", type=Path, required=True)
+    detail_compat_command.add_argument("--manifest", type=Path, required=True)
+    detail_compat_command.add_argument("--build-dir", type=Path, required=True)
+    detail_compat_command.add_argument("--config", type=Path, required=True)
+    detail_compat_command.add_argument("--url-base", required=True)
+    detail_compat_command.add_argument(
+        "--refresh-seconds",
+        type=int,
+        default=300,
+    )
 
     optimized_build_command = commands.add_parser(
         "opt-build",
@@ -423,6 +440,38 @@ def main(argv: list[str] | None = None) -> int:
                 json.dumps(
                     {
                         "result": "AGENTS 四页后台同步实验固件制作完成",
+                        "output": str(result.output),
+                        "manifest": str(result.manifest),
+                        "output_sha256": result.sha256,
+                        "output_md5": result.md5,
+                        "payload_size": result.payload_size,
+                        "payload_remaining": result.payload_remaining,
+                        "installation_allowed": False,
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                )
+            )
+            return 0
+
+        if args.command == "agents-detail-compat-build":
+            credentials = load_or_create_credentials(args.config)
+            result = build_sync_firmware(
+                args.input,
+                args.output,
+                args.manifest,
+                args.build_dir,
+                credentials,
+                url_base=args.url_base,
+                refresh_seconds=args.refresh_seconds,
+                tool_revision=revision,
+                expected_output_name=DETAIL_COMPAT_OUTPUT_FILENAME,
+                implemented_scope_extra=("保留原厂详情对象序号",),
+            )
+            print(
+                json.dumps(
+                    {
+                        "result": "原厂详情序号兼容观察固件制作完成",
                         "output": str(result.output),
                         "manifest": str(result.manifest),
                         "output_sha256": result.sha256,

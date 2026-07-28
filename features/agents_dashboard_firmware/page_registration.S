@@ -16,6 +16,18 @@ ap01_agents_page_register:
     sw ra, 28(sp)
     sw s0, 24(sp)
     sw s1, 20(sp)
+    .ifdef SYNC_LOADER
+    sw s2, 16(sp)
+
+    /*
+     * Preserve the stock detail object at its original child index.  The
+     * caller still expects this object in a0 after the hook returns.
+     */
+    mv a0, s4
+    call lv_obj_create
+    beqz a0, .Lpage_register_return
+    mv s2, a0
+    .endif
 
     /* s4 remains the stock top-level window container. */
     mv a0, s4
@@ -96,13 +108,22 @@ ap01_agents_page_register:
     call lv_obj_del
 
 .Lcreate_stock_detail:
+    .ifdef SYNC_LOADER
+    /* The stock detail was created first and must remain the return value. */
+    mv a0, s2
+    .else
     /* Reproduce the stock call replaced at 0xa00b2732. */
     mv a0, s4
     call lv_obj_create
+    .endif
 
+.Lpage_register_return:
     lw ra, 28(sp)
     lw s0, 24(sp)
     lw s1, 20(sp)
+    .ifdef SYNC_LOADER
+    lw s2, 16(sp)
+    .endif
     addi sp, sp, 32
     ret
 
@@ -194,6 +215,44 @@ ap01_agents_key_event:
     sw t0, 8(sp)
     mv a0, s1
     call window_get_count
+    .ifdef SYNC_LOADER
+    addi t1, a0, -1
+    addi t2, a0, -2
+    lw t0, 8(sp)
+    bltu t1, t0, .Lstock_key_event
+    beq t0, t2, .Lstock_key_event
+    beqz t0, .Loverview_left_wrap
+    li t3, 3
+    bltu t0, t3, .Lstock_key_event
+    beq t0, t3, .Loverview_left_power
+    beq t0, t1, .Loverview_left_before_detail
+    addi a1, t0, -1
+    mv a0, s1
+    li a2, 2
+    call window_set_active
+    j .Lkey_consumed
+
+.Loverview_left_wrap:
+    mv a1, t1
+    mv a0, s1
+    li a2, 2
+    call window_set_active
+    j .Lkey_consumed
+
+.Loverview_left_before_detail:
+    addi a1, t2, -1
+    mv a0, s1
+    li a2, 2
+    call window_set_active
+    j .Lkey_consumed
+
+.Loverview_left_power:
+    li a1, 0
+    mv a0, s1
+    li a2, 2
+    call window_set_active
+    j .Lkey_consumed
+    .else
     addi t1, a0, -2
     lw t0, 8(sp)
     bltu t1, t0, .Lstock_key_event
@@ -220,6 +279,7 @@ ap01_agents_key_event:
     li a2, 2
     call window_set_active
     j .Lkey_consumed
+    .endif
 
 .Lkey_right:
     beqz s2, .Loverview_right
@@ -235,6 +295,25 @@ ap01_agents_key_event:
     sw t0, 8(sp)
     mv a0, s1
     call window_get_count
+    .ifdef SYNC_LOADER
+    addi t1, a0, -1
+    addi t2, a0, -2
+    lw t0, 8(sp)
+    bltu t1, t0, .Lstock_key_event
+    beq t0, t2, .Lstock_key_event
+    beq t0, t1, .Loverview_right_wrap
+    beqz t0, .Loverview_right_time
+    li t3, 3
+    bltu t0, t3, .Lstock_key_event
+    addi t3, t2, -1
+    beq t0, t3, .Loverview_right_agents
+    addi a1, t0, 1
+    j .Loverview_right_target_ready
+
+.Loverview_right_agents:
+    mv a1, t1
+    j .Loverview_right_target_ready
+    .else
     addi t1, a0, -2
     lw t0, 8(sp)
     bltu t1, t0, .Lstock_key_event
@@ -244,6 +323,7 @@ ap01_agents_key_event:
     bltu t0, t2, .Lstock_key_event
     addi a1, t0, 1
     j .Loverview_right_target_ready
+    .endif
 
 .Loverview_right_wrap:
     li a1, 0

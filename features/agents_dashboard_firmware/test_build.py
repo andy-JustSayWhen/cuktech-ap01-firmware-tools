@@ -122,6 +122,12 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
                 credentials,
                 tool_revision={"commit": "test", "scoped_code_dirty": False},
             )
+            disassembly = subprocess.run(
+                ["riscv64-elf-objdump", "-d", payload.elf],
+                check=True,
+                capture_output=True,
+                text=True,
+            ).stdout
             output = root / SYNC_OUTPUT_FILENAME
             manifest = root / "manifest.json"
             result = build_sync_firmware(
@@ -146,6 +152,26 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
         self.assertNotIn(credentials.access_token, manifest_text)
         self.assertNotIn(credentials.secret_key.hex(), manifest_text)
         self.assertIn('"installation_allowed": false', manifest_text)
+        page_register = disassembly.split(
+            "<ap01_agents_page_register>:", 1
+        )[1].split("<ap01_agents_delete_event>:", 1)[0]
+        stock_create_calls = [
+            offset
+            for offset in range(len(page_register))
+            if page_register.startswith("# a00c1ec6 <lv_obj_create>", offset)
+        ]
+        self.assertEqual(len(stock_create_calls), 2)
+        self.assertLess(stock_create_calls[0], stock_create_calls[1])
+        self.assertLess(
+            stock_create_calls[1],
+            page_register.index("# a007e1c4 <malloc>"),
+        )
+        self.assertIn("mv\ta0,s2", page_register)
+        key_event = disassembly.split("<ap01_agents_key_event>:", 1)[1].split(
+            "<ap01_agents_detail_active>:", 1
+        )[0]
+        self.assertGreaterEqual(key_event.count("addi\tt1,a0,-1"), 2)
+        self.assertGreaterEqual(key_event.count("addi\tt2,a0,-2"), 2)
 
     def test_request_formats_fit_without_positional_printf(self) -> None:
         credentials = DeviceCredentials(

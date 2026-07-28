@@ -66,6 +66,9 @@ MODULE_DIR = Path(__file__).resolve().parent
 LOADER_SOURCE = MODULE_DIR / "result_loader.c"
 LOADER_LINKER = MODULE_DIR / "result_loader.ld"
 SYNC_OUTPUT_FILENAME = "ap01-1.0.2_0031-agents-sync-experimental.bin"
+DETAIL_COMPAT_OUTPUT_FILENAME = (
+    "ap01-1.0.2_0031-agents-detail-compat-observation.bin"
+)
 XIP_DELTA = 0x9FFFF000
 LOADER_TRAMPOLINE_OFFSET = 0x01C0B4
 LOADER_TRAMPOLINE_VA = XIP_DELTA + LOADER_TRAMPOLINE_OFFSET
