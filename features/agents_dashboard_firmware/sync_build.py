@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import stat
 import struct
 import subprocess
@@ -75,6 +76,9 @@ CONFIRM_COMPAT_OUTPUT_FILENAME = (
 PET_OVERLAY_OUTPUT_FILENAME = (
     "ap01-1.0.2_0031-agents-pet-overlay-observation.bin"
 )
+STOCK_PET_REUSE_OUTPUT_FILENAME = (
+    "ap01-1.0.2_0031-agents-stock-pet-reuse-observation.bin"
+)
 XIP_DELTA = 0x9FFFF000
 LOADER_TRAMPOLINE_OFFSET = 0x01C0B4
 LOADER_TRAMPOLINE_VA = XIP_DELTA + LOADER_TRAMPOLINE_OFFSET
@@ -130,7 +134,7 @@ REQUIRED_SYMBOLS = (
     "agents_device_id",
     "agents_secret_key",
 )
-REQUIRED_LOADER_CALLEES = (
+LEGACY_REQUIRED_CALLEES = (
     0xA00BB5DA,
     0xA00C5D84,
     0xA00C5FE4,
@@ -142,6 +146,29 @@ REQUIRED_LOADER_CALLEES = (
     0xA0027D94,
     0xA007E1C4,
     0xA007C256,
+)
+STOCK_PET_REQUIRED_CALLEES = (
+    0xA00BB5DA,
+    0xA00C5D84,
+    0xA00CF8D8,
+    0xA00D86BA,
+    0xA003F448,
+    0xA0026788,
+    0xA003F5F4,
+    0xA0027D94,
+)
+STOCK_PET_FORBIDDEN_CALLEES = (
+    0xA00C1EC6,
+    0xA01930FE,
+    0xA00BEBEE,
+    0xA007E1C4,
+    0xA007C256,
+)
+STOCK_PET_REQUIRED_SYMBOLS = (
+    "ap01_agents_find_pet_state",
+    "ap01_agents_show_page",
+    "ap01_agents_restore_pet",
+    "ap01_agents_detail_active",
 )
 
 
@@ -324,6 +351,130 @@ def _validate_pet_overlay_disassembly(disassembly: str) -> None:
         raise AgentsDashboardFirmwareError("AGENTS 覆盖层刷新对象检查未通过")
 
 
+def _validate_stock_pet_reuse_disassembly(disassembly: str) -> None:
+    lowered = disassembly.lower()
+    for address in STOCK_PET_FORBIDDEN_CALLEES:
+        if f"# {address:08x} <" in lowered:
+            raise AgentsDashboardFirmwareError(
+                f"原厂萌宠复用载荷调用了禁止函数：0x{address:08x}"
+            )
+
+    page_register = _symbol_block(
+        disassembly,
+        "ap01_agents_page_register",
+        "ap01_agents_find_pet_state",
+    )
+    page_instructions = [
+        line
+        for line in page_register.splitlines()
+        if re.match(r"^\s*[0-9a-f]+:\s", line)
+    ]
+    if (
+        not 1 <= len(page_instructions) <= 2
+        or not (
+            "c.jr" in page_instructions[0]
+            and "x1" in page_instructions[0]
+            or "jalr" in page_instructions[0]
+            and "x0,0(x1)" in page_instructions[0]
+        )
+        or any("c.addi" not in line or "x0,0" not in line
+               for line in page_instructions[1:])
+    ):
+        raise AgentsDashboardFirmwareError("页面注册入口不是单指令空返回")
+
+    find_state = _symbol_block(
+        disassembly,
+        "ap01_agents_find_pet_state",
+        "ap01_agents_key_event",
+    )
+    if (
+        "x11,7" not in find_state
+        or "# a00c5d84 <lv_obj_get_child>" not in find_state
+        or "16(x10)" not in find_state
+        or "0(x5)" not in find_state
+        or "4(x5)" not in find_state
+        or "x7,10" not in find_state
+    ):
+        raise AgentsDashboardFirmwareError("原厂萌宠状态对象链检查未通过")
+
+    key_event = _symbol_block(
+        disassembly,
+        "ap01_agents_key_event",
+        "ap01_agents_show_page",
+    )
+    first_state_read = key_event.find("<ap01_agents_find_pet_state>")
+    guard = re.search(
+        r"(?:c\.li|addi)\s+x6(?:,x0)?,7"
+        r".*?bne\s+x10,x6,([0-9a-f]+)",
+        key_event[:first_state_read],
+        re.DOTALL,
+    )
+    if (
+        first_state_read < 0
+        or "<window_get_active>" not in key_event[:first_state_read]
+        or guard is None
+        or "52(x9)" in key_event
+        or "52(x18)" in key_event
+        or re.search(r"\bsw\s+x\d+,12\(x18\)", key_event) is not None
+        or key_event.count("<ap01_agents_restore_pet>") != 2
+        or "# a00bbfee <stock_key_event>" not in key_event
+    ):
+        raise AgentsDashboardFirmwareError(
+            "原厂确认透传、离开恢复或虚拟状态写入检查未通过"
+        )
+    stock_target = guard.group(1)
+    stock_marker = re.search(
+        rf"^\s*{re.escape(stock_target)}:\s",
+        key_event,
+        re.MULTILINE,
+    )
+    if stock_marker is None:
+        raise AgentsDashboardFirmwareError("非萌宠确认透传目标不存在")
+    stock_block = key_event[stock_marker.start() :]
+    if (
+        "# a00bbfee <stock_key_event>" not in stock_block
+        or "<ap01_agents_find_pet_state>" in stock_block
+    ):
+        raise AgentsDashboardFirmwareError("非萌宠确认未直接透传原厂回调")
+
+    show_page = _symbol_block(
+        disassembly,
+        "ap01_agents_show_page",
+        "ap01_agents_restore_pet",
+    )
+    restore_pet = _symbol_block(
+        disassembly,
+        "ap01_agents_restore_pet",
+        "ap01_agents_detail_active",
+    )
+    if (
+        len(re.findall(r"\bsw\s+x\d+,12\(x8\)", show_page)) != 1
+        or "1fffffff" not in show_page
+        or "# a00cf8d8 <lv_gif_set_src>" not in show_page
+        or len(re.findall(r"\bsw\s+x\d+,12\(x8\)", restore_pet)) != 1
+        or "1fffffff" not in restore_pet
+        or "a01f7090" not in restore_pet.lower()
+        or "# a00cf8d8 <lv_gif_set_src>" not in restore_pet
+    ):
+        raise AgentsDashboardFirmwareError(
+            "高三位虚拟状态或原厂萌宠数据源恢复检查未通过"
+        )
+
+    timer_wrapper = _symbol_block(
+        disassembly,
+        "ap01_agents_ui_timer_wrapper",
+        "agents_device_id",
+    )
+    if (
+        "x11,7" not in timer_wrapper
+        or "16(" not in timer_wrapper
+        or "4(" not in timer_wrapper
+        or "<ap01_agents_apply_current>" not in timer_wrapper
+        or "# a00c5fe4 <lv_obj_get_child_count>" in timer_wrapper
+    ):
+        raise AgentsDashboardFirmwareError("后台刷新原厂萌宠对象链检查未通过")
+
+
 def build_sync_payload(
     stage_path: Path,
     build_directory: Path,
@@ -332,6 +483,7 @@ def build_sync_payload(
     tool_revision: dict[str, object],
     extra_objects: tuple[Path, ...] = (),
     required_extra_symbols: tuple[str, ...] = (),
+    reuse_stock_pet: bool = False,
 ) -> SyncPayloadResult:
     stage_selected, stage = _read_stage(stage_path)
     if len(stage) != STAGE_SIZE or hashlib.sha256(stage).hexdigest() != STAGE_SHA256:
@@ -390,18 +542,17 @@ def build_sync_payload(
             raise AgentsDashboardFirmwareError(f"组合目标文件无效：{resolved}")
         resolved_extra_objects.append(resolved)
 
-    _run(
-        [
-            assembler,
-            "-march=rv32imac",
-            "-mabi=ilp32",
-            "--defsym",
-            "SYNC_LOADER=1",
-            "-o",
-            page_object,
-            SOURCE,
-        ]
-    )
+    assembler_arguments = [
+        assembler,
+        "-march=rv32imac",
+        "-mabi=ilp32",
+        "--defsym",
+        "SYNC_LOADER=1",
+    ]
+    if reuse_stock_pet:
+        assembler_arguments.extend(["--defsym", "STOCK_PET_REUSE=1"])
+    assembler_arguments.extend(["-o", page_object, SOURCE])
+    _run(assembler_arguments)
     _run(
         [
             gcc,
@@ -474,7 +625,10 @@ def build_sync_payload(
     if not payload or len(payload) > PAYLOAD_CAPACITY:
         raise AgentsDashboardFirmwareError("同步载荷为空或超过固定候选空间")
     symbols = _symbols(nm, elf)
-    for name in REQUIRED_SYMBOLS + required_extra_symbols:
+    selected_required_symbols = REQUIRED_SYMBOLS + required_extra_symbols
+    if reuse_stock_pet:
+        selected_required_symbols += STOCK_PET_REQUIRED_SYMBOLS
+    for name in selected_required_symbols:
         address = symbols.get(name)
         if address is None or not PAYLOAD_VA <= address < PAYLOAD_VA + len(payload):
             raise AgentsDashboardFirmwareError(f"同步载荷符号缺失或越界：{name}")
@@ -485,12 +639,20 @@ def build_sync_payload(
         [dumper, "-d", "-M", "no-aliases,numeric", elf],
         capture=True,
     )
-    for address in REQUIRED_LOADER_CALLEES:
+    required_callees = (
+        STOCK_PET_REQUIRED_CALLEES
+        if reuse_stock_pet
+        else LEGACY_REQUIRED_CALLEES
+    )
+    for address in required_callees:
         if f"{address:08x}" not in disassembly.lower():
             raise AgentsDashboardFirmwareError(
                 f"同步载荷缺少已定位原厂调用：0x{address:08x}"
             )
-    _validate_pet_overlay_disassembly(disassembly)
+    if reuse_stock_pet:
+        _validate_stock_pet_reuse_disassembly(disassembly)
+    else:
+        _validate_pet_overlay_disassembly(disassembly)
     disassembly_path.write_text(disassembly, encoding="utf-8")
     readelf_output = _run(
         [readelf, "-h", "-S", "-s", "-r", elf],
@@ -547,6 +709,7 @@ def build_sync_firmware(
     ] = (),
     expected_output_name: str = SYNC_OUTPUT_FILENAME,
     implemented_scope_extra: tuple[str, ...] = (),
+    reuse_stock_pet: bool = False,
 ) -> SyncFirmwareResult:
     if tool_revision.get("scoped_code_dirty") is not False:
         raise AgentsDashboardFirmwareError("制作代码尚未提交，不能冻结同步实验成品")
@@ -578,6 +741,7 @@ def build_sync_firmware(
         tool_revision=tool_revision,
         extra_objects=extra_objects,
         required_extra_symbols=required_extra_symbols,
+        reuse_stock_pet=reuse_stock_pet,
     )
     payload = payload_result.binary.read_bytes()
     optimized = payload_result.optimized_source.read_bytes()
@@ -601,20 +765,39 @@ def build_sync_firmware(
     candidate[GIF_DATA_OFFSET : GIF_DATA_OFFSET + len(optimized)] = optimized
     allowed.append(ByteRange(GIF_DATA_OFFSET, GIF_DATA_OFFSET + len(optimized)))
 
-    page_hook = _encode_jal(HOOK_OFFSET + XIP_DELTA, TRAMPOLINE_OFFSET + XIP_DELTA)
-    page_hook += bytes.fromhex("0100")
-    allowed.append(
-        _replace(candidate, HOOK_OFFSET, HOOK_ORIGINAL, page_hook, "页面挂接")
-    )
-    allowed.append(
-        _replace(
-            candidate,
-            TRAMPOLINE_OFFSET,
-            TRAMPOLINE_ORIGINAL,
-            _absolute_tail_jump(PAYLOAD_VA),
-            "页面跳板",
+    if reuse_stock_pet:
+        if (
+            bytes(candidate[HOOK_OFFSET : HOOK_OFFSET + len(HOOK_ORIGINAL)])
+            != HOOK_ORIGINAL
+            or bytes(
+                candidate[
+                    TRAMPOLINE_OFFSET :
+                    TRAMPOLINE_OFFSET + len(TRAMPOLINE_ORIGINAL)
+                ]
+            )
+            != TRAMPOLINE_ORIGINAL
+        ):
+            raise AgentsDashboardFirmwareError(
+                "页面注册点或旧页面跳板不等于已验收设置固件"
+            )
+    else:
+        page_hook = _encode_jal(
+            HOOK_OFFSET + XIP_DELTA,
+            TRAMPOLINE_OFFSET + XIP_DELTA,
         )
-    )
+        page_hook += bytes.fromhex("0100")
+        allowed.append(
+            _replace(candidate, HOOK_OFFSET, HOOK_ORIGINAL, page_hook, "页面挂接")
+        )
+        allowed.append(
+            _replace(
+                candidate,
+                TRAMPOLINE_OFFSET,
+                TRAMPOLINE_ORIGINAL,
+                _absolute_tail_jump(PAYLOAD_VA),
+                "页面跳板",
+            )
+        )
     key_event = payload_result.symbols.get(key_callback_symbol)
     if key_event is None:
         raise AgentsDashboardFirmwareError(
@@ -818,7 +1001,9 @@ def build_sync_firmware(
             "remaining": PAYLOAD_CAPACITY - payload_result.size,
             "relocations": 0,
             "maximum_static_stack": payload_result.maximum_static_stack,
-            "download_state_heap_bytes": 540,
+            "download_state_stack_bytes": 540,
+            "download_state_heap_bytes": 0,
+            "stock_pet_object_reused": reuse_stock_pet,
         },
         "implemented_scope": [
             "四页完整包流式接收",
@@ -836,7 +1021,6 @@ def build_sync_firmware(
         ],
         "pending_measurements": [
             "后台任务原有栈余量",
-            "新增堆分配峰值",
             "四页临时文件总量",
             "连续刷新内存变化",
             "网络失败恢复",
@@ -850,6 +1034,7 @@ def build_sync_firmware(
             "relocations_zero": True,
             "total_length_preserved": True,
             "outside_allowed_ranges_identical": True,
+            "page_registration_unchanged": reuse_stock_pet,
             "installation_allowed": False,
         },
     }

@@ -15,9 +15,15 @@ from features.agents_dashboard_firmware import (
     build_page_registration_payload,
 )
 from features.agents_dashboard_firmware.build import OBSERVATION_OUTPUT_FILENAME
+from features.agents_dashboard_firmware.build import (
+    HOOK_OFFSET,
+    HOOK_ORIGINAL,
+    TRAMPOLINE_OFFSET,
+    TRAMPOLINE_ORIGINAL,
+)
 from features.agents_dashboard_firmware.sync_build import (
     LOADER_SOURCE,
-    PET_OVERLAY_OUTPUT_FILENAME,
+    STOCK_PET_REUSE_OUTPUT_FILENAME,
     _request_formats,
     build_sync_firmware,
     build_sync_payload,
@@ -121,6 +127,7 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
                 root / "payload",
                 credentials,
                 tool_revision={"commit": "test", "scoped_code_dirty": False},
+                reuse_stock_pet=True,
             )
             disassembly = subprocess.run(
                 ["riscv64-elf-objdump", "-d", payload.elf],
@@ -128,7 +135,7 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
                 capture_output=True,
                 text=True,
             ).stdout
-            output = root / PET_OVERLAY_OUTPUT_FILENAME
+            output = root / STOCK_PET_REUSE_OUTPUT_FILENAME
             manifest = root / "manifest.json"
             result = build_sync_firmware(
                 STAGE,
@@ -139,7 +146,8 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
                 url_base="http://192.168.31.139:8765/a",
                 refresh_seconds=300,
                 tool_revision={"commit": "test", "scoped_code_dirty": False},
-                expected_output_name=PET_OVERLAY_OUTPUT_FILENAME,
+                expected_output_name=STOCK_PET_REUSE_OUTPUT_FILENAME,
+                reuse_stock_pet=True,
             )
             manifest_text = manifest.read_text(encoding="utf-8")
             output_bytes = output.read_bytes()
@@ -153,52 +161,54 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
         self.assertNotIn(credentials.access_token, manifest_text)
         self.assertNotIn(credentials.secret_key.hex(), manifest_text)
         self.assertIn('"installation_allowed": false', manifest_text)
+        self.assertIn('"download_state_heap_bytes": 0', manifest_text)
+        self.assertIn('"stock_pet_object_reused": true', manifest_text)
+        stage_bytes = STAGE.read_bytes()
+        self.assertEqual(
+            output_bytes[HOOK_OFFSET : HOOK_OFFSET + len(HOOK_ORIGINAL)],
+            stage_bytes[HOOK_OFFSET : HOOK_OFFSET + len(HOOK_ORIGINAL)],
+        )
+        self.assertEqual(
+            output_bytes[
+                TRAMPOLINE_OFFSET :
+                TRAMPOLINE_OFFSET + len(TRAMPOLINE_ORIGINAL)
+            ],
+            stage_bytes[
+                TRAMPOLINE_OFFSET :
+                TRAMPOLINE_OFFSET + len(TRAMPOLINE_ORIGINAL)
+            ],
+        )
         page_register = disassembly.split(
             "<ap01_agents_page_register>:", 1
-        )[1].split("<ap01_agents_delete_event>:", 1)[0]
-        stock_create_calls = [
-            offset
-            for offset in range(len(page_register))
-            if page_register.startswith("# a00c1ec6 <lv_obj_create>", offset)
-        ]
-        self.assertEqual(len(stock_create_calls), 2)
-        self.assertLess(stock_create_calls[0], stock_create_calls[1])
-        self.assertLess(
-            stock_create_calls[0],
-            page_register.index("# a007e1c4 <malloc>"),
-        )
-        self.assertLess(
-            page_register.index("# a007e1c4 <malloc>"),
-            stock_create_calls[1],
-        )
-        self.assertIn("li\ta1,7", page_register)
-        self.assertLess(
-            page_register.index("# a00c5d84 <lv_obj_get_child>"),
-            stock_create_calls[0],
-        )
-        self.assertIn("mv\ta0,s2", page_register)
-        self.assertIn("mv\ta0,s4", page_register)
-        self.assertIn("li\ta0,32", page_register)
+        )[1].split("<ap01_agents_find_pet_state>:", 1)[0]
+        self.assertIn("ret", page_register)
+        self.assertNotIn("call", page_register)
+        for forbidden in (
+            "# a00c1ec6 <lv_obj_create>",
+            "# a01930fe <lv_gif_create>",
+            "# a00bebee <lv_obj_del>",
+            "# a007e1c4 <malloc>",
+            "# a007c256 <free>",
+        ):
+            self.assertNotIn(forbidden, disassembly)
         key_event = disassembly.split("<ap01_agents_key_event>:", 1)[1].split(
-            "<ap01_agents_detail_active>:", 1
+            "<ap01_agents_show_page>:", 1
         )[0]
-        self.assertIn("<ap01_agents_find_state>", key_event)
+        self.assertIn("<ap01_agents_find_pet_state>", key_event)
         self.assertNotIn("52(s1)", key_event)
-        self.assertGreaterEqual(key_event.count("24(s2)"), 6)
-        self.assertGreaterEqual(
-            key_event.count("# a00bf942 <lv_obj_set_x>"),
-            5,
-        )
+        self.assertNotIn("52(s2)", key_event)
+        self.assertEqual(key_event.count("<ap01_agents_restore_pet>"), 2)
         self.assertIn("li\ta1,7", key_event)
         self.assertIn("li\ta1,6", key_event)
         self.assertIn("li\ta1,3", key_event)
         self.assertIn("<stock_key_event>", key_event)
-        find_state = disassembly.split("<ap01_agents_find_state>:", 1)[1].split(
+        find_state = disassembly.split("<ap01_agents_find_pet_state>:", 1)[1].split(
             "<ap01_agents_key_event>:", 1
         )[0]
         self.assertIn("li\ta1,7", find_state)
-        self.assertIn("# a00c5fe4 <lv_obj_get_child_count>", find_state)
-        self.assertIn("28(t0)", find_state)
+        self.assertIn("# a00c5d84 <lv_obj_get_child>", find_state)
+        self.assertIn("16(a0)", find_state)
+        self.assertIn("4(t0)", find_state)
 
     def test_request_formats_fit_without_positional_printf(self) -> None:
         credentials = DeviceCredentials(

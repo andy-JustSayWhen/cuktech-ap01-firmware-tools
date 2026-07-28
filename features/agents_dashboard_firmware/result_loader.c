@@ -20,22 +20,18 @@ typedef unsigned long long u64;
 
 #define VA_STOCK_UI_TIMER                 0xa00bb5dau
 #define VA_WINDOW_BY_INDEX                0xa00c5d84u
-#define VA_OBJECT_GET_CHILD_COUNT         0xa00c5fe4u
 #define VA_LV_GIF_SET_SRC                 0xa00cf8d8u
 #define VA_WEBCLIENT_PERFORM              0xa00d86bau
 #define VA_OPEN                           0xa003f448u
 #define VA_CLOSE                          0xa0026788u
 #define VA_READ                           0xa003f5f4u
 #define VA_WRITE                          0xa0027d94u
-#define VA_MALLOC                         0xa007e1c4u
-#define VA_FREE                           0xa007c256u
 
 #define AP01_O_RDONLY                     1
 #define AP01_O_RDWR_CREAT_TRUNC           39
 #define AP01_MODE_0666                    438
 
 #define ERR_IO                            (-5)
-#define ERR_NOMEM                         (-12)
 #define ERR_INVAL                         (-22)
 #define ERR_FBIG                          (-27)
 
@@ -48,21 +44,20 @@ typedef unsigned long long u64;
 #define META_MAGIC                        0x47415041u /* "APAG" */
 #define META_SALT                         0x5101a501u
 #define META_GENERATION_MASK              0x7fffffffu
-#define AGENTS_STATE_MAGIC                0x41504754u
+#define AGENTS_ACTIVE_MASK                0x80000000u
+#define AGENTS_PAGE_MASK                  0x60000000u
+#define AGENTS_PAGE_SHIFT                 29u
 #define WEBCLIENT_SINK_ARG_OFFSET         64u
 #define WEBCLIENT_HTTP_STATUS_OFFSET      96u
 
 typedef void (*void_one_arg_fn)(void *);
 typedef void *(*window_by_index_fn)(void *, int);
-typedef int (*object_get_child_count_fn)(void *);
 typedef void (*gif_set_src_fn)(void *, const void *);
 typedef int (*webclient_perform_fn)(void *);
 typedef int (*open_fn)(const char *, int, int);
 typedef int (*close_fn)(int);
 typedef int (*io_fn)(int, void *, u32);
 typedef int (*write_fn)(int, const void *, u32);
-typedef void *(*malloc_fn)(u32);
-typedef void (*free_fn)(void *);
 
 extern const u8 agents_device_id[16];
 extern const u8 agents_secret_key[32];
@@ -84,16 +79,12 @@ struct agents_meta
   u32 check;
 };
 
-struct agents_ui_state
+struct stock_pet_state
 {
-  u32 magic;
   void *gif;
-  u32 page;
-  u32 applied_generation;
-  u32 applied_slot;
-  u32 applied_page;
-  u32 active;
-  void *root;
+  u32 stock_field_4;
+  u32 stock_field_8;
+  u32 navigation;
 };
 
 struct download_state
@@ -714,7 +705,8 @@ ATTR_ENTRY int ap01_agents_webclient_wrapper(void *context)
 {
   struct agents_meta old_meta;
   struct agents_meta old_ack;
-  struct download_state *state;
+  struct download_state state_storage;
+  struct download_state *state = &state_storage;
   u32 next_slot;
   u32 have_meta;
   u32 have_ack;
@@ -724,12 +716,6 @@ ATTR_ENTRY int ap01_agents_webclient_wrapper(void *context)
   if (context == (void *)0)
     {
       return ERR_INVAL;
-    }
-  state = (struct download_state *)((malloc_fn)VA_MALLOC)(
-      (u32)sizeof(struct download_state));
-  if (state == (void *)0)
-    {
-      return ERR_NOMEM;
     }
   memory_zero(state, (u32)sizeof(*state));
   state->fd = -1;
@@ -745,7 +731,6 @@ ATTR_ENTRY int ap01_agents_webclient_wrapper(void *context)
     }
   if (next_slot >= 3u)
     {
-      ((free_fn)VA_FREE)(state);
       return ERR_IO;
     }
   state->slot = next_slot;
@@ -777,36 +762,32 @@ ATTR_ENTRY int ap01_agents_webclient_wrapper(void *context)
     {
       result = ERR_INVAL;
     }
-  ((free_fn)VA_FREE)(state);
   return result;
 }
 
 ATTR_ENTRY int ap01_agents_apply_current(void *argument)
 {
-  struct agents_ui_state *state = (struct agents_ui_state *)argument;
+  struct stock_pet_state *state = (struct stock_pet_state *)argument;
   struct agents_meta meta;
-  if (state == (void *)0 || state->magic != AGENTS_STATE_MAGIC ||
-      state->gif == (void *)0 || state->page >= PAGE_COUNT ||
+  u32 page;
+  if (state == (void *)0 || state->gif == (void *)0 ||
+      (state->navigation & AGENTS_ACTIVE_MASK) == 0u ||
       read_record(meta_path, &meta) < 0)
     {
       return 0;
     }
-  if (state->applied_generation == meta.generation &&
-      state->applied_slot == meta.slot &&
-      state->applied_page == state->page)
+  page = (state->navigation & AGENTS_PAGE_MASK) >> AGENTS_PAGE_SHIFT;
+  if (page >= PAGE_COUNT)
     {
-      return 1;
+      return 0;
     }
   ((gif_set_src_fn)VA_LV_GIF_SET_SRC)(
       state->gif,
-      page_path(meta.slot, state->page));
+      page_path(meta.slot, page));
   if (*(void **)((u8 *)state->gif + 0x5cu) == (void *)0)
     {
       return 0;
     }
-  state->applied_generation = meta.generation;
-  state->applied_slot = meta.slot;
-  state->applied_page = state->page;
   (void)write_record(ack_path, meta.generation, meta.slot);
   return 1;
 }
@@ -815,10 +796,10 @@ ATTR_ENTRY void ap01_agents_ui_timer_wrapper(void *timer)
 {
   void *theme;
   void *pet;
-  void *root;
-  struct agents_ui_state *state;
-  int count;
-  int index;
+  void *wrapper;
+  struct stock_pet_state *state;
+  struct agents_meta meta;
+  struct agents_meta ack;
   ((void_one_arg_fn)VA_STOCK_UI_TIMER)(timer);
   if (timer == (void *)0)
     {
@@ -834,22 +815,26 @@ ATTR_ENTRY void ap01_agents_ui_timer_wrapper(void *timer)
     {
       return;
     }
-  count = ((object_get_child_count_fn)VA_OBJECT_GET_CHILD_COUNT)(pet);
-  for (index = count - 1; index >= 0; --index)
+  wrapper = *(void **)((u8 *)pet + 16u);
+  if (wrapper == (void *)0 || *(u32 *)wrapper != 10u)
     {
-      root = ((window_by_index_fn)VA_WINDOW_BY_INDEX)(pet, index);
-      if (root == (void *)0)
-        {
-          continue;
-        }
-      state = (struct agents_ui_state *)*(void **)((u8 *)root + 16u);
-      if (state != (void *)0 &&
-          state->magic == AGENTS_STATE_MAGIC &&
-          state->gif != (void *)0 &&
-          state->root == root)
-        {
-          (void)ap01_agents_apply_current(state);
-          return;
-        }
+      return;
     }
+  state = (struct stock_pet_state *)*(void **)((u8 *)wrapper + 4u);
+  if (state == (void *)0 || state->gif == (void *)0 ||
+      (state->navigation & AGENTS_ACTIVE_MASK) == 0u)
+    {
+      return;
+    }
+  if (read_record(meta_path, &meta) < 0)
+    {
+      return;
+    }
+  if (read_record(ack_path, &ack) == 0 &&
+      ack.generation == meta.generation &&
+      ack.slot == meta.slot)
+    {
+      return;
+    }
+  (void)ap01_agents_apply_current(state);
 }
