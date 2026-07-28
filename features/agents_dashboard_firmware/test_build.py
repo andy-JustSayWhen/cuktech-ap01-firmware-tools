@@ -28,9 +28,17 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
         self.assertEqual(document["payload"]["relocations"], 0)
         self.assertTrue(document["gates"]["payload_fits"])
         self.assertTrue(document["gates"]["required_callees_present"])
+        self.assertTrue(document["gates"]["fallback_descriptors_valid"])
         self.assertFalse(document["gates"]["firmware_output_allowed"])
+        self.assertEqual(document["payload"]["size"], 27_028)
+        self.assertEqual(document["payload"]["remaining"], 33_906)
+        self.assertEqual(len(document["fallback_assets"]), 4)
         self.assertEqual(
             document["draft_modifications"][0]["expected_before_hex"],
+            "2ae30500",
+        )
+        self.assertEqual(
+            document["draft_modifications"][2]["expected_before_hex"],
             "5285eff02079",
         )
 

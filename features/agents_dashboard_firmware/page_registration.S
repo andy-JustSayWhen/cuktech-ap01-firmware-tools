@@ -12,10 +12,16 @@ ap01_agents_page_register:
     mv a0, s4
     call lv_obj_create
     beqz a0, .Lcreate_stock_detail
+    sw a0, 8(sp)
 
     li a1, 320
     li a2, 240
     call lv_obj_set_size
+
+    lw a0, 8(sp)
+    mv a1, a0
+    la a2, agents_fallback_overview_descriptor
+    call lv_gif_create
 
 .Lcreate_stock_detail:
     /* Reproduce the stock call replaced at 0xa00b2732. */

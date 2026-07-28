@@ -15,14 +15,25 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from features.firmware_payload_space import (
+    GIF_DATA_OFFSET,
+    GIF_SIZE_OFFSET,
+    OPTIMIZED_SIZE,
+    ORIGINAL_SIZE,
     PAYLOAD_CAPACITY,
     PAYLOAD_START,
+    inspect_payload_space,
+)
+from .fallback_assets import (
+    FallbackAsset,
+    FallbackAssetError,
+    build_fallback_assets,
 )
 
 
 MODULE_DIR = Path(__file__).resolve().parent
 SOURCE = MODULE_DIR / "page_registration.S"
 LINKER = MODULE_DIR / "page_registration.ld"
+FONT_DIRECTORY = MODULE_DIR.parents[1] / "env/fonts"
 XIP_DELTA = 0x9FFFF000
 PAYLOAD_VA = XIP_DELTA + PAYLOAD_START
 HOOK_VA = 0xA00B2732
@@ -32,7 +43,11 @@ TRAMPOLINE_VA = 0xA001B0AC
 TRAMPOLINE_OFFSET = TRAMPOLINE_VA - XIP_DELTA
 TRAMPOLINE_ORIGINAL = b"\x00" * 8
 EXPECTED_BINUTILS_VERSION = "2.46.1"
-REQUIRED_CALLEES = (0xA00C1EC6, 0xA00C0060)
+REQUIRED_CALLEES = (0xA00C1EC6, 0xA00C0060, 0xA01930FE)
+EXPECTED_PAYLOAD_SIZE = 27_028
+EXPECTED_PAYLOAD_SHA256 = (
+    "e5e6878a211d08197e72a39326651b4f6f3d1cff3205e199ebeb2b469a7a5593"
+)
 
 
 class AgentsDashboardFirmwareError(RuntimeError):
@@ -150,6 +165,39 @@ def _symbols(nm: Path, elf: Path) -> dict[str, int]:
     return result
 
 
+def _write_asset_assembly(
+    path: Path,
+    assets: tuple[FallbackAsset, ...],
+) -> None:
+    lines = [
+        '    .section .assets, "a", @progbits',
+        "    .balign 4",
+    ]
+    for asset in assets:
+        selected = str(asset.path)
+        if '"' in selected or "\n" in selected:
+            raise AgentsDashboardFirmwareError("等待页面路径包含汇编不允许的字符")
+        symbol = f"agents_fallback_{asset.key}"
+        lines.extend(
+            (
+                f"    .global {symbol}_descriptor",
+                f"{symbol}_descriptor:",
+                "    .word 0x00000119",
+                "    .word 0",
+                "    .word 0",
+                f"    .word {symbol}_end - {symbol}_data",
+                f"    .word {symbol}_data",
+                "    .word 0",
+                "    .word 0",
+                f"{symbol}_data:",
+                f'    .incbin "{selected}"',
+                f"{symbol}_end:",
+                "    .balign 4",
+            )
+        )
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
+
+
 def _write_report(path: Path, document: dict[str, object]) -> None:
     selected = path.expanduser().resolve()
     selected.parent.mkdir(parents=True, exist_ok=True)
@@ -199,7 +247,25 @@ def build_page_registration_payload(
 
     selected = build_directory.expanduser().resolve()
     selected.mkdir(parents=True, exist_ok=True)
+    optimized_source_path = selected / "optimized-source.gif"
+    payload_space_report_path = selected / "payload-space-report.json"
+    payload_space_report = inspect_payload_space(
+        stage_path,
+        optimized_source_path,
+        payload_space_report_path,
+        tool_revision=tool_revision,
+    )
     object_path = selected / "page-registration.o"
+    asset_object_path = selected / "fallback-assets.o"
+    asset_source_path = selected / "fallback-assets.S"
+    try:
+        assets = build_fallback_assets(
+            FONT_DIRECTORY,
+            selected / "fallback-assets",
+        )
+    except FallbackAssetError as error:
+        raise AgentsDashboardFirmwareError(str(error)) from error
+    _write_asset_assembly(asset_source_path, assets)
     elf_path = selected / "page-registration.elf"
     binary_path = selected / "page-registration.bin"
     map_path = selected / "page-registration.map"
@@ -218,6 +284,16 @@ def build_page_registration_payload(
     )
     _run(
         [
+            assembler,
+            "-march=rv32imac",
+            "-mabi=ilp32",
+            "-o",
+            asset_object_path,
+            asset_source_path,
+        ]
+    )
+    _run(
+        [
             linker,
             "-m",
             "elf32lriscv",
@@ -228,17 +304,50 @@ def build_page_registration_payload(
             "-o",
             elf_path,
             object_path,
+            asset_object_path,
         ]
     )
     _run([copier, "-O", "binary", "-j", ".payload", elf_path, binary_path])
     payload = binary_path.read_bytes()
     if not payload or len(payload) > PAYLOAD_CAPACITY:
         raise AgentsDashboardFirmwareError("页面注册载荷为空或超过固定候选空间")
+    payload_sha256 = hashlib.sha256(payload).hexdigest()
+    if (
+        len(payload) != EXPECTED_PAYLOAD_SIZE
+        or payload_sha256 != EXPECTED_PAYLOAD_SHA256
+    ):
+        raise AgentsDashboardFirmwareError("页面与等待资源载荷固定指纹不匹配")
 
     symbols = _symbols(nm, elf_path)
     entry = symbols.get("ap01_agents_page_register")
     if entry != PAYLOAD_VA:
         raise AgentsDashboardFirmwareError("页面注册载荷入口地址不匹配")
+    for asset in assets:
+        symbol = f"agents_fallback_{asset.key}"
+        descriptor = symbols.get(f"{symbol}_descriptor")
+        data = symbols.get(f"{symbol}_data")
+        end = symbols.get(f"{symbol}_end")
+        if None in (descriptor, data, end):
+            raise AgentsDashboardFirmwareError(
+                f"等待页面描述符号缺失：{asset.key}"
+            )
+        assert descriptor is not None and data is not None and end is not None
+        descriptor_offset = descriptor - PAYLOAD_VA
+        if (
+            descriptor_offset < 0
+            or descriptor_offset + 28 > len(payload)
+            or end - data != asset.size
+        ):
+            raise AgentsDashboardFirmwareError(
+                f"等待页面描述边界不匹配：{asset.key}"
+            )
+        header, _, _, size, pointer, _, _ = struct.unpack_from(
+            "<7I", payload, descriptor_offset
+        )
+        if header != 0x119 or size != asset.size or pointer != data:
+            raise AgentsDashboardFirmwareError(
+                f"等待页面描述内容不匹配：{asset.key}"
+            )
 
     disassembly = _run(
         [dumper, "-d", "-M", "no-aliases,numeric", elf_path],
@@ -262,7 +371,7 @@ def build_page_registration_payload(
     trampoline = _absolute_tail_jump(PAYLOAD_VA)
     result = PayloadResult(
         size=len(payload),
-        sha256=hashlib.sha256(payload).hexdigest(),
+        sha256=payload_sha256,
         entry=entry,
         hook=hook,
         trampoline=trampoline,
@@ -281,6 +390,17 @@ def build_page_registration_payload(
             "path": str(stage_selected),
             "read_only": True,
         },
+        "optimized_source_resource": {
+            "file": str(optimized_source_path),
+            "report": str(payload_space_report_path),
+            "data_offset": f"0x{GIF_DATA_OFFSET:06x}",
+            "size_offset": f"0x{GIF_SIZE_OFFSET:06x}",
+            "original_size": ORIGINAL_SIZE,
+            "optimized_size": OPTIMIZED_SIZE,
+            "optimized_sha256": payload_space_report["resource"][
+                "optimized_sha256"
+            ],
+        },
         "payload": {
             "file": str(result.binary),
             "file_offset": f"0x{PAYLOAD_START:06x}",
@@ -292,7 +412,35 @@ def build_page_registration_payload(
             "required_callees": [f"0x{value:08x}" for value in REQUIRED_CALLEES],
             "relocations": 0,
         },
+        "fallback_assets": [
+            {
+                "key": asset.key,
+                "title": asset.title,
+                "file": str(asset.path),
+                "size": asset.size,
+                "sha256": asset.sha256,
+                "width": 320,
+                "height": 240,
+                "frames": 2,
+                "frame_duration_ms": 800,
+            }
+            for asset in assets
+        ],
         "draft_modifications": [
+            {
+                "name": "原厂第一张动图数据长度",
+                "offset": f"0x{GIF_SIZE_OFFSET:06x}",
+                "expected_before_hex": struct.pack("<I", ORIGINAL_SIZE).hex(),
+                "replacement_hex": struct.pack("<I", OPTIMIZED_SIZE).hex(),
+            },
+            {
+                "name": "原厂第一张动图无损优化结果",
+                "offset": f"0x{GIF_DATA_OFFSET:06x}",
+                "length": OPTIMIZED_SIZE,
+                "replacement_sha256": payload_space_report["resource"][
+                    "optimized_sha256"
+                ],
+            },
             {
                 "name": "AGENTS 页面注册挂接",
                 "offset": f"0x{HOOK_OFFSET:06x}",
@@ -318,9 +466,10 @@ def build_page_registration_payload(
             "payload_fits": True,
             "entry_matches": True,
             "required_callees_present": True,
+            "fallback_descriptors_valid": True,
             "relocations_zero": True,
             "firmware_output_allowed": False,
-            "reason": "当前只完成独立页面根对象注册载荷，尚未完成画面、详情事件和刷新",
+            "reason": "当前完成独立页面、四张内置等待页和概览显示，尚未完成详情事件和刷新",
         },
     }
     _write_report(report_path, document)

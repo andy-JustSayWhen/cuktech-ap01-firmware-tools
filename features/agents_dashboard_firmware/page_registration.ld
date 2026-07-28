@@ -8,12 +8,14 @@ MEMORY
 
 PROVIDE(lv_obj_create = 0xA00C1EC6);
 PROVIDE(lv_obj_set_size = 0xA00C0060);
+PROVIDE(lv_gif_create = 0xA01930FE);
 
 SECTIONS
 {
     .payload :
     {
         KEEP(*(.payload))
+        KEEP(*(.assets))
     } > PAYLOAD
 
     /DISCARD/ :
