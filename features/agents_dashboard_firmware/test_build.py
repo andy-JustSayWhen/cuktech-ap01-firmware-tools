@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 import shutil
-import stat
 import tempfile
 import unittest
 from pathlib import Path
 
 from features.agents_dashboard_firmware import (
+    AgentsDashboardFirmwareError,
     build_observation_firmware,
     build_page_registration_payload,
 )
@@ -37,9 +37,10 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
         self.assertTrue(document["gates"]["key_callback_old_bytes_match"])
         self.assertTrue(document["gates"]["key_event_entry_present"])
         self.assertTrue(document["gates"]["current_index_getter_present"])
+        self.assertTrue(document["gates"]["initial_x_call_present"])
         self.assertFalse(document["gates"]["firmware_output_allowed"])
-        self.assertEqual(document["payload"]["size"], 27_480)
-        self.assertEqual(document["payload"]["remaining"], 33_454)
+        self.assertEqual(document["payload"]["size"], 27_496)
+        self.assertEqual(document["payload"]["remaining"], 33_438)
         self.assertEqual(len(document["fallback_assets"]), 4)
         self.assertEqual(
             document["draft_modifications"][0]["expected_before_hex"],
@@ -58,32 +59,26 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
             "9385e5fe",
         )
 
-    def test_approved_object_route_candidate_is_frozen(self) -> None:
+    def test_unapproved_position_candidate_is_not_frozen(self) -> None:
         if not STAGE.is_file() or not shutil.which("riscv64-elf-as"):
             self.skipTest("本机没有阶段固件或固定编译工具")
         with tempfile.TemporaryDirectory() as selected:
             root = Path(selected)
             output = root / OBSERVATION_OUTPUT_FILENAME
             manifest = root / "manifest.json"
-            result = build_observation_firmware(
-                STAGE,
-                output,
-                manifest,
-                root / "build",
-                tool_revision={"commit": "test", "scoped_code_dirty": False},
-            )
-            output_bytes = output.read_bytes()
-            manifest_text = manifest.read_text(encoding="utf-8")
-            output_mode = output.stat().st_mode
-
-        self.assertEqual(len(output_bytes), STAGE.stat().st_size)
-        self.assertEqual(result.output.name, OBSERVATION_OUTPUT_FILENAME)
-        self.assertEqual(
-            result.sha256,
-            "25c94c9114876b97b07eb7d41f104fdcf496abc59862a33f6964ed28f4b3a200",
-        )
-        self.assertIn('"outside_allowed_ranges_identical": true', manifest_text)
-        self.assertFalse(output_mode & stat.S_IWUSR)
+            with self.assertRaisesRegex(
+                AgentsDashboardFirmwareError,
+                "output_sha256",
+            ):
+                build_observation_firmware(
+                    STAGE,
+                    output,
+                    manifest,
+                    root / "build",
+                    tool_revision={"commit": "test", "scoped_code_dirty": False},
+                )
+            self.assertFalse(output.exists())
+            self.assertFalse(manifest.exists())
 
 
 if __name__ == "__main__":

@@ -15,5 +15,7 @@
   ],
   "approval_statement": "批准第三次刷入；只限当前对象身份路由修正版",
   "installation_consumed_at_beijing": "2026-07-28T18:27:00+08:00",
-  "installation_result": "上传对象完整回读一致；设备完成下载、安装、重启和重新上线，120 秒稳定性检查通过；等待用户执行旋钮与确认键物理验收"
+  "installation_result": "上传对象完整回读一致；设备完成下载、安装、重启和重新上线，120 秒稳定性检查通过；真机确认左右旋转和确认键均无可见反应",
+  "pending_candidate_sha256": "da380e4069124de05632dbf52fe3d8ccddf2a2929cbd76c32110b3ce2d0a1d6d",
+  "pending_candidate_scope": "把 AGENTS 根对象初始横向坐标设为 320；尚未批准生成或安装"
 }

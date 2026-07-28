@@ -45,6 +45,10 @@ ap01_agents_page_register:
     call lv_obj_set_size
 
     mv a0, s0
+    li a1, 320
+    call lv_obj_set_x
+
+    mv a0, s0
     mv a1, s0
     la a2, agents_fallback_overview_descriptor
     call lv_gif_create
