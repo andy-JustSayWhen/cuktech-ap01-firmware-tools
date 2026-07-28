@@ -3,7 +3,7 @@ ENTRY(ap01_agents_page_register)
 
 MEMORY
 {
-    PAYLOAD (rx) : ORIGIN = 0xA05F59B0, LENGTH = 10180
+    PAYLOAD (rx) : ORIGIN = 0xA02465D0, LENGTH = 60934
 }
 
 PROVIDE(lv_obj_create = 0xA00C1EC6);

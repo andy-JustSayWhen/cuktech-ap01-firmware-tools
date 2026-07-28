@@ -21,10 +21,14 @@ class FirmwarePayloadSpaceTests(unittest.TestCase):
     def test_fixed_space_is_aligned_and_bounded(self) -> None:
         self.assertEqual(PAYLOAD_START % 16, 0)
         self.assertEqual(PAYLOAD_END - PAYLOAD_START, PAYLOAD_CAPACITY)
-        self.assertEqual(PAYLOAD_CAPACITY, 10_180)
+        self.assertEqual(PAYLOAD_CAPACITY, 60_934)
 
     def test_real_stage_produces_deterministic_lossless_resource(self) -> None:
-        if not STAGE.is_file() or not shutil.which("gifsicle"):
+        if (
+            not STAGE.is_file()
+            or not shutil.which("gifsicle")
+            or not shutil.which("ffmpeg")
+        ):
             self.skipTest("本机没有阶段固件或固定动图工具")
         with tempfile.TemporaryDirectory() as selected:
             root = Path(selected)
@@ -36,7 +40,8 @@ class FirmwarePayloadSpaceTests(unittest.TestCase):
             )
 
         self.assertTrue(document["resource"]["pixel_and_timing_equivalent"])
-        self.assertEqual(document["payload_space"]["capacity"], 10_180)
+        self.assertTrue(document["resource"]["independent_decoder_equivalent"])
+        self.assertEqual(document["payload_space"]["capacity"], 60_934)
         self.assertTrue(document["gates"]["payload_candidate_space_ready"])
         self.assertFalse(document["gates"]["patch_plan_allowed"])
 
