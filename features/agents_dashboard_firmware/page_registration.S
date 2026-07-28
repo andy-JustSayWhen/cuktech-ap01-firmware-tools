@@ -448,6 +448,210 @@ ap01_agents_fast_stock_passthrough:
     .size ap01_agents_key_event, .-ap01_agents_key_event
 
     .align 2
+    .global ap01_agents_stock_power_left_entry
+    .type ap01_agents_stock_power_left_entry, @function
+ap01_agents_stock_power_left_entry:
+    addi sp, sp, -16
+    sw ra, 12(sp)
+    sw s2, 8(sp)
+    sw s3, 4(sp)
+    li s3, 0
+    j .Llocal_find_state
+
+    .global ap01_agents_stock_pet_left_entry
+    .type ap01_agents_stock_pet_left_entry, @function
+ap01_agents_stock_pet_left_entry:
+    addi sp, sp, -16
+    sw ra, 12(sp)
+    sw s2, 8(sp)
+    sw s3, 4(sp)
+    li s3, 1
+    j .Llocal_find_state
+
+    .global ap01_agents_stock_pet_right_entry
+    .type ap01_agents_stock_pet_right_entry, @function
+ap01_agents_stock_pet_right_entry:
+    addi sp, sp, -16
+    sw ra, 12(sp)
+    sw s2, 8(sp)
+    sw s3, 4(sp)
+    li s3, 2
+    j .Llocal_find_state
+
+    .global ap01_agents_stock_pet_enter_entry
+    .type ap01_agents_stock_pet_enter_entry, @function
+ap01_agents_stock_pet_enter_entry:
+    addi sp, sp, -16
+    sw ra, 12(sp)
+    sw s2, 8(sp)
+    sw s3, 4(sp)
+    li s3, 3
+
+.Llocal_find_state:
+    mv a0, s1
+    call ap01_agents_find_pet_state
+    mv s2, a0
+    beqz s2, .Llocal_fallback
+    mv a0, s2
+    call ap01_agents_state_read
+    bltz a0, .Llocal_invalid_state
+    beqz s3, .Llocal_power_left
+    li t0, 1
+    beq s3, t0, .Llocal_pet_left
+    li t0, 2
+    beq s3, t0, .Llocal_pet_right
+    j .Llocal_pet_enter
+
+.Llocal_invalid_state:
+    mv a0, s2
+    call ap01_agents_restore_pet
+    beqz a0, .Llocal_fallback
+    li a0, AGENTS_STATE_CLOSED
+    j .Llocal_dispatch
+
+.Llocal_dispatch:
+    beqz s3, .Llocal_power_left
+    li t0, 1
+    beq s3, t0, .Llocal_pet_left
+    li t0, 2
+    beq s3, t0, .Llocal_pet_right
+    j .Llocal_pet_enter
+
+.Llocal_power_left:
+    mv a0, s2
+    li a1, AGENTS_STATE_OVERVIEW
+    call ap01_agents_show_page
+    beqz a0, .Llocal_fallback
+    mv a0, s1
+    li a1, 7
+    li a2, 2
+    call stock_switch_page
+    mv a0, s1
+    call stock_get_dispatch_index
+    li t0, 7
+    beq a0, t0, .Llocal_consumed
+    mv a0, s2
+    call ap01_agents_restore_pet
+    j .Llocal_fallback
+
+.Llocal_pet_left:
+    beqz a0, .Llocal_fallback
+    li t0, AGENTS_STATE_OVERVIEW
+    bne a0, t0, .Llocal_detail_left
+    mv a0, s2
+    call ap01_agents_restore_pet
+    bnez a0, .Llocal_consumed
+    j .Llocal_fallback
+
+.Llocal_detail_left:
+    li t0, AGENTS_STATE_WEEKLY
+    beq a0, t0, .Llocal_detail_left_wrap
+    li t0, AGENTS_STATE_TODAY
+    beq a0, t0, .Llocal_detail_left_weekly
+    li a1, AGENTS_STATE_TODAY
+    j .Llocal_show_detail
+
+.Llocal_detail_left_wrap:
+    li a1, AGENTS_STATE_LAST_30_DAYS
+    j .Llocal_show_detail
+
+.Llocal_detail_left_weekly:
+    li a1, AGENTS_STATE_WEEKLY
+    j .Llocal_show_detail
+
+.Llocal_pet_right:
+    beqz a0, .Llocal_enter_agents
+    li t0, AGENTS_STATE_OVERVIEW
+    bne a0, t0, .Llocal_detail_right
+    mv a0, s2
+    call ap01_agents_restore_pet
+    beqz a0, .Llocal_fallback
+    mv a0, s1
+    li a1, 0
+    li a2, 1
+    call stock_switch_page
+    mv a0, s1
+    call stock_get_dispatch_index
+    beqz a0, .Llocal_consumed
+    j .Llocal_fallback
+
+.Llocal_enter_agents:
+    mv a0, s2
+    li a1, AGENTS_STATE_OVERVIEW
+    call ap01_agents_show_page
+    bnez a0, .Llocal_consumed
+    j .Llocal_fallback
+
+.Llocal_detail_right:
+    li t0, AGENTS_STATE_LAST_30_DAYS
+    beq a0, t0, .Llocal_detail_right_wrap
+    addi a1, a0, 1
+    j .Llocal_show_detail
+
+.Llocal_detail_right_wrap:
+    li a1, AGENTS_STATE_WEEKLY
+
+.Llocal_show_detail:
+    mv a0, s2
+    call ap01_agents_show_page
+    bnez a0, .Llocal_consumed
+    j .Llocal_fallback
+
+.Llocal_pet_enter:
+    beqz a0, .Llocal_fallback
+    li t0, AGENTS_STATE_OVERVIEW
+    li a1, AGENTS_STATE_OVERVIEW
+    bne a0, t0, .Llocal_enter_show
+    li a1, AGENTS_STATE_WEEKLY
+
+.Llocal_enter_show:
+    mv a0, s2
+    call ap01_agents_show_page
+    bnez a0, .Llocal_consumed
+
+.Llocal_fallback:
+    mv t0, s3
+    lw ra, 12(sp)
+    lw s2, 8(sp)
+    lw s3, 4(sp)
+    addi sp, sp, 16
+    beqz t0, .Llocal_resume_power_left
+    li t1, 1
+    beq t0, t1, .Llocal_resume_pet_left
+    li t1, 2
+    beq t0, t1, .Llocal_resume_pet_right
+    mv a0, s1
+    li a1, 7
+    tail stock_pet_enter_resume
+
+.Llocal_resume_power_left:
+    mv a0, s1
+    li a1, 0
+    tail stock_power_left_resume
+
+.Llocal_resume_pet_left:
+    mv a0, s1
+    li a1, 7
+    tail stock_pet_left_resume
+
+.Llocal_resume_pet_right:
+    mv a0, s1
+    li a1, 7
+    tail stock_pet_right_resume
+
+.Llocal_consumed:
+    lw ra, 12(sp)
+    lw s2, 8(sp)
+    lw s3, 4(sp)
+    addi sp, sp, 16
+    tail stock_key_epilogue
+
+    .size ap01_agents_stock_power_left_entry, .-ap01_agents_stock_power_left_entry
+    .size ap01_agents_stock_pet_left_entry, .-ap01_agents_stock_pet_left_entry
+    .size ap01_agents_stock_pet_right_entry, .-ap01_agents_stock_pet_right_entry
+    .size ap01_agents_stock_pet_enter_entry, .-ap01_agents_stock_pet_enter_entry
+
+    .align 2
     .global ap01_agents_show_page
     .type ap01_agents_show_page, @function
 

@@ -19,19 +19,34 @@ from features.agents_dashboard_firmware.build import OBSERVATION_OUTPUT_FILENAME
 from features.agents_dashboard_firmware.build import (
     HOOK_OFFSET,
     HOOK_ORIGINAL,
+    KEY_CALLBACK_HIGH_OFFSET,
+    KEY_CALLBACK_HIGH_ORIGINAL,
+    KEY_CALLBACK_LOW_OFFSET,
+    KEY_CALLBACK_LOW_ORIGINAL,
     TRAMPOLINE_OFFSET,
     TRAMPOLINE_ORIGINAL,
+    _absolute_tail_jump,
+    _encode_jal,
 )
 from features.agents_dashboard_firmware.sync_build import (
+    INSTRUCTION_EXPECTED,
     LOADER_SOURCE,
     PET_STATE_SIZE_EXTENDED,
     PET_STATE_SIZE_OFFSET,
     PET_STATE_SIZE_ORIGINAL,
     STOCK_CALLCHAIN_OUTPUT_FILENAME,
     STOCK_ENTER_GATE_OUTPUT_FILENAME,
+    STOCK_KEY_CALLBACK_RANGE,
+    STOCK_LOCAL_BRANCH_HOOKS,
+    STOCK_LOCAL_BRANCHES_OUTPUT_FILENAME,
+    STOCK_POWER_CONFIRM_RANGE,
+    UI_CALLBACK_ADDI,
+    UI_CALLBACK_LUI,
+    XIP_DELTA,
     _request_formats,
     build_stock_callchain_firmware,
     build_stock_enter_gate_firmware,
+    build_stock_local_branches_firmware,
     build_sync_firmware,
     build_sync_payload,
     decode_agents_state,
@@ -154,9 +169,9 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
                 capture_output=True,
                 text=True,
             ).stdout
-            output = root / STOCK_ENTER_GATE_OUTPUT_FILENAME
+            output = root / STOCK_LOCAL_BRANCHES_OUTPUT_FILENAME
             manifest = root / "manifest.json"
-            result = build_stock_enter_gate_firmware(
+            result = build_stock_local_branches_firmware(
                 STAGE,
                 output,
                 manifest,
@@ -201,7 +216,19 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
             manifest_document["validation"]["stock_callchain_verified"]
         )
         self.assertTrue(
-            manifest_document["validation"]["stackless_enter_gate_verified"]
+            manifest_document["validation"][
+                "four_local_branch_targets_verified"
+            ]
+        )
+        self.assertTrue(
+            manifest_document["validation"][
+                "global_key_callback_registration_unchanged"
+            ]
+        )
+        self.assertTrue(
+            manifest_document["validation"][
+                "global_ui_timer_callback_registration_unchanged"
+            ]
         )
         callchain_gates = manifest_document["callchain_gates"]
         self.assertEqual(
@@ -217,15 +244,7 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
             callchain_gates["disassembly"],
         )
         self.assertIn(
-            "stackless_gate_entry",
-            callchain_gates["disassembly"],
-        )
-        self.assertIn(
-            "stackless_stock_tail",
-            callchain_gates["disassembly"],
-        )
-        self.assertIn(
-            "wrapped_stack_entry",
+            "local_branch_resume_targets",
             callchain_gates["disassembly"],
         )
         stage_bytes = STAGE.read_bytes()
@@ -257,6 +276,64 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
                 TRAMPOLINE_OFFSET + len(TRAMPOLINE_ORIGINAL)
             ],
         )
+        for offset, original in (
+            (KEY_CALLBACK_HIGH_OFFSET, KEY_CALLBACK_HIGH_ORIGINAL),
+            (KEY_CALLBACK_LOW_OFFSET, KEY_CALLBACK_LOW_ORIGINAL),
+            (UI_CALLBACK_LUI, INSTRUCTION_EXPECTED[UI_CALLBACK_LUI]),
+            (UI_CALLBACK_ADDI, INSTRUCTION_EXPECTED[UI_CALLBACK_ADDI]),
+        ):
+            self.assertEqual(
+                output_bytes[offset : offset + len(original)],
+                original,
+            )
+            self.assertEqual(
+                output_bytes[offset : offset + len(original)],
+                stage_bytes[offset : offset + len(original)],
+            )
+        hook_offsets: set[int] = set()
+        for (
+            hook_offset,
+            hook_original,
+            trampoline_offset,
+            symbol,
+            _resume_address,
+            _label,
+        ) in STOCK_LOCAL_BRANCH_HOOKS:
+            hook_offsets.update(
+                range(hook_offset, hook_offset + len(hook_original))
+            )
+            self.assertEqual(
+                stage_bytes[
+                    hook_offset : hook_offset + len(hook_original)
+                ],
+                hook_original,
+            )
+            self.assertEqual(
+                output_bytes[
+                    hook_offset : hook_offset + len(hook_original)
+                ],
+                _encode_jal(
+                    XIP_DELTA + hook_offset,
+                    XIP_DELTA + trampoline_offset,
+                ),
+            )
+            self.assertEqual(
+                stage_bytes[trampoline_offset : trampoline_offset + 8],
+                b"\0" * 8,
+            )
+            self.assertEqual(
+                output_bytes[trampoline_offset : trampoline_offset + 8],
+                _absolute_tail_jump(payload.symbols[symbol]),
+            )
+        callback_start, callback_end = STOCK_KEY_CALLBACK_RANGE
+        for offset in range(callback_start, callback_end):
+            if offset not in hook_offsets:
+                self.assertEqual(output_bytes[offset], stage_bytes[offset])
+        power_start, power_end = STOCK_POWER_CONFIRM_RANGE
+        self.assertEqual(
+            output_bytes[power_start:power_end],
+            stage_bytes[power_start:power_end],
+        )
         page_register = disassembly.split(
             "<ap01_agents_page_register>:", 1
         )[1].split("<ap01_agents_state_read>:", 1)[0]
@@ -275,7 +352,7 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
         ):
             self.assertNotIn(forbidden, disassembly)
         key_event = disassembly.split("<ap01_agents_key_event>:", 1)[1].split(
-            "<ap01_agents_show_page>:", 1
+            "<ap01_agents_stock_power_left_entry>:", 1
         )[0]
         self.assertIn("<ap01_agents_find_pet_state>", key_event)
         self.assertIn("<stock_get_dispatch_index>", key_event)
@@ -300,10 +377,27 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
         self.assertNotIn("<ap01_agents_page_register>", fast_gate)
         fast_passthrough = disassembly.split(
             "<ap01_agents_fast_stock_passthrough>:", 1
-        )[1].split("<ap01_agents_show_page>:", 1)[0]
+        )[1].split("<ap01_agents_stock_power_left_entry>:", 1)[0]
         self.assertIn("<stock_key_event>", fast_passthrough)
         self.assertNotIn("lw\t", fast_passthrough)
         self.assertNotIn("sw\t", fast_passthrough)
+        local_branches = disassembly.split(
+            "<ap01_agents_stock_power_left_entry>:", 1
+        )[1].split("<ap01_agents_show_page>:", 1)[0]
+        for marker in (
+            "<ap01_agents_find_pet_state>",
+            "<ap01_agents_state_read>",
+            "<ap01_agents_show_page>",
+            "<ap01_agents_restore_pet>",
+            "<stock_switch_page>",
+            "<stock_power_left_resume>",
+            "<stock_pet_left_resume>",
+            "<stock_pet_right_resume>",
+            "<stock_pet_enter_resume>",
+            "<stock_key_epilogue>",
+        ):
+            self.assertIn(marker, local_branches)
+        self.assertNotIn("<stock_key_event>", local_branches)
         state_write = disassembly.split(
             "<ap01_agents_state_write>:", 1
         )[1].split("<ap01_agents_find_pet_state>:", 1)[0]
@@ -413,6 +507,26 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
                 build_stock_callchain_firmware(
                     STAGE,
                     root / STOCK_CALLCHAIN_OUTPUT_FILENAME,
+                    root / "manifest.json",
+                    root / "build",
+                    credentials,
+                    url_base="http://192.168.31.139:8765/a",
+                    refresh_seconds=300,
+                    tool_revision={
+                        "commit": "test",
+                        "scoped_code_dirty": False,
+                    },
+                )
+
+        with tempfile.TemporaryDirectory() as selected:
+            root = Path(selected)
+            with self.assertRaisesRegex(
+                RuntimeError,
+                "功率页确认卡死停用",
+            ):
+                build_stock_enter_gate_firmware(
+                    STAGE,
+                    root / STOCK_ENTER_GATE_OUTPUT_FILENAME,
                     root / "manifest.json",
                     root / "build",
                     credentials,

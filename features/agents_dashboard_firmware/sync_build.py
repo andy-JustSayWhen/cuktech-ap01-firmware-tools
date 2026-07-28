@@ -92,6 +92,9 @@ STOCK_CALLCHAIN_OUTPUT_FILENAME = (
 STOCK_ENTER_GATE_OUTPUT_FILENAME = (
     "ap01-1.0.2_0031-agents-stock-enter-gate-observation.bin"
 )
+STOCK_LOCAL_BRANCHES_OUTPUT_FILENAME = (
+    "ap01-1.0.2_0031-agents-stock-local-branches-observation.bin"
+)
 XIP_DELTA = 0x9FFFF000
 PET_STATE_SIZE_OFFSET = 0x0B502C
 PET_STATE_SIZE_ORIGINAL = bytes.fromhex("4145")
@@ -99,6 +102,43 @@ PET_STATE_SIZE_EXTENDED = bytes.fromhex("5145")
 LOADER_TRAMPOLINE_OFFSET = 0x01C0B4
 LOADER_TRAMPOLINE_VA = XIP_DELTA + LOADER_TRAMPOLINE_OFFSET
 LOADER_TRAMPOLINE_ORIGINAL = b"\x00" * 8
+STOCK_LOCAL_BRANCH_HOOKS = (
+    (
+        0x0BD336,
+        bytes.fromhex("81452685"),
+        0x01C0BC,
+        "ap01_agents_stock_power_left_entry",
+        0xA00BC33A,
+        "功率左旋",
+    ),
+    (
+        0x0BD460,
+        bytes.fromhex("9d452685"),
+        0x01C0C4,
+        "ap01_agents_stock_pet_left_entry",
+        0xA00BC464,
+        "萌宠左旋",
+    ),
+    (
+        0x0BD712,
+        bytes.fromhex("9d452685"),
+        0x01C0CC,
+        "ap01_agents_stock_pet_right_entry",
+        0xA00BC716,
+        "萌宠右旋",
+    ),
+    (
+        0x0BEA64,
+        bytes.fromhex("26859d45"),
+        0x01C0D4,
+        "ap01_agents_stock_pet_enter_entry",
+        0xA00BDA68,
+        "萌宠确认",
+    ),
+)
+STOCK_LOCAL_TRAMPOLINE_ORIGINAL = b"\x00" * 8
+STOCK_KEY_CALLBACK_RANGE = (0x0BCFEE, 0x0BEB00)
+STOCK_POWER_CONFIRM_RANGE = (0x0BD8C6, 0x0BD960)
 UI_CALLBACK_LUI = 0x0B37E4
 UI_CALLBACK_ADDI = 0x0B37EE
 SINK_CALLBACK_LUI = 0x0B7D92
@@ -198,6 +238,10 @@ STOCK_PET_REQUIRED_SYMBOLS = (
     "ap01_agents_show_page",
     "ap01_agents_restore_pet",
     "ap01_agents_detail_active",
+    "ap01_agents_stock_power_left_entry",
+    "ap01_agents_stock_pet_left_entry",
+    "ap01_agents_stock_pet_right_entry",
+    "ap01_agents_stock_pet_enter_entry",
 )
 
 
@@ -634,7 +678,7 @@ def _validate_stock_pet_reuse_disassembly(
     key_event = _symbol_block(
         disassembly,
         "ap01_agents_key_event",
-        "ap01_agents_show_page",
+        "ap01_agents_stock_power_left_entry",
     )
     fast_gate = _symbol_block(
         disassembly,
@@ -660,7 +704,7 @@ def _validate_stock_pet_reuse_disassembly(
     fast_passthrough = _symbol_block(
         disassembly,
         "ap01_agents_fast_stock_passthrough",
-        "ap01_agents_show_page",
+        "ap01_agents_stock_power_left_entry",
     )
     fast_passthrough_instructions = [
         line
@@ -745,7 +789,7 @@ def _validate_stock_pet_reuse_disassembly(
     passthrough = _symbol_block(
         disassembly,
         "ap01_agents_stock_passthrough",
-        "ap01_agents_show_page",
+        "ap01_agents_fast_stock_passthrough",
     )
     if (
         "# a00bbfee <stock_key_event>" not in passthrough
@@ -894,6 +938,149 @@ def _validate_stock_pet_reuse_disassembly(
             f"0x{address:08x}" for address in STOCK_PET_FORBIDDEN_CALLEES
         ],
     }
+
+
+def _validate_stock_local_branches_disassembly(
+    disassembly: str,
+) -> dict[str, object]:
+    evidence = _validate_stock_pet_reuse_disassembly(disassembly)
+    local_branches = _symbol_block(
+        disassembly,
+        "ap01_agents_stock_power_left_entry",
+        "ap01_agents_show_page",
+    )
+    required_markers = (
+        "<ap01_agents_find_pet_state>",
+        "<ap01_agents_state_read>",
+        "<ap01_agents_show_page>",
+        "<ap01_agents_restore_pet>",
+        "# a00bfa4e <stock_switch_page>",
+        "# a00bc33a <stock_power_left_resume>",
+        "# a00bc464 <stock_pet_left_resume>",
+        "# a00bc716 <stock_pet_right_resume>",
+        "# a00bda68 <stock_pet_enter_resume>",
+        "# a00bc1d2 <stock_key_epilogue>",
+    )
+    missing = [marker for marker in required_markers if marker not in local_branches]
+    if missing:
+        raise AgentsDashboardFirmwareError(
+            f"局部分支载荷缺少恢复或消费目标：{missing[0]}"
+        )
+    if (
+        "# a00bbfee <stock_key_event>" in local_branches
+        or local_branches.count("# a00bc1d2 <stock_key_epilogue>") != 1
+        or any(
+            local_branches.count(f"# {address:08x} <") != 1
+            for address in (
+                0xA00BC33A,
+                0xA00BC464,
+                0xA00BC716,
+                0xA00BDA68,
+            )
+        )
+    ):
+        raise AgentsDashboardFirmwareError("局部分支恢复与消费出口不是一一对应")
+    for symbol in (
+        "ap01_agents_stock_power_left_entry",
+        "ap01_agents_stock_pet_left_entry",
+        "ap01_agents_stock_pet_right_entry",
+        "ap01_agents_stock_pet_enter_entry",
+    ):
+        if f"<{symbol}>:" not in disassembly:
+            raise AgentsDashboardFirmwareError(f"局部分支入口缺失：{symbol}")
+    evidence["local_branch_resume_targets"] = {
+        "power_left": _instruction_address(
+            local_branches,
+            "# a00bc33a <stock_power_left_resume>",
+        ),
+        "pet_left": _instruction_address(
+            local_branches,
+            "# a00bc464 <stock_pet_left_resume>",
+        ),
+        "pet_right": _instruction_address(
+            local_branches,
+            "# a00bc716 <stock_pet_right_resume>",
+        ),
+        "pet_enter": _instruction_address(
+            local_branches,
+            "# a00bda68 <stock_pet_enter_resume>",
+        ),
+        "consumed": _instruction_address(
+            local_branches,
+            "# a00bc1d2 <stock_key_epilogue>",
+        ),
+    }
+    return evidence
+
+
+def _patch_stock_local_branches(
+    candidate: bytearray,
+    symbols: dict[str, int],
+) -> list[ByteRange]:
+    allowed: list[ByteRange] = []
+    for (
+        hook_offset,
+        hook_original,
+        trampoline_offset,
+        symbol,
+        _resume_address,
+        label,
+    ) in STOCK_LOCAL_BRANCH_HOOKS:
+        entry = symbols.get(symbol)
+        if entry is None:
+            raise AgentsDashboardFirmwareError(f"{label}载荷入口缺失")
+        allowed.append(
+            _replace(
+                candidate,
+                hook_offset,
+                hook_original,
+                _encode_jal(
+                    XIP_DELTA + hook_offset,
+                    XIP_DELTA + trampoline_offset,
+                ),
+                f"{label}原厂局部目标",
+            )
+        )
+        allowed.append(
+            _replace(
+                candidate,
+                trampoline_offset,
+                STOCK_LOCAL_TRAMPOLINE_ORIGINAL,
+                _absolute_tail_jump(entry),
+                f"{label}近跳板",
+            )
+        )
+    return allowed
+
+
+def _assert_stock_local_branch_isolation(
+    stage: bytes,
+    candidate: bytes,
+) -> None:
+    for offset, expected in (
+        (KEY_CALLBACK_HIGH_OFFSET, KEY_CALLBACK_HIGH_ORIGINAL),
+        (KEY_CALLBACK_LOW_OFFSET, KEY_CALLBACK_LOW_ORIGINAL),
+        (UI_CALLBACK_LUI, INSTRUCTION_EXPECTED[UI_CALLBACK_LUI]),
+        (UI_CALLBACK_ADDI, INSTRUCTION_EXPECTED[UI_CALLBACK_ADDI]),
+    ):
+        end = offset + len(expected)
+        if stage[offset:end] != expected or candidate[offset:end] != expected:
+            raise AgentsDashboardFirmwareError("原厂全局回调地址装入字节发生变化")
+
+    allowed_offsets = {
+        offset
+        for hook_offset, hook_original, *_rest in STOCK_LOCAL_BRANCH_HOOKS
+        for offset in range(hook_offset, hook_offset + len(hook_original))
+    }
+    callback_start, callback_end = STOCK_KEY_CALLBACK_RANGE
+    for offset in range(callback_start, callback_end):
+        if offset not in allowed_offsets and candidate[offset] != stage[offset]:
+            raise AgentsDashboardFirmwareError(
+                f"原厂键值回调非局部分支字节发生变化：0x{offset:06x}"
+            )
+    power_start, power_end = STOCK_POWER_CONFIRM_RANGE
+    if candidate[power_start:power_end] != stage[power_start:power_end]:
+        raise AgentsDashboardFirmwareError("原厂功率确认路径发生变化")
 
 
 def build_sync_payload(
@@ -1073,7 +1260,9 @@ def build_sync_payload(
     callchain_evidence: dict[str, object] | None = None
     route_validation: dict[str, int] | None = None
     if reuse_stock_pet:
-        callchain_evidence = _validate_stock_pet_reuse_disassembly(disassembly)
+        callchain_evidence = _validate_stock_local_branches_disassembly(
+            disassembly
+        )
         route_validation = validate_stock_callchain_routes()
     else:
         _validate_pet_overlay_disassembly(disassembly)
@@ -1146,11 +1335,18 @@ def build_sync_firmware(
         )
     if (
         not reuse_stock_pet
-        or expected_output_name != STOCK_ENTER_GATE_OUTPUT_FILENAME
+        or expected_output_name != STOCK_LOCAL_BRANCHES_OUTPUT_FILENAME
     ):
         raise AgentsDashboardFirmwareError(
-            "旧 AGENTS 固件路径已停用，只允许生成原厂确认键无栈透传观察成品"
+            "旧 AGENTS 固件路径已停用，只允许生成原厂键值回调局部分支观察成品"
         )
+    if (
+        extra_objects
+        or required_extra_symbols
+        or candidate_mutators
+        or key_callback_symbol != "ap01_agents_key_event"
+    ):
+        raise AgentsDashboardFirmwareError("局部分支观察成品不允许组合其他界面改写")
     try:
         url_bytes = url_base.encode("ascii")
     except UnicodeEncodeError as error:
@@ -1221,32 +1417,8 @@ def build_sync_firmware(
         raise AgentsDashboardFirmwareError(
             "页面注册点或旧页面跳板不等于已验收设置固件"
         )
-    key_event = payload_result.symbols.get(key_callback_symbol)
-    if key_event is None:
-        raise AgentsDashboardFirmwareError(
-            f"一级键值组合入口缺失：{key_callback_symbol}"
-        )
-    key_high, key_low = _absolute_lui_addi(key_event, register=11)
-    allowed.append(
-        _replace(
-            candidate,
-            KEY_CALLBACK_HIGH_OFFSET,
-            KEY_CALLBACK_HIGH_ORIGINAL,
-            key_high,
-            "一级键值回调地址高位",
-        )
-    )
-
-    for mutate in candidate_mutators:
-        allowed.extend(mutate(candidate, payload_result.symbols))
-    allowed.append(
-        _replace(
-            candidate,
-            KEY_CALLBACK_LOW_OFFSET,
-            KEY_CALLBACK_LOW_ORIGINAL,
-            key_low,
-            "一级键值回调地址低位",
-        )
+    allowed.extend(
+        _patch_stock_local_branches(candidate, payload_result.symbols)
     )
 
     if (
@@ -1270,9 +1442,7 @@ def build_sync_firmware(
         )
     )
     sink = payload_result.symbols["ap01_agents_sink"]
-    ui_timer = payload_result.symbols["ap01_agents_ui_timer_wrapper"]
     sink_high, sink_low = _absolute_lui_addi(sink, register=15)
-    ui_high, ui_low = _absolute_lui_addi(ui_timer, register=10)
     allowed.append(
         _replace(
             candidate,
@@ -1289,24 +1459,6 @@ def build_sync_firmware(
             INSTRUCTION_EXPECTED[SINK_CALLBACK_ADDI],
             sink_low,
             "下载回调地址低位",
-        )
-    )
-    allowed.append(
-        _replace(
-            candidate,
-            UI_CALLBACK_LUI,
-            INSTRUCTION_EXPECTED[UI_CALLBACK_LUI],
-            ui_high,
-            "界面定时回调地址高位",
-        )
-    )
-    allowed.append(
-        _replace(
-            candidate,
-            UI_CALLBACK_ADDI,
-            INSTRUCTION_EXPECTED[UI_CALLBACK_ADDI],
-            ui_low,
-            "界面定时回调地址低位",
         )
     )
     allowed.append(
@@ -1367,6 +1519,8 @@ def build_sync_firmware(
             )
         )
 
+    _assert_stock_local_branch_isolation(stage, bytes(candidate))
+
     payload_before = bytes(candidate[PAYLOAD_START : PAYLOAD_START + len(payload)])
     if payload_before == payload:
         raise AgentsDashboardFirmwareError("同步载荷写入前后完全相同")
@@ -1388,7 +1542,7 @@ def build_sync_firmware(
     )
     manifest: dict[str, object] = {
         "schema_version": 1,
-        "manifest_type": "agents-stock-enter-gate-observation-firmware",
+        "manifest_type": "agents-stock-local-branches-observation-firmware",
         "status": "built-not-approved-for-installation",
         "built_at_beijing": datetime.now(ZoneInfo("Asia/Shanghai")).isoformat(
             timespec="seconds"
@@ -1439,8 +1593,8 @@ def build_sync_firmware(
             "界面线程只切换已提交页面",
             "固定周期后台刷新",
             "复用原厂萌宠既有动图对象",
-            "按原厂交互分派序号路由键值",
-            "非萌宠确认键从无栈入口直接透传",
+            "只挂接原厂已筛选的四个局部分支",
+            "原厂功率确认和两个全局回调保持原字节",
             "真实页面使用原厂实际切页入口",
             "AGENTS 状态使用萌宠状态新增尾部",
             *implemented_scope_extra,
@@ -1449,6 +1603,7 @@ def build_sync_firmware(
             "重启后保留最后成功包",
             "页面开关关闭时停用刷新",
             "NAS 与云服务器故障切换",
+            "停留页面时即时应用后台新数据",
         ],
         "pending_measurements": [
             "后台任务原有栈余量",
@@ -1463,6 +1618,38 @@ def build_sync_firmware(
             "route_validation": payload_result.route_validation,
             "page_registration_bytes_unchanged": True,
             "legacy_page_trampoline_bytes_unchanged": True,
+            "global_key_callback_registration_unchanged": True,
+            "global_ui_timer_callback_registration_unchanged": True,
+            "stock_key_callback_unchanged_except_local_targets": True,
+            "stock_power_confirm_path_unchanged": True,
+            "local_branch_hooks": [
+                {
+                    "label": label,
+                    "hook_file_offset": f"0x{hook_offset:06x}",
+                    "hook_before_hex": hook_original.hex(),
+                    "hook_after_hex": _encode_jal(
+                        XIP_DELTA + hook_offset,
+                        XIP_DELTA + trampoline_offset,
+                    ).hex(),
+                    "trampoline_file_offset": f"0x{trampoline_offset:06x}",
+                    "trampoline_after_hex": _absolute_tail_jump(
+                        payload_result.symbols[symbol]
+                    ).hex(),
+                    "payload_symbol": symbol,
+                    "payload_address": (
+                        f"0x{payload_result.symbols[symbol]:08x}"
+                    ),
+                    "stock_resume_address": f"0x{resume_address:08x}",
+                }
+                for (
+                    hook_offset,
+                    hook_original,
+                    trampoline_offset,
+                    symbol,
+                    resume_address,
+                    label,
+                ) in STOCK_LOCAL_BRANCH_HOOKS
+            ],
             "pet_state_original_fields_unchanged": True,
             "pet_state_size_patch": {
                 "file_offset": f"0x{PET_STATE_SIZE_OFFSET:06x}",
@@ -1480,8 +1667,10 @@ def build_sync_firmware(
             "page_registration_unchanged": True,
             "legacy_page_trampoline_unchanged": True,
             "stock_callchain_verified": True,
-            "all_27_dispatch_key_routes_verified": True,
-            "stackless_enter_gate_verified": True,
+            "four_local_branch_targets_verified": True,
+            "global_key_callback_registration_unchanged": True,
+            "global_ui_timer_callback_registration_unchanged": True,
+            "stock_power_confirm_path_unchanged": True,
             "independent_tail_recovery_verified": True,
             "installation_allowed": False,
         },
@@ -1542,6 +1731,22 @@ def build_stock_enter_gate_firmware(
     refresh_seconds: int,
     tool_revision: dict[str, object],
 ) -> SyncFirmwareResult:
+    raise AgentsDashboardFirmwareError(
+        "原厂确认键无栈透传观察成品已因功率页确认卡死停用"
+    )
+
+
+def build_stock_local_branches_firmware(
+    stage_path: Path,
+    output_path: Path,
+    manifest_path: Path,
+    build_directory: Path,
+    credentials: DeviceCredentialsLike,
+    *,
+    url_base: str,
+    refresh_seconds: int,
+    tool_revision: dict[str, object],
+) -> SyncFirmwareResult:
     return build_sync_firmware(
         stage_path,
         output_path,
@@ -1551,12 +1756,12 @@ def build_stock_enter_gate_firmware(
         url_base=url_base,
         refresh_seconds=refresh_seconds,
         tool_revision=tool_revision,
-        expected_output_name=STOCK_ENTER_GATE_OUTPUT_FILENAME,
+        expected_output_name=STOCK_LOCAL_BRANCHES_OUTPUT_FILENAME,
         implemented_scope_extra=(
-            "非萌宠确认键无栈直接透传",
-            "原厂内部详情三种键值直接透传",
-            "页面切换后核对原厂交互分派序号",
-            "异常状态与切源失败关闭恢复",
+            "功率左旋和萌宠三种键值局部接入",
+            "未消费事件从四个原厂继续地址恢复",
+            "消费事件从原厂公共退出地址返回",
+            "异常尾部先恢复原厂萌宠再继续处理",
         ),
         reuse_stock_pet=True,
     )
