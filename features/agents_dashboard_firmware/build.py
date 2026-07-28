@@ -64,14 +64,15 @@ REQUIRED_CALLEES = (
     0xA01930FE,
     0xA00CF8D8,
     0xA00BF7EA,
+    0xA00B0290,
     0xA00B06F4,
     0xA007E1C4,
     0xA007C256,
     0xA00BBFEE,
 )
-EXPECTED_PAYLOAD_SIZE = 27_472
+EXPECTED_PAYLOAD_SIZE = 27_480
 EXPECTED_PAYLOAD_SHA256 = (
-    "0ef5f27dbf2e37014d3523667e2b597d88a226f4ca2d416dcae79e6b8e9ed910"
+    "dc19d952548c48ed246a1df3ab300dd4963a16f7016b06f8ebe8bf784f7f29c9"
 )
 OBSERVATION_OUTPUT_FILENAME = "ap01-1.0.2_0031-agents-observation.bin"
 STAGE_SIZE = 6_804_520
@@ -596,6 +597,7 @@ def build_page_registration_payload(
             "payload_fits": True,
             "entry_matches": True,
             "key_event_entry_present": True,
+            "current_index_getter_present": True,
             "required_callees_present": True,
             "fallback_descriptors_valid": True,
             "relocations_zero": True,

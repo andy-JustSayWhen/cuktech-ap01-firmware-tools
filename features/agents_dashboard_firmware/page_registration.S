@@ -106,9 +106,10 @@ ap01_agents_key_event:
 
     lw s1, 0(s0)
     beqz s1, .Lstock_key_event
-    lw t0, 52(s1)
+    mv a0, s1
+    call window_get_active
     li t1, AGENTS_INDEX
-    bne t0, t1, .Lstock_key_event
+    bne a0, t1, .Lstock_key_event
     lw t0, 8(s0)
     li t1, 0xffff7fff
     and t0, t0, t1

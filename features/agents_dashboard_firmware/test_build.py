@@ -36,9 +36,10 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
         self.assertTrue(document["gates"]["fallback_descriptors_valid"])
         self.assertTrue(document["gates"]["key_callback_old_bytes_match"])
         self.assertTrue(document["gates"]["key_event_entry_present"])
+        self.assertTrue(document["gates"]["current_index_getter_present"])
         self.assertFalse(document["gates"]["firmware_output_allowed"])
-        self.assertEqual(document["payload"]["size"], 27_472)
-        self.assertEqual(document["payload"]["remaining"], 33_462)
+        self.assertEqual(document["payload"]["size"], 27_480)
+        self.assertEqual(document["payload"]["remaining"], 33_454)
         self.assertEqual(len(document["fallback_assets"]), 4)
         self.assertEqual(
             document["draft_modifications"][0]["expected_before_hex"],
@@ -79,7 +80,7 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
         self.assertEqual(result.output.name, OBSERVATION_OUTPUT_FILENAME)
         self.assertEqual(
             result.sha256,
-            "289e61602be4fe09e320bf8f8a3fc231eae48429ec7d0be74941d0d8b8834d5f",
+            "dfc834d8cf72a45c90f1e9dc73a9552ede840b33d53bcb1efcff5c42d1c9520e",
         )
         self.assertIn('"outside_allowed_ranges_identical": true', manifest_text)
         self.assertFalse(output_mode & stat.S_IWUSR)
