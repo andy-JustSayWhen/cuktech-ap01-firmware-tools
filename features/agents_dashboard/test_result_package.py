@@ -122,8 +122,8 @@ class ResultPackageTests(unittest.TestCase):
                 Path(directory),
             )
             query = {
-                "d": [self.credentials.device_id],
-                "t": [self.credentials.access_token],
+                "d": [self.credentials.device_id[-4:]],
+                "t": [self.credentials.access_token[-12:]],
                 "n": ["1700000000"],
             }
             self.assertTrue(state.authorize(query))

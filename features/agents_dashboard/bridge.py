@@ -108,8 +108,8 @@ class BridgeState:
         token = query.get("t", [""])[0].lower()
         nonce = query.get("n", [""])[0]
         if (
-            device != self.credentials.device_id
-            or token != self.credentials.access_token
+            device != self.credentials.device_id[-4:]
+            or token != self.credentials.access_token[-12:]
             or not nonce.isdigit()
             or len(nonce) > 20
         ):

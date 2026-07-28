@@ -17,6 +17,7 @@
 | FFmpeg（用另一套程序独立解码画面的工具） | 复核优化前后动图的实际播放帧完全一致 | 构建工具 | 本机 8.1.1 已安装并完成第 1 个原厂动图的逐帧复核 | 是 | 与 Pillow 的逐帧结果必须同时通过；任一解码结果变化时停止构建 |
 | MiSans | 绘制 AGENTS 看板中文、数字和单位 | 字体 | 官方 Regular、Medium、Semibold、Bold 四个字重已放入被忽略的 `env/fonts/` | 是 | 官方下载页为 `https://hyperos.mi.com/font/en/download/`；成品注明“使用 MiSans 字体”；不提交、改造或转发字体文件 |
 | Material Design Icons | 提供活动、插件、输入、输出和缓存语义图标 | 图标资源 | 本轮接入官方矢量图标、许可与来源 | 是 | 上游为 `https://github.com/google/material-design-icons`，只保留本功能实际使用的图标 |
+| B-Con crypto-algorithms | 提供设备端 SHA-256 与响应授权校验的无标准库实现基础 | 源码参考 | 已把公开领域 SHA-256 实现改造成 AP01 独立版本，并通过主机端已知结果与流式整包测试 | 是 | 上游为 `https://github.com/B-Con/crypto-algorithms`；设备端不调用尚未定位的原厂加密接口 |
 | Requests（访问网络接口的程序库） | 访问 Codex、小米云和固件分发地址 | 软件库 | 参考项目已验证，本项目尚未接入 | 是 | 必须设置超时、有限重试和敏感信息过滤 |
 | RISC-V 编译工具 | 编译适用于 AP01 处理器的设备端载荷 | 构建工具 | 本机 GNU Binutils（把汇编文字变成处理器字节并反查结果的工具组）2.46.1 与 GCC（把程序文字编译成处理器字节的工具）16.1.0 已具备；设置菜单载荷已逐字节复现，AGENTS 页面载荷按固定地址链接 | 是 | 当前使用 `/opt/homebrew/bin/riscv64-elf-gcc`、`riscv64-elf-as`、`riscv64-elf-ld`、`riscv64-elf-objcopy`、`riscv64-elf-objdump`、`riscv64-elf-nm` 和 `riscv64-elf-readelf`；版本或输出变化时停止构建 |
 | Codex 当前登录态 | 授权读取额度、重置卡和个人统计 | 软件 / 账号 | 本机已登录并完成三个官方地址实测 | 是 | 直接读取 Codex 登录文件；不依赖 Cockpit Tools、CC Switch 或 Codex 桌面端安装，不要求再次输入密码 |

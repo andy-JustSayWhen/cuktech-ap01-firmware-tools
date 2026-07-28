@@ -14,10 +14,15 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from core.firmware_image import FirmwareValidationError
+from features.agents_dashboard.result_package import (
+    ResultPackageError,
+    load_or_create_credentials,
+)
 from features.agents_dashboard_firmware import (
     AgentsDashboardFirmwareError,
     build_observation_firmware,
     build_page_registration_payload,
+    build_sync_firmware,
 )
 from features.offline_firmware_build import (
     BuildGateError,
@@ -142,6 +147,18 @@ def _parser() -> argparse.ArgumentParser:
     observation_command.add_argument("--output", type=Path, required=True)
     observation_command.add_argument("--manifest", type=Path, required=True)
     observation_command.add_argument("--build-dir", type=Path, required=True)
+
+    sync_command = commands.add_parser(
+        "agents-sync-build",
+        help="生成设备专属的 AGENTS 四页后台同步实验固件",
+    )
+    sync_command.add_argument("--input", type=Path, required=True)
+    sync_command.add_argument("--output", type=Path, required=True)
+    sync_command.add_argument("--manifest", type=Path, required=True)
+    sync_command.add_argument("--build-dir", type=Path, required=True)
+    sync_command.add_argument("--config", type=Path, required=True)
+    sync_command.add_argument("--url-base", required=True)
+    sync_command.add_argument("--refresh-seconds", type=int, default=300)
     return parser
 
 
@@ -325,6 +342,36 @@ def main(argv: list[str] | None = None) -> int:
             )
             return 0
 
+        if args.command == "agents-sync-build":
+            credentials = load_or_create_credentials(args.config)
+            result = build_sync_firmware(
+                args.input,
+                args.output,
+                args.manifest,
+                args.build_dir,
+                credentials,
+                url_base=args.url_base,
+                refresh_seconds=args.refresh_seconds,
+                tool_revision=revision,
+            )
+            print(
+                json.dumps(
+                    {
+                        "result": "AGENTS 四页后台同步实验固件制作完成",
+                        "output": str(result.output),
+                        "manifest": str(result.manifest),
+                        "output_sha256": result.sha256,
+                        "output_md5": result.md5,
+                        "payload_size": result.payload_size,
+                        "payload_remaining": result.payload_remaining,
+                        "installation_allowed": False,
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                )
+            )
+            return 0
+
         result = make_firmware(
             args.input,
             args.plan,
@@ -359,6 +406,7 @@ def main(argv: list[str] | None = None) -> int:
         FirmwareValidationError,
         OptimizedFirmwareBuildError,
         PrimaryPageNavigationError,
+        ResultPackageError,
         SettingsMenuWrapError,
         OSError,
         subprocess.SubprocessError,

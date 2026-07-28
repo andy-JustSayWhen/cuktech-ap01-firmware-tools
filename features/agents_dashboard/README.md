@@ -35,6 +35,20 @@ python3 -m features.agents_dashboard.bridge --port 8765 --interval 300
 当前四页完整包写入被版本控制忽略的 `artifacts/agents-dashboard/`。完整包格式、授权字段、
 页面顺序和大小上限只见 DESIGN 第 8 节。服务日志只记录不带查询字段的请求路径。
 
+设备专属实验固件只允许从已验收的 `opt-setting.bin` 构建：
+
+```shell
+python3 app/ap01_firmware.py agents-sync-build \
+  --input artifacts/firmware/opt-setting.bin \
+  --output artifacts/firmware/ap01-1.0.2_0031-agents-sync-experimental.bin \
+  --manifest artifacts/build/agents-sync/manifest.json \
+  --build-dir artifacts/build/agents-sync/payload \
+  --config env/agents-dashboard-device.json \
+  --url-base http://本机局域网地址:8765/a
+```
+
+构建只生成候选文件和清单，不上传、不下发、不安装。
+
 渲染前必须从 MiSans 官方下载页取得 Regular、Medium、Semibold、Bold 四个字重，并放入
 `env/fonts/`。具体字重角色只见效果图评审文档第 2 节。本模块生成的图片使用 MiSans 字体；
 字体文件不进入版本控制，也不随本项目转发。

@@ -23,7 +23,11 @@ ap01_agents_page_register:
     beqz a0, .Lcreate_stock_detail
     mv s0, a0
 
+    .ifdef SYNC_LOADER
+    li a0, 24
+    .else
     li a0, 12
+    .endif
     call malloc
     beqz a0, .Ldelete_agents_root
     mv s1, a0
@@ -31,6 +35,11 @@ ap01_agents_page_register:
     sw t0, 0(s1)
     sw zero, 4(s1)
     sw zero, 8(s1)
+    .ifdef SYNC_LOADER
+    sw zero, 12(s1)
+    sw zero, 16(s1)
+    sw zero, 20(s1)
+    .endif
     sw s1, 16(s0)
 
     mv a0, s0
@@ -54,6 +63,10 @@ ap01_agents_page_register:
     call lv_gif_create
     beqz a0, .Ldelete_agents_root
     sw a0, 4(s1)
+    .ifdef SYNC_LOADER
+    mv a0, s1
+    call ap01_agents_apply_current
+    .endif
     j .Lcreate_stock_detail
 
 .Ldelete_agents_root:
@@ -262,6 +275,10 @@ ap01_agents_key_event:
 .Lset_source:
     lw a0, 4(s2)
     call lv_gif_set_src
+    .ifdef SYNC_LOADER
+    mv a0, s2
+    call ap01_agents_apply_current
+    .endif
 
 .Lkey_consumed:
     lw ra, 28(sp)

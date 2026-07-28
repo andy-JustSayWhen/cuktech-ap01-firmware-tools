@@ -10,6 +10,12 @@ from .fallback_assets import (
     FallbackAssetError,
     build_fallback_assets,
 )
+from .sync_build import (
+    SYNC_OUTPUT_FILENAME,
+    SyncFirmwareResult,
+    build_sync_firmware,
+    build_sync_payload,
+)
 
 __all__ = [
     "AgentsDashboardFirmwareError",
@@ -18,4 +24,8 @@ __all__ = [
     "build_observation_firmware",
     "build_fallback_assets",
     "build_page_registration_payload",
+    "SYNC_OUTPUT_FILENAME",
+    "SyncFirmwareResult",
+    "build_sync_firmware",
+    "build_sync_payload",
 ]
