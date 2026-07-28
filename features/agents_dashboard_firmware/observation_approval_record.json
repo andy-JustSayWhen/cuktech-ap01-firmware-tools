@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "status": "approved-for-one-installation",
+  "status": "installation-consumed",
   "approved_at_beijing": "2026-07-28T19:19:49+08:00",
   "target_model": "njcuk.enstor.ap01",
   "target_version": "1.0.2_0031",
@@ -14,5 +14,7 @@
     "不依赖设备正常启动和联网的独立恢复验证"
   ],
   "approval_statement": "用户授权修复完成后直接刷机且无需再次批准；只限第六次 C1、C2 条件页排除修正版",
-  "approved_scope": "一级循环固定使用对象序号 0、3、4、5、6、7、8；C1、C2 条件页和米家详情继续交由原厂逻辑处理"
+  "approved_scope": "一级循环固定使用对象序号 0、3、4、5、6、7、8；C1、C2 条件页和米家详情继续交由原厂逻辑处理",
+  "installation_consumed_at_beijing": "2026-07-28T19:29:52+08:00",
+  "installation_result": "上传对象完整回读一致；设备完成下载、安装和首次重启；首次稳定性检查期间发生一次额外重启，额外重启后的七次采样通过；等待用户物理验收"
 }
