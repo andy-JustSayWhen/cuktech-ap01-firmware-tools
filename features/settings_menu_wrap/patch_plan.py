@@ -90,16 +90,17 @@ PATCHES = (
         section_name=".payload",
         offset=0x01C008,
         runtime_address=0xA001B008,
-        expected_before=b"\x00" * 138,
+        expected_before=b"\x00" * 164,
         expected_replacement=bytes.fromhex(
             "03a58900efa09a7daa8a83c71400094763f4ea006fd0cd0b9386"
-            "17fd63f4da006fd00d0b638456016fd02d1793070003a380f400"
-            "03a589009385faff0146ef805d516fd0ed0803a58900efa03a79"
-            "aa8a83c71400094763f4ea006fd06d07938607fd63e456016fd0"
-            "ad0699c26fd0ad6f9387fa02a380f40003a5890081451386faff"
-            "ef801d4d6fd0ad04"
+            "17fd63f4da006fd00d0b638456016fd02d1703a5890081450546"
+            "efb03a5c93070003a380f40003a589009385faff0146ef809d50"
+            "6fd02d0803a58900efa07a78aa8a83c71400094763f4ea006fd0"
+            "ad06938607fd63e456016fd0ed0599c26fd0ed6e03a589009305"
+            "00190546efb01a579387fa02a380f40003a5890081451386faff"
+            "ef807d4b6fd00d03"
         ),
-        evidence_note="证据文档第 15 节：138 字节处理程序从实际列表控件动态读取项目数",
+        evidence_note="证据文档第 20 节：164 字节处理程序同步项目数、选中项与列表位置",
     ),
     PatchDefinition(
         name="右旋状态挂接",
@@ -118,8 +119,8 @@ PATCHES = (
         offset=0x0F976A,
         runtime_address=0xA00F876A,
         expected_before=bytes.fromhex("83c71400"),
-        expected_replacement=bytes.fromhex("6f20528e"),
-        evidence_note="证据文档第 15 节：跳转目标为 0xa001b04e",
+        expected_replacement=bytes.fromhex("6f20128f"),
+        evidence_note="证据文档第 20 节：跳转目标为 0xa001b05a",
     ),
 )
 
@@ -289,16 +290,18 @@ def assemble_and_verify() -> dict[str, Any]:
             (0xA001B01C, 0xA00F80D8),
             (0xA001B028, 0xA00F80D8),
             (0xA001B030, 0xA00F81A2),
-            (0xA001B046, 0xA00F3D5A),
-            (0xA001B04A, 0xA00F80D8),
-            (0xA001B052, 0xA00C5FE4),
-            (0xA001B062, 0xA00F80D8),
+            (0xA001B03C, 0xA00C6DFE),
+            (0xA001B052, 0xA00F3D5A),
+            (0xA001B056, 0xA00F80D8),
+            (0xA001B05E, 0xA00C5FE4),
             (0xA001B06E, 0xA00F80D8),
-            (0xA001B074, 0xA00F876E),
-            (0xA001B08A, 0xA00F3D5A),
-            (0xA001B08E, 0xA00F80D8),
+            (0xA001B07A, 0xA00F80D8),
+            (0xA001B080, 0xA00F876E),
+            (0xA001B08E, 0xA00C6DFE),
+            (0xA001B0A4, 0xA00F3D5A),
+            (0xA001B0A8, 0xA00F80D8),
             (0xA00F819E, 0xA001B008),
-            (0xA00F876A, 0xA001B04E),
+            (0xA00F876A, 0xA001B05A),
         )
         disassembly_lines = {
             line.lstrip().split(":", 1)[0]: line.lower()
@@ -315,14 +318,29 @@ def assemble_and_verify() -> dict[str, Any]:
         reviewed_list_count_loads = (
             (0xA001B008, "x10,8(x19)"),
             (0xA001B010, "x21,x10"),
-            (0xA001B04E, "x10,8(x19)"),
-            (0xA001B056, "x21,x10"),
+            (0xA001B05A, "x10,8(x19)"),
+            (0xA001B062, "x21,x10"),
         )
         for address, operands in reviewed_list_count_loads:
             instruction = disassembly_lines.get(f"{address:08x}", "")
             if operands not in instruction:
                 raise SettingsMenuWrapError(
                     "实际设置列表计数的数据流与已审查结果不一致："
+                    f"0x{address:08x}"
+                )
+        reviewed_position_sync_setup = (
+            (0xA001B034, "x10,8(x19)"),
+            (0xA001B038, "x11,0"),
+            (0xA001B03A, "x12,1"),
+            (0xA001B084, "x10,8(x19)"),
+            (0xA001B088, "x11,x0,400"),
+            (0xA001B08C, "x12,1"),
+        )
+        for address, operands in reviewed_position_sync_setup:
+            instruction = disassembly_lines.get(f"{address:08x}", "")
+            if operands not in instruction:
+                raise SettingsMenuWrapError(
+                    "首尾列表位置同步参数与已审查结果不一致："
                     f"0x{address:08x}"
                 )
 
@@ -344,6 +362,13 @@ def assemble_and_verify() -> dict[str, Any]:
                 "operands": operands,
             }
             for address, operands in reviewed_list_count_loads
+        ],
+        "verified_position_sync_setup": [
+            {
+                "address_hex": f"0x{address:08x}",
+                "operands": operands,
+            }
+            for address, operands in reviewed_position_sync_setup
         ],
         "replacements": generated,
     }

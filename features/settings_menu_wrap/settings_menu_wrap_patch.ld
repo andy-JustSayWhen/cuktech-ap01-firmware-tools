@@ -3,6 +3,7 @@ ENTRY(payload_start)
 
 selection_transition = 0xa00f3d5a;
 list_item_count = 0xa00c5fe4;
+list_position_adjust = 0xa00c6dfe;
 handler_return = 0xa00f80d8;
 right_original_switch = 0xa00f81a2;
 left_original_switch = 0xa00f876e;
@@ -13,8 +14,8 @@ SECTIONS
     {
         KEEP(*(.payload))
     }
-    ASSERT(SIZEOF(.payload) == 0x8a, "payload size mismatch")
-    ASSERT(payload_end == 0xa001b092, "payload end mismatch")
+    ASSERT(SIZEOF(.payload) == 0xa4, "payload size mismatch")
+    ASSERT(payload_end == 0xa001b0ac, "payload end mismatch")
 
     .right_hook 0xa00f819e :
     {

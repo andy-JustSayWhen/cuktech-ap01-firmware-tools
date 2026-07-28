@@ -67,16 +67,18 @@ class SettingsMenuWrapTests(unittest.TestCase):
                 {"source_hex": "0xa001b01c", "target_hex": "0xa00f80d8"},
                 {"source_hex": "0xa001b028", "target_hex": "0xa00f80d8"},
                 {"source_hex": "0xa001b030", "target_hex": "0xa00f81a2"},
-                {"source_hex": "0xa001b046", "target_hex": "0xa00f3d5a"},
-                {"source_hex": "0xa001b04a", "target_hex": "0xa00f80d8"},
-                {"source_hex": "0xa001b052", "target_hex": "0xa00c5fe4"},
-                {"source_hex": "0xa001b062", "target_hex": "0xa00f80d8"},
+                {"source_hex": "0xa001b03c", "target_hex": "0xa00c6dfe"},
+                {"source_hex": "0xa001b052", "target_hex": "0xa00f3d5a"},
+                {"source_hex": "0xa001b056", "target_hex": "0xa00f80d8"},
+                {"source_hex": "0xa001b05e", "target_hex": "0xa00c5fe4"},
                 {"source_hex": "0xa001b06e", "target_hex": "0xa00f80d8"},
-                {"source_hex": "0xa001b074", "target_hex": "0xa00f876e"},
-                {"source_hex": "0xa001b08a", "target_hex": "0xa00f3d5a"},
-                {"source_hex": "0xa001b08e", "target_hex": "0xa00f80d8"},
+                {"source_hex": "0xa001b07a", "target_hex": "0xa00f80d8"},
+                {"source_hex": "0xa001b080", "target_hex": "0xa00f876e"},
+                {"source_hex": "0xa001b08e", "target_hex": "0xa00c6dfe"},
+                {"source_hex": "0xa001b0a4", "target_hex": "0xa00f3d5a"},
+                {"source_hex": "0xa001b0a8", "target_hex": "0xa00f80d8"},
                 {"source_hex": "0xa00f819e", "target_hex": "0xa001b008"},
-                {"source_hex": "0xa00f876a", "target_hex": "0xa001b04e"},
+                {"source_hex": "0xa00f876a", "target_hex": "0xa001b05a"},
             ],
         )
         self.assertEqual(
@@ -84,8 +86,19 @@ class SettingsMenuWrapTests(unittest.TestCase):
             [
                 {"address_hex": "0xa001b008", "operands": "x10,8(x19)"},
                 {"address_hex": "0xa001b010", "operands": "x21,x10"},
-                {"address_hex": "0xa001b04e", "operands": "x10,8(x19)"},
-                {"address_hex": "0xa001b056", "operands": "x21,x10"},
+                {"address_hex": "0xa001b05a", "operands": "x10,8(x19)"},
+                {"address_hex": "0xa001b062", "operands": "x21,x10"},
+            ],
+        )
+        self.assertEqual(
+            report["verified_position_sync_setup"],
+            [
+                {"address_hex": "0xa001b034", "operands": "x10,8(x19)"},
+                {"address_hex": "0xa001b038", "operands": "x11,0"},
+                {"address_hex": "0xa001b03a", "operands": "x12,1"},
+                {"address_hex": "0xa001b084", "operands": "x10,8(x19)"},
+                {"address_hex": "0xa001b088", "operands": "x11,x0,400"},
+                {"address_hex": "0xa001b08c", "operands": "x12,1"},
             ],
         )
 
@@ -100,7 +113,7 @@ class SettingsMenuWrapTests(unittest.TestCase):
         self.assertEqual(firmware[CODE_GAP_START - 2 : CODE_GAP_START], b"\x82\x80")
         self.assertEqual(firmware[CODE_GAP_END : CODE_GAP_END + 4], bytes.fromhex("23221500"))
         self.assertEqual(PATCHES[0].offset, CODE_GAP_START)
-        self.assertEqual(PATCHES[0].end, 0x01C092)
+        self.assertEqual(PATCHES[0].end, 0x01C0AC)
 
     @unittest.skipUnless(REAL_BASELINE.is_file(), "真实原厂基线不在本机")
     def test_candidate_bytes_preserve_every_reviewed_log_region(self) -> None:
@@ -129,7 +142,7 @@ class SettingsMenuWrapTests(unittest.TestCase):
         self.assertFalse(document["review"]["firmware_output_allowed"])
         self.assertFalse(document["review"]["logging_changed"])
         self.assertEqual(len(document["patches"]), 3)
-        self.assertEqual(document["review"]["code_gap"]["used_bytes"], 138)
+        self.assertEqual(document["review"]["code_gap"]["used_bytes"], 164)
 
     @unittest.skipUnless(REAL_BASELINE.is_file(), "真实原厂基线不在本机")
     def test_draft_plan_cannot_pass_offline_build_approval_gate(self) -> None:
@@ -145,20 +158,12 @@ class SettingsMenuWrapTests(unittest.TestCase):
                 load_patch_plan(plan_path, REPO_ROOT)
 
     @unittest.skipUnless(REAL_BASELINE.is_file(), "真实原厂基线不在本机")
-    def test_current_approval_record_is_bound_to_corrected_scope(self) -> None:
-        document = build_approved_plan(
-            REAL_BASELINE,
-            tool_revision={"commit": "test", "scoped_code_dirty": True},
-        )
-
-        self.assertEqual(document["status"], APPROVED_PLAN_STATUS)
-        self.assertTrue(document["review"]["firmware_output_allowed"])
-        self.assertFalse(document["review"]["experimental_download_allowed"])
-        self.assertFalse(document["review"]["installation_allowed"])
-        self.assertEqual(
-            document["approval"]["scope_sha256"],
-            "e61d2e2235b64172008d5e07085fbb2e89b1d0c653a6049a175860d4f28a4a6e",
-        )
+    def test_current_approval_record_is_rejected_for_visual_sync_scope(self) -> None:
+        with self.assertRaisesRegex(SettingsMenuWrapError, "必须重新审批"):
+            build_approved_plan(
+                REAL_BASELINE,
+                tool_revision={"commit": "test", "scoped_code_dirty": True},
+            )
         approval = json.loads(APPROVAL_RECORD_PATH.read_text(encoding="utf-8"))
         self.assertEqual(approval["installation_statement"], "批准，生成固件并刷机")
 
@@ -184,14 +189,31 @@ class SettingsMenuWrapTests(unittest.TestCase):
                     )
 
     @unittest.skipUnless(REAL_BASELINE.is_file(), "真实原厂基线不在本机")
-    def test_corrected_scope_writes_approved_plan(self) -> None:
-        with tempfile.TemporaryDirectory() as selected:
+    def test_matching_visual_sync_scope_writes_approved_plan(self) -> None:
+        with tempfile.TemporaryDirectory(dir=patch_plan_module.MODULE_DIR) as selected:
             plan_path = Path(selected) / "settings-menu-wrap-approved.json"
-            write_approved_plan(
+            draft = build_draft_plan(
                 REAL_BASELINE,
-                plan_path,
                 tool_revision={"commit": "test", "scoped_code_dirty": True},
             )
+            approval = json.loads(APPROVAL_RECORD_PATH.read_text(encoding="utf-8"))
+            approval["scope_sha256"] = patch_plan_module._approval_scope_sha256(draft)
+            approval["approved_at_beijing"] = "test-only"
+            matching_record = Path(selected) / "approval-record.json"
+            matching_record.write_text(
+                json.dumps(approval, ensure_ascii=False),
+                encoding="utf-8",
+            )
+            with patch.object(
+                patch_plan_module,
+                "APPROVAL_RECORD_PATH",
+                matching_record,
+            ):
+                write_approved_plan(
+                    REAL_BASELINE,
+                    plan_path,
+                    tool_revision={"commit": "test", "scoped_code_dirty": True},
+                )
 
             plan = load_patch_plan(plan_path, REPO_ROOT)
             self.assertEqual(plan.status, APPROVED_PLAN_STATUS)
