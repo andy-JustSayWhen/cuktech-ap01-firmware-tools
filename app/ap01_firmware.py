@@ -26,10 +26,12 @@ from features.agents_dashboard_firmware import (
     PET_OVERLAY_OUTPUT_FILENAME,
     STOCK_CALLCHAIN_OUTPUT_FILENAME,
     STOCK_DISPATCH_OUTPUT_FILENAME,
+    STOCK_ENTER_GATE_OUTPUT_FILENAME,
     STOCK_PET_REUSE_OUTPUT_FILENAME,
     build_observation_firmware,
     build_page_registration_payload,
     build_stock_callchain_firmware,
+    build_stock_enter_gate_firmware,
     build_sync_firmware,
 )
 from features.offline_firmware_build import (
@@ -268,6 +270,22 @@ def _parser() -> argparse.ArgumentParser:
     stock_callchain_command.add_argument("--config", type=Path, required=True)
     stock_callchain_command.add_argument("--url-base", required=True)
     stock_callchain_command.add_argument(
+        "--refresh-seconds",
+        type=int,
+        default=300,
+    )
+
+    stock_enter_gate_command = commands.add_parser(
+        "agents-stock-enter-gate-build",
+        help="生成确认键无栈透传的 AGENTS 离线观察固件",
+    )
+    stock_enter_gate_command.add_argument("--input", type=Path, required=True)
+    stock_enter_gate_command.add_argument("--output", type=Path, required=True)
+    stock_enter_gate_command.add_argument("--manifest", type=Path, required=True)
+    stock_enter_gate_command.add_argument("--build-dir", type=Path, required=True)
+    stock_enter_gate_command.add_argument("--config", type=Path, required=True)
+    stock_enter_gate_command.add_argument("--url-base", required=True)
+    stock_enter_gate_command.add_argument(
         "--refresh-seconds",
         type=int,
         default=300,
@@ -735,6 +753,37 @@ def main(argv: list[str] | None = None) -> int:
                         "result": "AGENTS 原厂精确调用链观察固件制作完成",
                         "output": str(result.output),
                         "expected_name": STOCK_CALLCHAIN_OUTPUT_FILENAME,
+                        "manifest": str(result.manifest),
+                        "output_sha256": result.sha256,
+                        "output_md5": result.md5,
+                        "payload_size": result.payload_size,
+                        "payload_remaining": result.payload_remaining,
+                        "installation_allowed": False,
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                )
+            )
+            return 0
+
+        if args.command == "agents-stock-enter-gate-build":
+            credentials = load_or_create_credentials(args.config)
+            result = build_stock_enter_gate_firmware(
+                args.input,
+                args.output,
+                args.manifest,
+                args.build_dir,
+                credentials,
+                url_base=args.url_base,
+                refresh_seconds=args.refresh_seconds,
+                tool_revision=revision,
+            )
+            print(
+                json.dumps(
+                    {
+                        "result": "AGENTS 原厂确认键无栈透传观察固件制作完成",
+                        "output": str(result.output),
+                        "expected_name": STOCK_ENTER_GATE_OUTPUT_FILENAME,
                         "manifest": str(result.manifest),
                         "output_sha256": result.sha256,
                         "output_md5": result.md5,

@@ -28,13 +28,16 @@ from features.agents_dashboard_firmware.sync_build import (
     PET_STATE_SIZE_OFFSET,
     PET_STATE_SIZE_ORIGINAL,
     STOCK_CALLCHAIN_OUTPUT_FILENAME,
+    STOCK_ENTER_GATE_OUTPUT_FILENAME,
     _request_formats,
     build_stock_callchain_firmware,
+    build_stock_enter_gate_firmware,
     build_sync_firmware,
     build_sync_payload,
     decode_agents_state,
     encode_agents_state,
     route_stock_callchain,
+    route_stock_enter_gate,
     validate_stock_callchain_routes,
 )
 
@@ -151,9 +154,9 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
                 capture_output=True,
                 text=True,
             ).stdout
-            output = root / STOCK_CALLCHAIN_OUTPUT_FILENAME
+            output = root / STOCK_ENTER_GATE_OUTPUT_FILENAME
             manifest = root / "manifest.json"
-            result = build_stock_callchain_firmware(
+            result = build_stock_enter_gate_firmware(
                 STAGE,
                 output,
                 manifest,
@@ -182,6 +185,9 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
             payload.route_validation,
             {
                 "dispatch_key_cases": 27,
+                "gate_dispatch_key_cases": 27,
+                "gate_stock_direct_cases": 14,
+                "gate_wrapped_cases": 13,
                 "detail_rotation_cases": 6,
                 "invalid_tail_cases": 5,
                 "valid_tail_cases": 5,
@@ -194,6 +200,9 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
         self.assertTrue(
             manifest_document["validation"]["stock_callchain_verified"]
         )
+        self.assertTrue(
+            manifest_document["validation"]["stackless_enter_gate_verified"]
+        )
         callchain_gates = manifest_document["callchain_gates"]
         self.assertEqual(
             callchain_gates["route_validation"]["dispatch_key_cases"],
@@ -205,6 +214,18 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
         )
         self.assertIn(
             "gif_failure_restore_call",
+            callchain_gates["disassembly"],
+        )
+        self.assertIn(
+            "stackless_gate_entry",
+            callchain_gates["disassembly"],
+        )
+        self.assertIn(
+            "stackless_stock_tail",
+            callchain_gates["disassembly"],
+        )
+        self.assertIn(
+            "wrapped_stack_entry",
             callchain_gates["disassembly"],
         )
         stage_bytes = STAGE.read_bytes()
@@ -264,6 +285,25 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
         self.assertNotIn("56(s1)", key_event)
         self.assertNotIn("60(s1)", key_event)
         self.assertIn("<stock_key_event>", key_event)
+        fast_gate = disassembly.split(
+            "<ap01_agents_key_event>:", 1
+        )[1].split("<ap01_agents_wrapped_key_event>:", 1)[0]
+        self.assertNotIn("addi\tsp", fast_gate)
+        self.assertNotIn("sw\t", fast_gate)
+        self.assertNotIn("call", fast_gate)
+        self.assertIn("52(t1)", fast_gate)
+        self.assertIn("<ap01_agents_fast_stock_passthrough>", fast_gate)
+        self.assertGreaterEqual(
+            fast_gate.count("<ap01_agents_wrapped_key_event>"),
+            2,
+        )
+        self.assertNotIn("<ap01_agents_page_register>", fast_gate)
+        fast_passthrough = disassembly.split(
+            "<ap01_agents_fast_stock_passthrough>:", 1
+        )[1].split("<ap01_agents_show_page>:", 1)[0]
+        self.assertIn("<stock_key_event>", fast_passthrough)
+        self.assertNotIn("lw\t", fast_passthrough)
+        self.assertNotIn("sw\t", fast_passthrough)
         state_write = disassembly.split(
             "<ap01_agents_state_write>:", 1
         )[1].split("<ap01_agents_find_pet_state>:", 1)[0]
@@ -281,17 +321,29 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
     def test_stock_callchain_routes_all_dispatch_key_pairs(self) -> None:
         report = validate_stock_callchain_routes()
         self.assertEqual(report["dispatch_key_cases"], 27)
+        self.assertEqual(report["gate_dispatch_key_cases"], 27)
+        self.assertEqual(report["gate_stock_direct_cases"], 14)
+        self.assertEqual(report["gate_wrapped_cases"], 13)
         for dispatch in (1, 2, 8):
             for key in (19, 20, 10):
                 self.assertEqual(
                     route_stock_callchain(dispatch, key, 1).action,
                     "stock-callback",
                 )
+                self.assertEqual(
+                    route_stock_enter_gate(dispatch, key),
+                    "stock-direct",
+                )
         for dispatch in (0, 3, 4, 5, 6):
             self.assertEqual(
                 route_stock_callchain(dispatch, 10, 1).action,
                 "stock-callback",
             )
+            self.assertEqual(
+                route_stock_enter_gate(dispatch, 10),
+                "stock-direct",
+            )
+        self.assertEqual(route_stock_enter_gate(7, 10), "wrapped")
         self.assertEqual(
             route_stock_callchain(7, 10, 1).target_state,
             2,
@@ -350,6 +402,26 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
                     },
                     expected_output_name=retired,
                     reuse_stock_pet=True,
+                )
+
+        with tempfile.TemporaryDirectory() as selected:
+            root = Path(selected)
+            with self.assertRaisesRegex(
+                RuntimeError,
+                "功率页确认重启停用",
+            ):
+                build_stock_callchain_firmware(
+                    STAGE,
+                    root / STOCK_CALLCHAIN_OUTPUT_FILENAME,
+                    root / "manifest.json",
+                    root / "build",
+                    credentials,
+                    url_base="http://192.168.31.139:8765/a",
+                    refresh_seconds=300,
+                    tool_revision={
+                        "commit": "test",
+                        "scoped_code_dirty": False,
+                    },
                 )
 
     def test_request_formats_fit_without_positional_printf(self) -> None:

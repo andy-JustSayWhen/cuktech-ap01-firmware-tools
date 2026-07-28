@@ -112,6 +112,47 @@ ap01_agents_find_pet_state:
     .type ap01_agents_key_event, @function
 
 ap01_agents_key_event:
+    /*
+     * Keep every stock confirm outside dispatch 7 adjacent to the stock
+     * callback: no stack frame, calls, writes, or AGENTS state reads.
+     * The non-null path at 0xa00be388 is exactly lw a0, 52(a0), so this gate
+     * reproduces that single read without calling through another frame.
+     */
+    lw t0, 8(a0)
+    li t1, 0xffff7fff
+    and t0, t0, t1
+    li t1, EVENT_KEY
+    bne t0, t1, .Lsync_fast_stock_key_event
+    lw t0, 16(a0)
+    beqz t0, .Lsync_fast_stock_key_event
+    lw t0, 0(t0)
+    li t1, KEY_LEFT
+    beq t0, t1, .Lsync_gate_dispatch
+    li t1, KEY_RIGHT
+    beq t0, t1, .Lsync_gate_dispatch
+    li t1, KEY_ENTER
+    bne t0, t1, .Lsync_fast_stock_key_event
+
+.Lsync_gate_dispatch:
+    lw t1, 0(a0)
+    beqz t1, .Lsync_fast_stock_key_event
+    lw t1, 52(t1)
+    li t2, KEY_ENTER
+    beq t0, t2, .Lsync_gate_enter
+    beqz t1, .Lsync_wrapped_key_event
+    li t2, 3
+    bltu t1, t2, .Lsync_fast_stock_key_event
+    li t2, 7
+    bltu t2, t1, .Lsync_fast_stock_key_event
+    j .Lsync_wrapped_key_event
+
+.Lsync_gate_enter:
+    li t2, 7
+    bne t1, t2, .Lsync_fast_stock_key_event
+
+    .global ap01_agents_wrapped_key_event
+ap01_agents_wrapped_key_event:
+.Lsync_wrapped_key_event:
     addi sp, sp, -64
     sw ra, 60(sp)
     sw s0, 56(sp)
@@ -397,6 +438,11 @@ ap01_agents_stock_passthrough:
     lw s7, 28(sp)
     lw s8, 24(sp)
     addi sp, sp, 64
+    tail stock_key_event
+
+    .global ap01_agents_fast_stock_passthrough
+ap01_agents_fast_stock_passthrough:
+.Lsync_fast_stock_key_event:
     tail stock_key_event
 
     .size ap01_agents_key_event, .-ap01_agents_key_event

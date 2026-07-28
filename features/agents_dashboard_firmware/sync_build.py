@@ -89,6 +89,9 @@ STOCK_DISPATCH_OUTPUT_FILENAME = (
 STOCK_CALLCHAIN_OUTPUT_FILENAME = (
     "ap01-1.0.2_0031-agents-stock-callchain-observation.bin"
 )
+STOCK_ENTER_GATE_OUTPUT_FILENAME = (
+    "ap01-1.0.2_0031-agents-stock-enter-gate-observation.bin"
+)
 XIP_DELTA = 0x9FFFF000
 PET_STATE_SIZE_OFFSET = 0x0B502C
 PET_STATE_SIZE_ORIGINAL = bytes.fromhex("4145")
@@ -187,6 +190,8 @@ STOCK_PET_REQUIRED_SYMBOLS = (
     "ap01_agents_state_read",
     "ap01_agents_state_write",
     "ap01_agents_find_pet_state",
+    "ap01_agents_wrapped_key_event",
+    "ap01_agents_fast_stock_passthrough",
     "ap01_agents_switch_failed",
     "ap01_agents_stock_passthrough",
     "ap01_agents_show_failed",
@@ -232,6 +237,14 @@ class StockCallchainRoute:
 STOCK_CALLCHAIN_SEQUENCE = (0, 3, 4, 5, 6, 7, "agents")
 STOCK_CALLCHAIN_KEYS = (19, 20, 10)
 STOCK_CALLCHAIN_DISPATCHES = frozenset((0, 3, 4, 5, 6, 7))
+
+
+def route_stock_enter_gate(dispatch: int, key: int) -> str:
+    if key == 10:
+        return "wrapped" if dispatch == 7 else "stock-direct"
+    if key in (19, 20) and dispatch in STOCK_CALLCHAIN_DISPATCHES:
+        return "wrapped"
+    return "stock-direct"
 
 
 def encode_agents_state(state: int) -> int:
@@ -318,13 +331,34 @@ def validate_stock_callchain_routes() -> dict[str, int]:
     }
     if len(matrix) != 27:
         raise AgentsDashboardFirmwareError("原厂分派与键值路由组合数不完整")
+    gate_matrix = {
+        (dispatch, key): route_stock_enter_gate(dispatch, key)
+        for dispatch in range(9)
+        for key in STOCK_CALLCHAIN_KEYS
+    }
+    if len(gate_matrix) != 27:
+        raise AgentsDashboardFirmwareError("无栈入口路由组合数不完整")
     for dispatch in (1, 2, 8):
         for key in STOCK_CALLCHAIN_KEYS:
             if matrix[(dispatch, key)].action != "stock-callback":
                 raise AgentsDashboardFirmwareError("原厂内部或条件页没有直接透传")
+            if gate_matrix[(dispatch, key)] != "stock-direct":
+                raise AgentsDashboardFirmwareError("原厂内部或条件页没有无栈透传")
     for dispatch in (0, 3, 4, 5, 6):
         if matrix[(dispatch, 10)].action != "stock-callback":
             raise AgentsDashboardFirmwareError("非萌宠确认没有直接透传")
+        if gate_matrix[(dispatch, 10)] != "stock-direct":
+            raise AgentsDashboardFirmwareError("非萌宠确认没有无栈透传")
+    if gate_matrix[(7, 10)] != "wrapped":
+        raise AgentsDashboardFirmwareError("萌宠确认没有进入 AGENTS 包装")
+    direct_gate_cases = sum(
+        route == "stock-direct" for route in gate_matrix.values()
+    )
+    wrapped_gate_cases = sum(
+        route == "wrapped" for route in gate_matrix.values()
+    )
+    if direct_gate_cases != 14 or wrapped_gate_cases != 13:
+        raise AgentsDashboardFirmwareError("无栈入口路由数量与设计不一致")
 
     expected_details = {
         (2, 19): 4,
@@ -355,6 +389,9 @@ def validate_stock_callchain_routes() -> dict[str, int]:
         raise AgentsDashboardFirmwareError("AGENTS 独立状态编解码不一致")
     return {
         "dispatch_key_cases": len(matrix),
+        "gate_dispatch_key_cases": len(gate_matrix),
+        "gate_stock_direct_cases": direct_gate_cases,
+        "gate_wrapped_cases": wrapped_gate_cases,
         "detail_rotation_cases": len(expected_details),
         "invalid_tail_cases": len(recovery_words),
         "valid_tail_cases": 5,
@@ -599,6 +636,83 @@ def _validate_stock_pet_reuse_disassembly(
         "ap01_agents_key_event",
         "ap01_agents_show_page",
     )
+    fast_gate = _symbol_block(
+        disassembly,
+        "ap01_agents_key_event",
+        "ap01_agents_wrapped_key_event",
+    )
+    fast_gate_loads = re.findall(
+        r"\blw\s+x\d+,(-?\d+)\(x\d+\)",
+        fast_gate,
+    )
+    if (
+        fast_gate_loads != ["8", "16", "0", "0", "52"]
+        or re.search(r"\b(?:sw|sb|sh)\s", fast_gate)
+        or re.search(r"\b(?:addi|c\.addi16sp)\s+x2,", fast_gate)
+        or re.search(r"\b(?:jal|jalr)\s+x1,", fast_gate)
+        or "<ap01_agents_find_pet_state>" in fast_gate
+        or "<ap01_agents_state_read>" in fast_gate
+        or fast_gate.count("<ap01_agents_fast_stock_passthrough>") < 6
+        or fast_gate.count("<ap01_agents_wrapped_key_event>") < 2
+        or "<ap01_agents_page_register>" in fast_gate
+    ):
+        raise AgentsDashboardFirmwareError("确认键无栈透传入口检查未通过")
+    fast_passthrough = _symbol_block(
+        disassembly,
+        "ap01_agents_fast_stock_passthrough",
+        "ap01_agents_show_page",
+    )
+    fast_passthrough_instructions = [
+        line
+        for line in fast_passthrough.splitlines()
+        if re.match(r"^\s*[0-9a-f]+:\s", line)
+    ]
+    alignment_only = (
+        len(fast_passthrough_instructions) == 3
+        and "c.addi" in fast_passthrough_instructions[-1]
+        and "x0,0" in fast_passthrough_instructions[-1]
+    )
+    if (
+        not (
+            len(fast_passthrough_instructions) == 2
+            or alignment_only
+        )
+        or "# a00bbfee <stock_key_event>" not in fast_passthrough
+        or re.search(r"\b(?:lw|sw|sb|sh)\s", fast_passthrough)
+        or re.search(r"\b(?:addi|c\.addi16sp)\s+x2,", fast_passthrough)
+        or re.search(r"\b(?:jal|jalr)\s+x1,", fast_passthrough)
+    ):
+        raise AgentsDashboardFirmwareError("确认键无栈原厂跳板检查未通过")
+    wrapped_key_event = _symbol_block(
+        disassembly,
+        "ap01_agents_wrapped_key_event",
+        "ap01_agents_fast_stock_passthrough",
+    )
+    wrapped_instructions = [
+        line
+        for line in wrapped_key_event.splitlines()
+        if re.match(r"^\s*[0-9a-f]+:\s", line)
+    ]
+    wrapped_stack_marker = (
+        "c.addi16sp"
+        if wrapped_instructions
+        and "c.addi16sp" in wrapped_instructions[0]
+        else "x2,x2,-64"
+    )
+    if (
+        not wrapped_instructions
+        or not (
+            (
+                "c.addi16sp" in wrapped_instructions[0]
+                and "x2,-64" in wrapped_instructions[0]
+            )
+            or (
+                "\taddi\t" in wrapped_instructions[0]
+                and "x2,x2,-64" in wrapped_instructions[0]
+            )
+        )
+    ):
+        raise AgentsDashboardFirmwareError("完整键值包装没有从固定栈帧开始")
     first_state_read = key_event.find("<ap01_agents_find_pet_state>")
     guarded_prefix = key_event[:first_state_read]
     if (
@@ -712,6 +826,18 @@ def _validate_stock_pet_reuse_disassembly(
     ):
         raise AgentsDashboardFirmwareError("后台刷新原厂分派与萌宠对象链检查未通过")
     return {
+        "stackless_gate_entry": _instruction_address(
+            fast_gate,
+            "8(x10)",
+        ),
+        "stackless_stock_tail": _instruction_address(
+            fast_passthrough,
+            "# a00bbfee <stock_key_event>",
+        ),
+        "wrapped_stack_entry": _instruction_address(
+            wrapped_key_event,
+            wrapped_stack_marker,
+        ),
         "key_dispatch_first_call": _instruction_address(
             key_event,
             "# a00be388 <stock_get_dispatch_index>",
@@ -1018,9 +1144,12 @@ def build_sync_firmware(
         raise AgentsDashboardFirmwareError(
             f"同步实验成品文件名必须是 {expected_output_name}"
         )
-    if not reuse_stock_pet or expected_output_name != STOCK_CALLCHAIN_OUTPUT_FILENAME:
+    if (
+        not reuse_stock_pet
+        or expected_output_name != STOCK_ENTER_GATE_OUTPUT_FILENAME
+    ):
         raise AgentsDashboardFirmwareError(
-            "旧 AGENTS 固件路径已停用，只允许生成原厂精确调用链观察成品"
+            "旧 AGENTS 固件路径已停用，只允许生成原厂确认键无栈透传观察成品"
         )
     try:
         url_bytes = url_base.encode("ascii")
@@ -1259,7 +1388,7 @@ def build_sync_firmware(
     )
     manifest: dict[str, object] = {
         "schema_version": 1,
-        "manifest_type": "agents-stock-callchain-observation-firmware",
+        "manifest_type": "agents-stock-enter-gate-observation-firmware",
         "status": "built-not-approved-for-installation",
         "built_at_beijing": datetime.now(ZoneInfo("Asia/Shanghai")).isoformat(
             timespec="seconds"
@@ -1311,6 +1440,7 @@ def build_sync_firmware(
             "固定周期后台刷新",
             "复用原厂萌宠既有动图对象",
             "按原厂交互分派序号路由键值",
+            "非萌宠确认键从无栈入口直接透传",
             "真实页面使用原厂实际切页入口",
             "AGENTS 状态使用萌宠状态新增尾部",
             *implemented_scope_extra,
@@ -1351,6 +1481,7 @@ def build_sync_firmware(
             "legacy_page_trampoline_unchanged": True,
             "stock_callchain_verified": True,
             "all_27_dispatch_key_routes_verified": True,
+            "stackless_enter_gate_verified": True,
             "independent_tail_recovery_verified": True,
             "installation_allowed": False,
         },
@@ -1395,6 +1526,22 @@ def build_stock_callchain_firmware(
     refresh_seconds: int,
     tool_revision: dict[str, object],
 ) -> SyncFirmwareResult:
+    raise AgentsDashboardFirmwareError(
+        "原厂精确调用链观察成品已因功率页确认重启停用"
+    )
+
+
+def build_stock_enter_gate_firmware(
+    stage_path: Path,
+    output_path: Path,
+    manifest_path: Path,
+    build_directory: Path,
+    credentials: DeviceCredentialsLike,
+    *,
+    url_base: str,
+    refresh_seconds: int,
+    tool_revision: dict[str, object],
+) -> SyncFirmwareResult:
     return build_sync_firmware(
         stage_path,
         output_path,
@@ -1404,8 +1551,9 @@ def build_stock_callchain_firmware(
         url_base=url_base,
         refresh_seconds=refresh_seconds,
         tool_revision=tool_revision,
-        expected_output_name=STOCK_CALLCHAIN_OUTPUT_FILENAME,
+        expected_output_name=STOCK_ENTER_GATE_OUTPUT_FILENAME,
         implemented_scope_extra=(
+            "非萌宠确认键无栈直接透传",
             "原厂内部详情三种键值直接透传",
             "页面切换后核对原厂交互分派序号",
             "异常状态与切源失败关闭恢复",
