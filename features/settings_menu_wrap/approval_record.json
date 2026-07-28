@@ -10,7 +10,7 @@
   "installed_firmware_sha256": "348d0843ac3f3f380eb155170c4104fd8467a018ddfd13670d67be998f269dc1",
   "physical_acceptance_at_beijing": "2026-07-28T16:03:22+08:00",
   "physical_acceptance_statement": "修复成功",
-  "preserved_firmware_path": "artifacts/firmware/installed-history/opt-setting-settings-menu-wrap-accepted-348d0843ac3f3f38.bin",
+  "firmware_path": "artifacts/firmware/opt-setting.bin",
   "patch_count": 4,
   "schema_version": 1,
   "scope_sha256": "cde5f35a4aec8bc914ed7454b0c9dd957bd629dd750d2528b721724dc161a7e9",
