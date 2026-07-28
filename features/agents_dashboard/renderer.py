@@ -294,9 +294,27 @@ def render_overview(snapshot: DashboardSnapshot, fonts: FontBook) -> Image.Image
     today = format_token_count(snapshot.today.total_tokens)
     last_30 = format_token_count(snapshot.last_30d_tokens)
     canvas.text((178, 38), "今日消耗", 7, YELLOW, "emphasis")
-    _draw_token_pair(canvas, today, 258, 79, 265, (38, 31, 27, 23, 20), 82, 7)
+    _draw_token_pair(
+        canvas,
+        today,
+        258,
+        79,
+        265,
+        (38, 31, 27, 23, 20, 19),
+        82,
+        7,
+    )
     canvas.text((178, 104), "近30天消耗", 7, ORANGE, "emphasis")
-    _draw_token_pair(canvas, last_30, 258, 145, 265, (38, 31, 27, 23, 20), 82, 7)
+    _draw_token_pair(
+        canvas,
+        last_30,
+        258,
+        145,
+        265,
+        (38, 31, 27, 23, 20, 19),
+        82,
+        7,
+    )
 
     canvas.text((16, 170), "近7天消耗", 7, CYAN, "emphasis")
     _sparkline(canvas, [tokens for _, tokens in snapshot.daily_30d[-7:]])
@@ -448,7 +466,18 @@ def render_today(snapshot: DashboardSnapshot, fonts: FontBook) -> Image.Image:
     canvas.text((14, 25), "总消耗", 7, MUTED, "body")
 
     total = format_token_count(snapshot.today.total_tokens)
-    _draw_token_pair(canvas, total, 144, 92, 153, (56, 48, 45, 42, 36), 134, 9, WHITE, WHITE)
+    _draw_token_pair(
+        canvas,
+        total,
+        144,
+        92,
+        153,
+        (56, 48, 45, 42, 36, 32),
+        134,
+        9,
+        WHITE,
+        WHITE,
+    )
 
     canvas.line(((240, 22), (240, 100)), "#343535", 0.8)
     canvas.text((258, 21), "请求数", 7, YELLOW, "emphasis")

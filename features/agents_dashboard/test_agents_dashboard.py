@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import tempfile
 import unittest
+from dataclasses import replace
 from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
@@ -603,3 +604,13 @@ class RendererTests(unittest.TestCase):
                 with Image.open(path) as image:
                     self.assertEqual(image.size, (320, 240))
                     self.assertEqual(image.mode, "RGB")
+            token_boundary = replace(
+                snapshot,
+                today=replace(snapshot.today, total_tokens=99_990_000),
+            )
+            boundary_paths = render_all(
+                token_boundary,
+                Path(directory) / "token-boundary",
+                FONT_DIRECTORY,
+            )
+            self.assertEqual(len(boundary_paths), 4)
