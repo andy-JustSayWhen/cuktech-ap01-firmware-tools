@@ -66,14 +66,15 @@ REQUIRED_CALLEES = (
     0xA00CF8D8,
     0xA00BF7EA,
     0xA00B0290,
+    0xA00B0570,
     0xA00B06F4,
     0xA007E1C4,
     0xA007C256,
     0xA00BBFEE,
 )
-EXPECTED_PAYLOAD_SIZE = 27_496
+EXPECTED_PAYLOAD_SIZE = 27_560
 EXPECTED_PAYLOAD_SHA256 = (
-    "92f4b03fc6882d2d72fe91750eeaddc8d43245a2ddc696f1e5e9d59abe3027d0"
+    "664ea5210f2755a9555e3700371d0e4d5d7a0556a9208616aefc613450c97f9f"
 )
 OBSERVATION_OUTPUT_FILENAME = "ap01-1.0.2_0031-agents-observation.bin"
 STAGE_SIZE = 6_804_520
@@ -599,6 +600,7 @@ def build_page_registration_payload(
             "entry_matches": True,
             "key_event_entry_present": True,
             "current_index_getter_present": True,
+            "dynamic_primary_count_present": True,
             "initial_x_call_present": True,
             "required_callees_present": True,
             "fallback_descriptors_valid": True,
@@ -759,6 +761,7 @@ def build_observation_firmware(
         "implemented_scope": [
             "AGENTS 一级页面",
             "四张内置等待页",
+            "按实际页面数首尾循环",
             "概览进入详情",
             "三个详情首尾循环",
             "返回概览",

@@ -118,18 +118,23 @@ ap01_agents_key_event:
     li t1, EVENT_KEY
     bne t0, t1, .Lstock_key_event
 
+    li s2, 0
     mv a0, s1
     lw a1, 12(sp)
     call lv_obj_get_child
-    beqz a0, .Lstock_key_event
+    beqz a0, .Lread_key
     lw s2, 16(a0)
-    beqz s2, .Lstock_key_event
+    beqz s2, .Lread_key
     lw t0, 0(s2)
     li t1, AGENTS_STATE_MAGIC
-    bne t0, t1, .Lstock_key_event
+    bne t0, t1, .Lclear_agents_state
     lw t0, 4(s2)
-    beqz t0, .Lstock_key_event
+    bnez t0, .Lread_key
 
+.Lclear_agents_state:
+    li s2, 0
+
+.Lread_key:
     mv a0, s0
     call lv_event_get_key
     li t0, KEY_LEFT
@@ -141,6 +146,7 @@ ap01_agents_key_event:
     j .Lstock_key_event
 
 .Lkey_left:
+    beqz s2, .Loverview_left
     lw t0, 8(s2)
     beqz t0, .Loverview_left
     li t1, 1
@@ -151,12 +157,22 @@ ap01_agents_key_event:
 .Loverview_left:
     mv a0, s1
     lw a1, 12(sp)
+    bnez a1, .Loverview_left_previous
+    call window_get_count
+    addi a1, a0, -2
+    mv a0, s1
+    li a2, 2
+    call window_set_active
+    j .Lkey_consumed
+
+.Loverview_left_previous:
     addi a1, a1, -1
     li a2, 2
     call window_set_active
     j .Lkey_consumed
 
 .Lkey_right:
+    beqz s2, .Loverview_right
     lw t0, 8(s2)
     beqz t0, .Loverview_right
     li t1, 3
@@ -165,14 +181,24 @@ ap01_agents_key_event:
     j .Lshow_detail_index
 
 .Loverview_right:
+    lw t0, 12(sp)
+    addi t0, t0, 1
+    sw t0, 8(sp)
     mv a0, s1
-    lw a1, 12(sp)
-    addi a1, a1, 1
+    call window_get_count
+    addi a0, a0, -1
+    lw a1, 8(sp)
+    bltu a1, a0, .Loverview_right_target_ready
+    li a1, 0
+
+.Loverview_right_target_ready:
+    mv a0, s1
     li a2, 1
     call window_set_active
     j .Lkey_consumed
 
 .Lkey_enter:
+    beqz s2, .Lstock_key_event
     lw t0, 8(s2)
     beqz t0, .Lshow_weekly
     li t0, 0

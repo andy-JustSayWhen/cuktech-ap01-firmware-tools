@@ -16,6 +16,7 @@ PROVIDE(lv_gif_create = 0xA01930FE);
 PROVIDE(lv_gif_set_src = 0xA00CF8D8);
 PROVIDE(lv_event_get_key = 0xA00BF7EA);
 PROVIDE(window_get_active = 0xA00B0290);
+PROVIDE(window_get_count = 0xA00B0570);
 PROVIDE(window_set_active = 0xA00B06F4);
 PROVIDE(malloc = 0xA007E1C4);
 PROVIDE(free = 0xA007C256);
