@@ -10,4 +10,4 @@
 | 原厂确认键兼容失败成品 | `artifacts/firmware/ap01-1.0.2_0031-agents-confirm-compat-observation.bin` | “返回”仍触发重启，禁止安装；设备已回刷 `opt-setting.bin`。 |
 | AGENTS 九对象覆盖层失败成品 | `artifacts/firmware/ap01-1.0.2_0031-agents-pet-overlay-observation.bin` | 菜单“返回”触发重启，禁止安装；设备已回刷 `opt-setting.bin`。 |
 | AGENTS 原厂萌宠控件复用失败成品 | `artifacts/firmware/ap01-1.0.2_0031-agents-stock-pet-reuse-observation.bin` | 日历详情无法返回一级页面，禁止安装；设备已回刷 `opt-setting.bin`。 |
-| AGENTS 原厂交互分派兼容观察固件 | `artifacts/firmware/ap01-1.0.2_0031-agents-stock-dispatch-observation.bin` | 按原厂交互分派序号路由确认键；离线门禁通过，尚未安装。 |
+| AGENTS 原厂交互分派兼容失败成品 | `artifacts/firmware/ap01-1.0.2_0031-agents-stock-dispatch-observation.bin` | 页面切换入口与状态字段证据不成立，禁止安装；从未刷入。 |
