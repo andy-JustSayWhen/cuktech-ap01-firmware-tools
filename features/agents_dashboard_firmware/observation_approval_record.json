@@ -1,21 +1,17 @@
 {
   "schema_version": 1,
-  "status": "installation-consumed",
+  "status": "approved-for-one-installation",
   "approved_at_beijing": "2026-07-28",
   "target_model": "njcuk.enstor.ap01",
   "target_version": "1.0.2_0031",
   "target_device": "当前账号唯一匹配的 AP01 专用测试设备",
   "output_filename": "ap01-1.0.2_0031-agents-observation.bin",
-  "output_sha256": "25c94c9114876b97b07eb7d41f104fdcf496abc59862a33f6964ed28f4b3a200",
+  "output_sha256": "da380e4069124de05632dbf52fe3d8ccddf2a2929cbd76c32110b3ce2d0a1d6d",
   "risk_override": [
     "当前槽、更新槽与实际写入目标证据",
     "两份逐字节一致的同机全闪存备份",
     "同机原厂固件回刷验证",
     "不依赖设备正常启动和联网的独立恢复验证"
   ],
-  "approval_statement": "批准第三次刷入；只限当前对象身份路由修正版",
-  "installation_consumed_at_beijing": "2026-07-28T18:27:00+08:00",
-  "installation_result": "上传对象完整回读一致；设备完成下载、安装、重启和重新上线，120 秒稳定性检查通过；真机确认左右旋转和确认键均无可见反应",
-  "pending_candidate_sha256": "da380e4069124de05632dbf52fe3d8ccddf2a2929cbd76c32110b3ce2d0a1d6d",
-  "pending_candidate_scope": "把 AGENTS 根对象初始横向坐标设为 320；尚未批准生成或安装"
+  "approval_statement": "批准第四次刷入；只限初始横向坐标修正版"
 }
