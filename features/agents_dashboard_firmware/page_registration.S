@@ -90,8 +90,10 @@ ap01_agents_key_event:
 
 .Lsync_read_active:
     mv a0, s1
-    call window_get_active
+    call stock_get_dispatch_index
     sw a0, 8(sp)
+    li t0, 8
+    beq a0, t0, .Lsync_stock_key_event
 
     /* Every non-pet confirm returns to stock before pet state is touched. */
     lw t0, 12(sp)
@@ -359,7 +361,7 @@ ap01_agents_detail_active:
     mv s0, a0
     lw a0, 0(s0)
     beqz a0, .Lsync_detail_no
-    call window_get_active
+    call stock_get_dispatch_index
     li t0, 7
     bne a0, t0, .Lsync_detail_no
     lw a0, 0(s0)

@@ -23,7 +23,7 @@ from features.agents_dashboard_firmware.build import (
 )
 from features.agents_dashboard_firmware.sync_build import (
     LOADER_SOURCE,
-    STOCK_PET_REUSE_OUTPUT_FILENAME,
+    STOCK_DISPATCH_OUTPUT_FILENAME,
     _request_formats,
     build_sync_firmware,
     build_sync_payload,
@@ -135,7 +135,7 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
                 capture_output=True,
                 text=True,
             ).stdout
-            output = root / STOCK_PET_REUSE_OUTPUT_FILENAME
+            output = root / STOCK_DISPATCH_OUTPUT_FILENAME
             manifest = root / "manifest.json"
             result = build_sync_firmware(
                 STAGE,
@@ -146,7 +146,7 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
                 url_base="http://192.168.31.139:8765/a",
                 refresh_seconds=300,
                 tool_revision={"commit": "test", "scoped_code_dirty": False},
-                expected_output_name=STOCK_PET_REUSE_OUTPUT_FILENAME,
+                expected_output_name=STOCK_DISPATCH_OUTPUT_FILENAME,
                 reuse_stock_pet=True,
             )
             manifest_text = manifest.read_text(encoding="utf-8")
@@ -195,6 +195,8 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
             "<ap01_agents_show_page>:", 1
         )[0]
         self.assertIn("<ap01_agents_find_pet_state>", key_event)
+        self.assertIn("<stock_get_dispatch_index>", key_event)
+        self.assertNotIn("<window_get_active>", key_event)
         self.assertNotIn("52(s1)", key_event)
         self.assertNotIn("52(s2)", key_event)
         self.assertEqual(key_event.count("<ap01_agents_restore_pet>"), 2)

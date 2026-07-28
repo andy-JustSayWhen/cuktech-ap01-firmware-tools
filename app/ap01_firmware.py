@@ -24,6 +24,7 @@ from features.agents_dashboard_firmware import (
     CONFIRM_COMPAT_OUTPUT_FILENAME,
     DETAIL_COMPAT_OUTPUT_FILENAME,
     PET_OVERLAY_OUTPUT_FILENAME,
+    STOCK_DISPATCH_OUTPUT_FILENAME,
     STOCK_PET_REUSE_OUTPUT_FILENAME,
     build_observation_firmware,
     build_page_registration_payload,
@@ -233,6 +234,22 @@ def _parser() -> argparse.ArgumentParser:
     stock_pet_reuse_command.add_argument("--config", type=Path, required=True)
     stock_pet_reuse_command.add_argument("--url-base", required=True)
     stock_pet_reuse_command.add_argument(
+        "--refresh-seconds",
+        type=int,
+        default=300,
+    )
+
+    stock_dispatch_command = commands.add_parser(
+        "agents-stock-dispatch-build",
+        help="生成按原厂交互分派路由的 AGENTS 观察固件",
+    )
+    stock_dispatch_command.add_argument("--input", type=Path, required=True)
+    stock_dispatch_command.add_argument("--output", type=Path, required=True)
+    stock_dispatch_command.add_argument("--manifest", type=Path, required=True)
+    stock_dispatch_command.add_argument("--build-dir", type=Path, required=True)
+    stock_dispatch_command.add_argument("--config", type=Path, required=True)
+    stock_dispatch_command.add_argument("--url-base", required=True)
+    stock_dispatch_command.add_argument(
         "--refresh-seconds",
         type=int,
         default=300,
@@ -631,6 +648,43 @@ def main(argv: list[str] | None = None) -> int:
                 json.dumps(
                     {
                         "result": "AGENTS 原厂萌宠控件复用观察固件制作完成",
+                        "output": str(result.output),
+                        "manifest": str(result.manifest),
+                        "output_sha256": result.sha256,
+                        "output_md5": result.md5,
+                        "payload_size": result.payload_size,
+                        "payload_remaining": result.payload_remaining,
+                        "installation_allowed": False,
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                )
+            )
+            return 0
+
+        if args.command == "agents-stock-dispatch-build":
+            credentials = load_or_create_credentials(args.config)
+            result = build_sync_firmware(
+                args.input,
+                args.output,
+                args.manifest,
+                args.build_dir,
+                credentials,
+                url_base=args.url_base,
+                refresh_seconds=args.refresh_seconds,
+                tool_revision=revision,
+                expected_output_name=STOCK_DISPATCH_OUTPUT_FILENAME,
+                implemented_scope_extra=(
+                    "复用原厂萌宠动图控件",
+                    "按原厂交互分派序号路由键值",
+                    "原厂内部详情直接进入原厂回调",
+                ),
+                reuse_stock_pet=True,
+            )
+            print(
+                json.dumps(
+                    {
+                        "result": "AGENTS 原厂交互分派兼容观察固件制作完成",
                         "output": str(result.output),
                         "manifest": str(result.manifest),
                         "output_sha256": result.sha256,

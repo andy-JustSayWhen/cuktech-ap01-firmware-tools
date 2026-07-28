@@ -79,6 +79,9 @@ PET_OVERLAY_OUTPUT_FILENAME = (
 STOCK_PET_REUSE_OUTPUT_FILENAME = (
     "ap01-1.0.2_0031-agents-stock-pet-reuse-observation.bin"
 )
+STOCK_DISPATCH_OUTPUT_FILENAME = (
+    "ap01-1.0.2_0031-agents-stock-dispatch-observation.bin"
+)
 XIP_DELTA = 0x9FFFF000
 LOADER_TRAMPOLINE_OFFSET = 0x01C0B4
 LOADER_TRAMPOLINE_VA = XIP_DELTA + LOADER_TRAMPOLINE_OFFSET
@@ -149,6 +152,7 @@ LEGACY_REQUIRED_CALLEES = (
 )
 STOCK_PET_REQUIRED_CALLEES = (
     0xA00BB5DA,
+    0xA00BE388,
     0xA00C5D84,
     0xA00CF8D8,
     0xA00D86BA,
@@ -409,10 +413,18 @@ def _validate_stock_pet_reuse_disassembly(disassembly: str) -> None:
         key_event[:first_state_read],
         re.DOTALL,
     )
+    detail_guard = re.search(
+        r"(?:c\.li|addi)\s+x5(?:,x0)?,8"
+        r".*?beq\s+x10,x5,([0-9a-f]+)",
+        key_event[:first_state_read],
+        re.DOTALL,
+    )
     if (
         first_state_read < 0
-        or "<window_get_active>" not in key_event[:first_state_read]
+        or "<stock_get_dispatch_index>" not in key_event[:first_state_read]
+        or "# a00b0290 <window_get_active>" in key_event
         or guard is None
+        or detail_guard is None
         or "52(x9)" in key_event
         or "52(x18)" in key_event
         or re.search(r"\bsw\s+x\d+,12\(x18\)", key_event) is not None
@@ -423,6 +435,8 @@ def _validate_stock_pet_reuse_disassembly(disassembly: str) -> None:
             "原厂确认透传、离开恢复或虚拟状态写入检查未通过"
         )
     stock_target = guard.group(1)
+    if detail_guard.group(1) != stock_target:
+        raise AgentsDashboardFirmwareError("原厂内部详情未与非萌宠确认共用透传目标")
     stock_marker = re.search(
         rf"^\s*{re.escape(stock_target)}:\s",
         key_event,
@@ -459,6 +473,17 @@ def _validate_stock_pet_reuse_disassembly(disassembly: str) -> None:
         raise AgentsDashboardFirmwareError(
             "高三位虚拟状态或原厂萌宠数据源恢复检查未通过"
         )
+
+    detail_active = _symbol_block(
+        disassembly,
+        "ap01_agents_detail_active",
+        "memory_zero",
+    )
+    if (
+        "<stock_get_dispatch_index>" not in detail_active
+        or "# a00b0290 <window_get_active>" in detail_active
+    ):
+        raise AgentsDashboardFirmwareError("AGENTS 详情身份仍使用窗口切换状态")
 
     timer_wrapper = _symbol_block(
         disassembly,
