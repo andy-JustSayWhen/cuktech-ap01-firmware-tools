@@ -7,4 +7,4 @@
 | 一级页面开关失败成品 | `artifacts/firmware/ap01-1.0.2_0031-opt.bin` | 卡在开机动画，禁止安装；设备已回刷上一份 AGENTS 四页同步实验固件。 |
 | 设置列表空挂接观察固件 | `artifacts/firmware/ap01-1.0.2_0031-page-settings-hook-observation.bin` | 已刷入；启动、联网和看板取包通过，待确认原厂 7 项设置交互。 |
 | 原厂详情兼容失败成品 | `artifacts/firmware/ap01-1.0.2_0031-agents-detail-compat-observation.bin` | 普通确认误入时间设定，“返回”触发重启，禁止安装。 |
-| 原厂确认键兼容观察固件 | `artifacts/firmware/ap01-1.0.2_0031-agents-confirm-compat-observation.bin` | 已刷入；兼容新增页面后的原厂确认键固定边界，待物理交互验收。 |
+| 原厂确认键兼容失败成品 | `artifacts/firmware/ap01-1.0.2_0031-agents-confirm-compat-observation.bin` | “返回”仍触发重启，禁止安装；设备已回刷 `opt-setting.bin`。 |
