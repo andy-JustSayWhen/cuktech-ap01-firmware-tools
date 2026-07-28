@@ -1,13 +1,13 @@
 {
-  "approval_limit": "仅批准证据文档中的 3 个精确修改区间用于离线构建，不允许下载或安装",
+  "approval_limit": "仅批准证据文档中的 4 个精确修改区间用于离线构建，不允许下载或安装",
   "approval_statement": "批准",
-  "approved_at_beijing": "2026-07-28T14:50:10+08:00",
+  "approved_at_beijing": "2026-07-28T15:42:15+08:00",
   "evidence_path": "knowledge/AP01-官方固件分析/cases/2026-07-27-系统设置菜单首尾循环静态定位.md",
   "installation_limit": "仅限由本批准范围生成并通过完整回读校验的 opt-setting.bin，在当前账号唯一匹配 AP01 上执行本次原厂普通在线更新",
-  "installation_statement": "批准生成并刷入第 21 节首尾立即定位修正版 opt-setting.bin",
-  "patch_count": 3,
+  "installation_statement": "批准第 23 节四区间，生成并刷入当前唯一 AP01",
+  "patch_count": 4,
   "schema_version": 1,
-  "scope_sha256": "6b21793dd700dd1f51af9e14e3261809c092a41c2198a4aa60db36401f690b1f",
+  "scope_sha256": "cde5f35a4aec8bc914ed7454b0c9dd957bd629dd750d2528b721724dc161a7e9",
   "status": "approved-for-offline-build",
   "target": {
     "baseline_sha256": "8a721fc8ef25458d415b2460e4a251e0503a82f7743fdff85b12612190e5c1cb",

@@ -161,12 +161,22 @@ class SettingsMenuWrapTests(unittest.TestCase):
                 load_patch_plan(plan_path, REPO_ROOT)
 
     @unittest.skipUnless(REAL_BASELINE.is_file(), "真实原厂基线不在本机")
-    def test_current_three_range_approval_is_rejected(self) -> None:
-        with self.assertRaisesRegex(SettingsMenuWrapError, "修改区间数量不匹配"):
-            build_approved_plan(
-                REAL_BASELINE,
-                tool_revision={"commit": "test", "scoped_code_dirty": True},
-            )
+    def test_current_four_range_approval_matches_direction_filter_scope(self) -> None:
+        document = build_approved_plan(
+            REAL_BASELINE,
+            tool_revision={"commit": "test", "scoped_code_dirty": True},
+        )
+        approval = json.loads(APPROVAL_RECORD_PATH.read_text(encoding="utf-8"))
+
+        self.assertEqual(document["status"], APPROVED_PLAN_STATUS)
+        self.assertTrue(document["review"]["firmware_output_allowed"])
+        self.assertFalse(document["review"]["experimental_download_allowed"])
+        self.assertFalse(document["review"]["installation_allowed"])
+        self.assertEqual(document["review"]["patch_count"], 4)
+        self.assertEqual(
+            approval["installation_statement"],
+            "批准第 23 节四区间，生成并刷入当前唯一 AP01",
+        )
 
     @unittest.skipUnless(REAL_BASELINE.is_file(), "真实原厂基线不在本机")
     def test_changed_approval_scope_is_rejected(self) -> None:
