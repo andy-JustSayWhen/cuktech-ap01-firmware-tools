@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "status": "approved-for-one-installation",
+  "status": "installation-consumed",
   "approved_at_beijing": "2026-07-28",
   "target_model": "njcuk.enstor.ap01",
   "target_version": "1.0.2_0031",
@@ -13,5 +13,7 @@
     "同机原厂固件回刷验证",
     "不依赖设备正常启动和联网的独立恢复验证"
   ],
-  "approval_statement": "批准第三次刷入；只限当前对象身份路由修正版"
+  "approval_statement": "批准第三次刷入；只限当前对象身份路由修正版",
+  "installation_consumed_at_beijing": "2026-07-28T18:27:00+08:00",
+  "installation_result": "上传对象完整回读一致；设备完成下载、安装、重启和重新上线，120 秒稳定性检查通过；等待用户执行旋钮与确认键物理验收"
 }
