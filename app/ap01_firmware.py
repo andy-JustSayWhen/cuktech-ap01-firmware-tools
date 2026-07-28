@@ -43,10 +43,13 @@ from features.primary_page_navigation import (
     inspect_primary_page_navigation,
 )
 from features.primary_page_settings import (
+    HOOK_OBSERVATION_OUTPUT_NAME,
     REQUIRED_SYMBOLS as PAGE_SETTINGS_SYMBOLS,
     PrimaryPageSettingsBuildError,
+    SettingsHookObservationError,
     apply_page_settings_patches,
     build_page_settings_objects,
+    build_settings_hook_observation,
 )
 from features.settings_menu_wrap import (
     SettingsMenuWrapError,
@@ -182,6 +185,15 @@ def _parser() -> argparse.ArgumentParser:
         type=int,
         default=300,
     )
+
+    hook_observation_command = commands.add_parser(
+        "settings-hook-observation-build",
+        help="从已验收同步固件生成设置列表空挂接观察成品",
+    )
+    hook_observation_command.add_argument("--input", type=Path, required=True)
+    hook_observation_command.add_argument("--output", type=Path, required=True)
+    hook_observation_command.add_argument("--manifest", type=Path, required=True)
+    hook_observation_command.add_argument("--build-dir", type=Path, required=True)
     return parser
 
 
@@ -479,6 +491,38 @@ def main(argv: list[str] | None = None) -> int:
             )
             return 0
 
+        if args.command == "settings-hook-observation-build":
+            result = build_settings_hook_observation(
+                args.input,
+                args.output,
+                args.manifest,
+                args.build_dir,
+                assembler=_required_tool("riscv64-elf-as"),
+                linker=_required_tool("riscv64-elf-ld"),
+                copier=_required_tool("riscv64-elf-objcopy"),
+                readelf=_required_tool("riscv64-elf-readelf"),
+                nm=_required_tool("riscv64-elf-nm"),
+                tool_revision=revision,
+            )
+            print(
+                json.dumps(
+                    {
+                        "result": "设置列表空挂接观察固件制作完成",
+                        "output": str(result.output),
+                        "manifest": str(result.manifest),
+                        "output_name": HOOK_OBSERVATION_OUTPUT_NAME,
+                        "output_sha256": result.sha256,
+                        "output_md5": result.md5,
+                        "payload_size": result.payload_size,
+                        "payload_remaining": result.payload_remaining,
+                        "installation_allowed": False,
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                )
+            )
+            return 0
+
         result = make_firmware(
             args.input,
             args.plan,
@@ -515,6 +559,7 @@ def main(argv: list[str] | None = None) -> int:
         PrimaryPageNavigationError,
         PrimaryPageSettingsBuildError,
         ResultPackageError,
+        SettingsHookObservationError,
         SettingsMenuWrapError,
         OSError,
         subprocess.SubprocessError,

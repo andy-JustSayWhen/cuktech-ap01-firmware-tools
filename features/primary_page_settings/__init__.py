@@ -8,13 +8,23 @@ from .build import (
     apply_page_settings_patches,
     build_page_settings_objects,
 )
+from .hook_observation import (
+    OUTPUT_NAME as HOOK_OBSERVATION_OUTPUT_NAME,
+    SettingsHookObservationError,
+    SettingsHookObservationResult,
+    build_settings_hook_observation,
+)
 
 __all__ = (
+    "HOOK_OBSERVATION_OUTPUT_NAME",
     "PageSettingsAssetError",
     "PrimaryPageSettingsBuildError",
     "PrimaryPageSettingsObjects",
     "REQUIRED_SYMBOLS",
+    "SettingsHookObservationError",
+    "SettingsHookObservationResult",
     "apply_page_settings_patches",
     "build_page_settings_assets",
     "build_page_settings_objects",
+    "build_settings_hook_observation",
 )
