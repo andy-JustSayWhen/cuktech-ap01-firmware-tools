@@ -5,3 +5,4 @@
 | AGENTS 真机观察固件 | `artifacts/firmware/ap01-1.0.2_0031-agents-observation.bin` | C1、C2 条件页排除修正版；已刷入并通过一级页面、详情进入、返回和左右切换真机验收。 |
 | AGENTS 四页同步实验固件 | `artifacts/firmware/ap01-1.0.2_0031-agents-sync-experimental.bin` | 四页真实数据同步与旋钮交互；页面全屏显示，无容器边框、内边距和滑块。 |
 | 一级页面开关失败成品 | `artifacts/firmware/ap01-1.0.2_0031-opt.bin` | 卡在开机动画，禁止安装；设备已回刷上一份 AGENTS 四页同步实验固件。 |
+| 设置列表空挂接观察固件 | `artifacts/firmware/ap01-1.0.2_0031-page-settings-hook-observation.bin` | 只验证设置创建分支挂接，保持原厂 7 项设置和全部交互不变。 |
