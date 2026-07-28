@@ -42,11 +42,28 @@ HOOK_ORIGINAL = bytes.fromhex("5285eff02079")
 TRAMPOLINE_VA = 0xA001B0AC
 TRAMPOLINE_OFFSET = TRAMPOLINE_VA - XIP_DELTA
 TRAMPOLINE_ORIGINAL = b"\x00" * 8
+KEY_CALLBACK_HIGH_OFFSET = 0x0B3838
+KEY_CALLBACK_HIGH_ORIGINAL = bytes.fromhex("b7c50ba0")
+KEY_CALLBACK_LOW_OFFSET = 0x0B3842
+KEY_CALLBACK_LOW_ORIGINAL = bytes.fromhex("9385e5fe")
 EXPECTED_BINUTILS_VERSION = "2.46.1"
-REQUIRED_CALLEES = (0xA00C1EC6, 0xA00C0060, 0xA01930FE)
-EXPECTED_PAYLOAD_SIZE = 27_028
+REQUIRED_CALLEES = (
+    0xA00C1EC6,
+    0xA00BEBEE,
+    0xA00C0060,
+    0xA00C5D84,
+    0xA01AA0B6,
+    0xA01930FE,
+    0xA00CF8D8,
+    0xA00BF7EA,
+    0xA00B06F4,
+    0xA007E1C4,
+    0xA007C256,
+    0xA00BBFEE,
+)
+EXPECTED_PAYLOAD_SIZE = 27_472
 EXPECTED_PAYLOAD_SHA256 = (
-    "e5e6878a211d08197e72a39326651b4f6f3d1cff3205e199ebeb2b469a7a5593"
+    "0ef5f27dbf2e37014d3523667e2b597d88a226f4ca2d416dcae79e6b8e9ed910"
 )
 
 
@@ -133,6 +150,18 @@ def _absolute_tail_jump(target: int) -> bytes:
     lui = ((high & 0xFFFFF) << 12) | (5 << 7) | 0x37
     jalr = ((low & 0xFFF) << 20) | (5 << 15) | 0x67
     return struct.pack("<II", lui, jalr)
+
+
+def _absolute_lui_addi(target: int, register: int) -> tuple[bytes, bytes]:
+    high, low = _split_absolute(target)
+    lui = ((high & 0xFFFFF) << 12) | (register << 7) | 0x37
+    addi = (
+        ((low & 0xFFF) << 20)
+        | (register << 15)
+        | (register << 7)
+        | 0x13
+    )
+    return struct.pack("<I", lui), struct.pack("<I", addi)
 
 
 def _read_stage(path: Path) -> tuple[Path, bytes]:
@@ -233,6 +262,19 @@ def build_page_registration_payload(
         != TRAMPOLINE_ORIGINAL
     ):
         raise AgentsDashboardFirmwareError("页面跳板区间不再是全零")
+    if (
+        stage[
+            KEY_CALLBACK_HIGH_OFFSET : KEY_CALLBACK_HIGH_OFFSET
+            + len(KEY_CALLBACK_HIGH_ORIGINAL)
+        ]
+        != KEY_CALLBACK_HIGH_ORIGINAL
+        or stage[
+            KEY_CALLBACK_LOW_OFFSET : KEY_CALLBACK_LOW_OFFSET
+            + len(KEY_CALLBACK_LOW_ORIGINAL)
+        ]
+        != KEY_CALLBACK_LOW_ORIGINAL
+    ):
+        raise AgentsDashboardFirmwareError("一级键值回调地址旧字节不匹配")
 
     assembler = _tool("riscv64-elf-as")
     linker = _tool("riscv64-elf-ld")
@@ -322,6 +364,9 @@ def build_page_registration_payload(
     entry = symbols.get("ap01_agents_page_register")
     if entry != PAYLOAD_VA:
         raise AgentsDashboardFirmwareError("页面注册载荷入口地址不匹配")
+    key_event = symbols.get("ap01_agents_key_event")
+    if key_event is None:
+        raise AgentsDashboardFirmwareError("AGENTS 键值包装入口符号缺失")
     for asset in assets:
         symbol = f"agents_fallback_{asset.key}"
         descriptor = symbols.get(f"{symbol}_descriptor")
@@ -369,6 +414,10 @@ def build_page_registration_payload(
 
     hook = _encode_jal(HOOK_VA, TRAMPOLINE_VA) + bytes.fromhex("0100")
     trampoline = _absolute_tail_jump(PAYLOAD_VA)
+    key_callback_high, key_callback_low = _absolute_lui_addi(
+        key_event,
+        register=11,
+    )
     result = PayloadResult(
         size=len(payload),
         sha256=payload_sha256,
@@ -454,6 +503,18 @@ def build_page_registration_payload(
                 "replacement_hex": result.trampoline.hex(),
             },
             {
+                "name": "一级键值回调包装地址高位",
+                "offset": f"0x{KEY_CALLBACK_HIGH_OFFSET:06x}",
+                "expected_before_hex": KEY_CALLBACK_HIGH_ORIGINAL.hex(),
+                "replacement_hex": key_callback_high.hex(),
+            },
+            {
+                "name": "一级键值回调包装地址低位",
+                "offset": f"0x{KEY_CALLBACK_LOW_OFFSET:06x}",
+                "expected_before_hex": KEY_CALLBACK_LOW_ORIGINAL.hex(),
+                "replacement_hex": key_callback_low.hex(),
+            },
+            {
                 "name": "AGENTS 页面注册载荷",
                 "offset": f"0x{PAYLOAD_START:06x}",
                 "length": result.size,
@@ -463,13 +524,15 @@ def build_page_registration_payload(
         "gates": {
             "hook_old_bytes_match": True,
             "trampoline_space_zero": True,
+            "key_callback_old_bytes_match": True,
             "payload_fits": True,
             "entry_matches": True,
+            "key_event_entry_present": True,
             "required_callees_present": True,
             "fallback_descriptors_valid": True,
             "relocations_zero": True,
             "firmware_output_allowed": False,
-            "reason": "当前完成独立页面、四张内置等待页和概览显示，尚未完成详情事件和刷新",
+            "reason": "当前完成独立页面、四张内置等待页、概览显示和详情旋钮事件，尚未完成刷新",
         },
     }
     _write_report(report_path, document)
