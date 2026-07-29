@@ -33,7 +33,7 @@
 | SPEC 条款 | DESIGN 落点 | 代码或维护落点 | 验证方法 | 当前状态 |
 | --- | --- | --- | --- | --- |
 | `SPEC-PAGE-001` 至 `SPEC-PAGE-004` | [`优化固件 DESIGN`](AP01-1.0.2_0031-opt.bin.md) 第 5、14 节 | `features/primary_page_settings/`、`features/primary_page_navigation/` | 菜单进入、七项循环、复选操作、原厂对象和页面行为回归 | 验证中；历史组合方案已否定 |
-| `SPEC-PAGE-005` 至 `SPEC-PAGE-007` | [`优化固件 DESIGN`](AP01-1.0.2_0031-opt.bin.md) 第 5、10.14、11、14 节 | `features/primary_page_settings/` 的保存与恢复代码、原厂实际切页调用局部挂接 | 即时生效、保存失败、断电、重启、默认值和关闭当前页 | `FW-INTEGRATION-002` 已冻结并通过离线集成测试；真机持久化证据阻塞 |
+| `SPEC-PAGE-005` 至 `SPEC-PAGE-007` | [`优化固件 DESIGN`](AP01-1.0.2_0031-opt.bin.md) 第 5、6、10.14、11、14 节 | `features/primary_page_settings/` 的保存与恢复代码、原厂实际切页调用局部挂接 | 逐回调方向与调用链审计、即时生效、保存失败、断电、重启、默认值和关闭当前页 | `FW-INTEGRATION-002` 已冻结但旋钮审计失效；完成 DESIGN 与代码纠偏前不可安装 |
 
 ## 5. AGENTS 看板
 
@@ -59,7 +59,7 @@
 | SPEC 条款 | DESIGN 落点 | 代码或维护落点 | 验证方法 | 当前状态 |
 | --- | --- | --- | --- | --- |
 | `SPEC-GOV-001` 至 `SPEC-GOV-004` | [`项目交付与 WebUI 刷机工具 DESIGN`](项目交付与WebUI刷机工具.md) 第 2、4 节 | `reference/requirements.md`、复制后的功能专属资产、发布检查 | 依赖唯一性、参考来源记录、无绝对路径运行依赖和模块归属检查 | 现有固件部分已执行；WebUI 复用拟定 |
-| `SPEC-GOV-005` 至 `SPEC-GOV-008` | [`design.md`](../design.md) 第 2、3 节；[`优化固件 DESIGN`](AP01-1.0.2_0031-opt.bin.md) 第 4、11、12 节 | 固件规范、安全兼容入口、文档核对任务 | 规范引用、证据来源、先 DESIGN 后代码和纠偏顺序检查 | 流程已写入；自动核对拟定 |
+| `SPEC-GOV-005` 至 `SPEC-GOV-008` | [`design.md`](../design.md) 第 2、3 节；[`优化固件 DESIGN`](AP01-1.0.2_0031-opt.bin.md) 第 1、4、11、12 节 | `knowledge/AP01-官方固件分析/`、固件规范、安全兼容入口、文档核对任务 | 原厂逻辑调查、固件分析路径引用、复用边界、先 DESIGN 后代码和纠偏顺序检查 | 原厂复用先行流程已写入；自动核对拟定 |
 | `SPEC-ACCEPT-001` 至 `SPEC-ACCEPT-002` | 本矩阵；[`项目交付与 WebUI 刷机工具 DESIGN`](项目交付与WebUI刷机工具.md) 第 10 节 | 后续验收汇总任务 | 全条款落点、证据范围和阶段成品边界检查 | 落点已建立；总体验收未通过 |
 | `SPEC-ACCEPT-003` 至 `SPEC-ACCEPT-004` | [`优化固件 DESIGN`](AP01-1.0.2_0031-opt.bin.md) 第 11、14 节 | 固件与服务端模块测试、真机验收案例 | 四页、故障切换、旋钮全路径；页面开关六类场景 | 阻塞 |
 | `SPEC-ACCEPT-005` 至 `SPEC-ACCEPT-006` | [`项目交付与 WebUI 刷机工具 DESIGN`](项目交付与WebUI刷机工具.md) 第 9、10 节 | 双平台发布包、刷机记录、回刷记录和发布门禁 | 双平台完整流程、真实刷机、敏感检查、原厂回归与证据适用范围 | 阻塞 |
