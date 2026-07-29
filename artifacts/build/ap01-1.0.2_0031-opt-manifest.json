@@ -1,0 +1,220 @@
+{
+  "built_at_beijing": "2026-07-28T05:50:47+08:00",
+  "cloud_latest": {
+    "checked": true,
+    "checked_at": "2026-07-27T21:50:27+00:00",
+    "matches_baseline": true,
+    "md5": "469a7329d496f81ae8625c4d76ccf56d",
+    "version": "1.0.2_0031"
+  },
+  "declared_patches": [
+    {
+      "evidence_note": "证据文档第 4 至 6 节：118 字节处理程序位于完整零填充函数间隙",
+      "evidence_path": "knowledge/AP01-官方固件分析/cases/2026-07-27-系统设置菜单首尾循环静态定位.md",
+      "expected_before_hex": "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+      "length": 118,
+      "name": "首尾循环处理程序",
+      "objective": "在已验证零填充代码间隙中处理动态项目数和首尾循环",
+      "offset": 114696,
+      "offset_hex": "0x1c008",
+      "region_kind": "application-code",
+      "replacement_hex": "83c71400094763f4ea006fd06d0c938617fd63f4da006fd0ad0b638456016fd0cd1793070003a380f40003a589009385faff0146ef80fd516fd08d0983c71400094763f4ea006fd0ad08938607fd63e456016fd0ed0799c26fd0ed709387fa02a380f40003a5890081451386faffef805d4e6fd0ed05"
+    },
+    {
+      "evidence_note": "证据文档第 5、6 节：跳转目标为 0xa001b008",
+      "evidence_path": "knowledge/AP01-官方固件分析/cases/2026-07-27-系统设置菜单首尾循环静态定位.md",
+      "expected_before_hex": "83c71400",
+      "length": 4,
+      "name": "右旋状态挂接",
+      "objective": "把系统设置右旋状态检查交给版本限定处理",
+      "offset": 1020318,
+      "offset_hex": "0xf919e",
+      "region_kind": "application-code",
+      "replacement_hex": "6f20b2e6"
+    },
+    {
+      "evidence_note": "证据文档第 5、6 节：跳转目标为 0xa001b044",
+      "evidence_path": "knowledge/AP01-官方固件分析/cases/2026-07-27-系统设置菜单首尾循环静态定位.md",
+      "expected_before_hex": "83c71400",
+      "length": 4,
+      "name": "左旋状态挂接",
+      "objective": "把系统设置左旋状态检查交给版本限定处理",
+      "offset": 1021802,
+      "offset_hex": "0xf976a",
+      "region_kind": "application-code",
+      "replacement_hex": "6f20b28d"
+    }
+  ],
+  "input": {
+    "md5": "469a7329d496f81ae8625c4d76ccf56d",
+    "model": "njcuk.enstor.ap01",
+    "model_offsets": [
+      {
+        "offset": 19784,
+        "offset_hex": "0x4d48"
+      },
+      {
+        "offset": 1844888,
+        "offset_hex": "0x1c2698"
+      }
+    ],
+    "path": "/Users/mac/Desktop/cuktech-ap01-firmware-artifacts/original/ap01-1.0.2_0031.bin",
+    "read_only": true,
+    "recovery": {
+      "calculated_crc": "0x7ffd605b",
+      "offset": 6804480,
+      "offset_hex": "0x67d400",
+      "stored_crc": "0x7ffd605b",
+      "stored_length": 6804520
+    },
+    "sha256": "8a721fc8ef25458d415b2460e4a251e0503a82f7743fdff85b12612190e5c1cb",
+    "size": 6804520,
+    "version": "1.0.2_0031"
+  },
+  "manifest_type": "offline-firmware-build",
+  "output": {
+    "changed_bytes": 120,
+    "changed_ranges": [
+      {
+        "end_exclusive": 114699,
+        "end_exclusive_hex": "0x1c00b",
+        "length": 3,
+        "start": 114696,
+        "start_hex": "0x1c008"
+      },
+      {
+        "end_exclusive": 114705,
+        "end_exclusive_hex": "0x1c011",
+        "length": 5,
+        "start": 114700,
+        "start_hex": "0x1c00c"
+      },
+      {
+        "end_exclusive": 114717,
+        "end_exclusive_hex": "0x1c01d",
+        "length": 11,
+        "start": 114706,
+        "start_hex": "0x1c012"
+      },
+      {
+        "end_exclusive": 114732,
+        "end_exclusive_hex": "0x1c02c",
+        "length": 14,
+        "start": 114718,
+        "start_hex": "0x1c01e"
+      },
+      {
+        "end_exclusive": 114737,
+        "end_exclusive_hex": "0x1c031",
+        "length": 4,
+        "start": 114733,
+        "start_hex": "0x1c02d"
+      },
+      {
+        "end_exclusive": 114741,
+        "end_exclusive_hex": "0x1c035",
+        "length": 3,
+        "start": 114738,
+        "start_hex": "0x1c032"
+      },
+      {
+        "end_exclusive": 114759,
+        "end_exclusive_hex": "0x1c047",
+        "length": 17,
+        "start": 114742,
+        "start_hex": "0x1c036"
+      },
+      {
+        "end_exclusive": 114765,
+        "end_exclusive_hex": "0x1c04d",
+        "length": 5,
+        "start": 114760,
+        "start_hex": "0x1c048"
+      },
+      {
+        "end_exclusive": 114795,
+        "end_exclusive_hex": "0x1c06b",
+        "length": 29,
+        "start": 114766,
+        "start_hex": "0x1c04e"
+      },
+      {
+        "end_exclusive": 114799,
+        "end_exclusive_hex": "0x1c06f",
+        "length": 3,
+        "start": 114796,
+        "start_hex": "0x1c06c"
+      },
+      {
+        "end_exclusive": 114814,
+        "end_exclusive_hex": "0x1c07e",
+        "length": 14,
+        "start": 114800,
+        "start_hex": "0x1c070"
+      },
+      {
+        "end_exclusive": 1020322,
+        "end_exclusive_hex": "0xf91a2",
+        "length": 4,
+        "start": 1020318,
+        "start_hex": "0xf919e"
+      },
+      {
+        "end_exclusive": 1021806,
+        "end_exclusive_hex": "0xf976e",
+        "length": 4,
+        "start": 1021802,
+        "start_hex": "0xf976a"
+      },
+      {
+        "end_exclusive": 6804520,
+        "end_exclusive_hex": "0x67d428",
+        "length": 4,
+        "start": 6804516,
+        "start_hex": "0x67d424"
+      }
+    ],
+    "immutable_header_identical": true,
+    "md5": "fc51cd3de0b28b9132600f5a60fc38b3",
+    "outside_allowed_ranges_identical": true,
+    "path": "/Users/mac/Desktop/cuktech-ap01-firmware-tools/artifacts/firmware/ap01-1.0.2_0031-opt.bin",
+    "read_only": true,
+    "recovery": {
+      "calculated_crc": "0xf0e269ed",
+      "offset": 6804480,
+      "offset_hex": "0x67d400",
+      "stored_crc": "0xf0e269ed",
+      "stored_length": 6804520
+    },
+    "recovery_structure_identical": true,
+    "sha256": "f000dc91ba5cf7dd0f327b33f1d4a08bfc87bd8118965facf3765b083f0b05f2",
+    "size": 6804520
+  },
+  "plan": {
+    "baseline_sha256": "8a721fc8ef25458d415b2460e4a251e0503a82f7743fdff85b12612190e5c1cb",
+    "path": "/Users/mac/Desktop/cuktech-ap01-firmware-tools/artifacts/build/settings-menu-wrap-approved.json",
+    "status": "approved-for-offline-build",
+    "target_model": "njcuk.enstor.ap01",
+    "target_version": "1.0.2_0031"
+  },
+  "recovery_crc_after_build": "0xf0e269ed",
+  "schema_version": 1,
+  "tool": {
+    "commit": "544f2201234fa1bcb5de5e648cd3ffa8502281b4",
+    "scoped_code_dirty": false,
+    "version": "0.1.0"
+  },
+  "validation": {
+    "changed_ranges_outside_plan": false,
+    "experimental_download_allowed": false,
+    "frozen_readback_sha256_matches": true,
+    "immutable_header_preserved": true,
+    "input_output_paths_distinct": true,
+    "input_outside_repository": true,
+    "installation_allowed": false,
+    "old_bytes_asserted": true,
+    "output_name_fixed": true,
+    "recovery_structure_preserved": true,
+    "total_length_preserved": true
+  }
+}

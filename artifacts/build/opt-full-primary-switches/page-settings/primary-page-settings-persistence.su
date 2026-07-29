@@ -1,0 +1,9 @@
+/Users/mac/Desktop/cuktech-ap01-firmware-tools/features/primary_page_settings/persistence.c:33:12:read_exact	48	static
+/Users/mac/Desktop/cuktech-ap01-firmware-tools/features/primary_page_settings/persistence.c:47:12:write_exact	48	static
+/Users/mac/Desktop/cuktech-ap01-firmware-tools/features/primary_page_settings/persistence.c:61:12:record_check	0	static
+/Users/mac/Desktop/cuktech-ap01-firmware-tools/features/primary_page_settings/persistence.c:66:12:record_valid	16	static
+/Users/mac/Desktop/cuktech-ap01-firmware-tools/features/primary_page_settings/persistence.c:73:12:read_record	16	static
+/Users/mac/Desktop/cuktech-ap01-firmware-tools/features/primary_page_settings/persistence.c:85:12:newer	0	static
+/Users/mac/Desktop/cuktech-ap01-firmware-tools/features/primary_page_settings/persistence.c:90:12:current_record	16	static
+/Users/mac/Desktop/cuktech-ap01-firmware-tools/features/primary_page_settings/persistence.c:106:5:ap01_page_settings_load_mask	48	static
+/Users/mac/Desktop/cuktech-ap01-firmware-tools/features/primary_page_settings/persistence.c:119:5:ap01_page_settings_save_mask	80	static

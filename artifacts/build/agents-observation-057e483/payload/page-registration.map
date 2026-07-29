@@ -1,0 +1,65 @@
+
+Merging object attributes
+
+
+Discarded input sections
+
+ .riscv.attributes
+                0x00000000       0x4c /Users/mac/Desktop/cuktech-ap01-firmware-tools/artifacts/build/agents-observation-057e483/payload/page-registration.o
+ .riscv.attributes
+                0x00000000       0x4c /Users/mac/Desktop/cuktech-ap01-firmware-tools/artifacts/build/agents-observation-057e483/payload/fallback-assets.o
+
+Memory Configuration
+
+Name             Origin             Length             Attributes
+PAYLOAD          0xa02465d0         0x0000ee06         xr
+*default*        0x00000000         0xffffffff
+
+Linker script and memory map
+
+                0xa00c1ec6                        PROVIDE (lv_obj_create = 0xa00c1ec6)
+                0xa00bebee                        PROVIDE (lv_obj_del = 0xa00bebee)
+                0xa00c0060                        PROVIDE (lv_obj_set_size = 0xa00c0060)
+                0xa00c5d84                        PROVIDE (lv_obj_get_child = 0xa00c5d84)
+                0xa01aa0b6                        PROVIDE (lv_obj_add_event_cb = 0xa01aa0b6)
+                0xa01930fe                        PROVIDE (lv_gif_create = 0xa01930fe)
+                0xa00cf8d8                        PROVIDE (lv_gif_set_src = 0xa00cf8d8)
+                0xa00bf7ea                        PROVIDE (lv_event_get_key = 0xa00bf7ea)
+                0xa00b0290                        PROVIDE (window_get_active = 0xa00b0290)
+                0xa00b06f4                        PROVIDE (window_set_active = 0xa00b06f4)
+                0xa007e1c4                        PROVIDE (malloc = 0xa007e1c4)
+                0xa007c256                        PROVIDE (free = 0xa007c256)
+                0xa00bbfee                        PROVIDE (stock_key_event = 0xa00bbfee)
+
+.payload        0xa02465d0     0x6b58
+ *(.payload)
+ .payload       0xa02465d0      0x20c /Users/mac/Desktop/cuktech-ap01-firmware-tools/artifacts/build/agents-observation-057e483/payload/page-registration.o
+                0xa02465d0                ap01_agents_page_register
+                0xa024666c                ap01_agents_delete_event
+                0xa024669c                ap01_agents_key_event
+ *(.assets)
+ .assets        0xa02467dc     0x694c /Users/mac/Desktop/cuktech-ap01-firmware-tools/artifacts/build/agents-observation-057e483/payload/fallback-assets.o
+                0xa02467dc                agents_fallback_overview_descriptor
+                0xa0248260                agents_fallback_weekly_descriptor
+                0xa0249ce8                agents_fallback_today_descriptor
+                0xa024b6c0                agents_fallback_last_30_days_descriptor
+
+.text           0xa024d128        0x0
+ .text          0xa024d128        0x0 /Users/mac/Desktop/cuktech-ap01-firmware-tools/artifacts/build/agents-observation-057e483/payload/page-registration.o
+ .text          0xa024d128        0x0 /Users/mac/Desktop/cuktech-ap01-firmware-tools/artifacts/build/agents-observation-057e483/payload/fallback-assets.o
+
+.data           0xa024d128        0x0
+ .data          0xa024d128        0x0 /Users/mac/Desktop/cuktech-ap01-firmware-tools/artifacts/build/agents-observation-057e483/payload/page-registration.o
+ .data          0xa024d128        0x0 /Users/mac/Desktop/cuktech-ap01-firmware-tools/artifacts/build/agents-observation-057e483/payload/fallback-assets.o
+
+.bss            0xa024d128        0x0
+ .bss           0xa024d128        0x0 /Users/mac/Desktop/cuktech-ap01-firmware-tools/artifacts/build/agents-observation-057e483/payload/page-registration.o
+ .bss           0xa024d128        0x0 /Users/mac/Desktop/cuktech-ap01-firmware-tools/artifacts/build/agents-observation-057e483/payload/fallback-assets.o
+
+/DISCARD/
+ *(.comment)
+ *(.note*)
+ *(.riscv.attributes)
+LOAD /Users/mac/Desktop/cuktech-ap01-firmware-tools/artifacts/build/agents-observation-057e483/payload/page-registration.o
+LOAD /Users/mac/Desktop/cuktech-ap01-firmware-tools/artifacts/build/agents-observation-057e483/payload/fallback-assets.o
+OUTPUT(/Users/mac/Desktop/cuktech-ap01-firmware-tools/artifacts/build/agents-observation-057e483/payload/page-registration.elf elf32-littleriscv)

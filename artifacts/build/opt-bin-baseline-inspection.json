@@ -1,0 +1,208 @@
+{
+  "checked_at_beijing": "2026-07-28T16:38:55+08:00",
+  "final_output": {
+    "created": false,
+    "required_filename": "ap01-1.0.2_0031-opt.bin"
+  },
+  "gates": {
+    "experimental_download_allowed": false,
+    "full_build_allowed": false,
+    "installation_allowed": false,
+    "optimized_baseline_ready": true,
+    "original_identity_matches": true,
+    "reason": "完整看板新增修改区间尚未完成直接证据、设计记录和批准",
+    "stage_diff_within_approved_ranges": true,
+    "stage_identity_matches": true
+  },
+  "original": {
+    "md5": "469a7329d496f81ae8625c4d76ccf56d",
+    "model": "njcuk.enstor.ap01",
+    "model_offsets": [
+      {
+        "offset": 19784,
+        "offset_hex": "0x4d48"
+      },
+      {
+        "offset": 1844888,
+        "offset_hex": "0x1c2698"
+      }
+    ],
+    "path": "/Users/mac/Desktop/cuktech-ap01-firmware-tools/artifacts/firmware/original/ap01-1.0.2_0031.bin",
+    "recovery": {
+      "calculated_crc": "0x7ffd605b",
+      "offset": 6804480,
+      "offset_hex": "0x67d400",
+      "stored_crc": "0x7ffd605b",
+      "stored_length": 6804520
+    },
+    "sha256": "8a721fc8ef25458d415b2460e4a251e0503a82f7743fdff85b12612190e5c1cb",
+    "size": 6804520,
+    "version": "1.0.2_0031"
+  },
+  "report_type": "optimized-firmware-baseline-inspection",
+  "schema_version": 1,
+  "stage_input": {
+    "changed_bytes": 163,
+    "changed_ranges": [
+      {
+        "end_exclusive": 114699,
+        "end_exclusive_hex": "0x1c00b",
+        "length": 3,
+        "start": 114696,
+        "start_hex": "0x1c008"
+      },
+      {
+        "end_exclusive": 114709,
+        "end_exclusive_hex": "0x1c015",
+        "length": 9,
+        "start": 114700,
+        "start_hex": "0x1c00c"
+      },
+      {
+        "end_exclusive": 114715,
+        "end_exclusive_hex": "0x1c01b",
+        "length": 5,
+        "start": 114710,
+        "start_hex": "0x1c016"
+      },
+      {
+        "end_exclusive": 114727,
+        "end_exclusive_hex": "0x1c027",
+        "length": 11,
+        "start": 114716,
+        "start_hex": "0x1c01c"
+      },
+      {
+        "end_exclusive": 114743,
+        "end_exclusive_hex": "0x1c037",
+        "length": 15,
+        "start": 114728,
+        "start_hex": "0x1c028"
+      },
+      {
+        "end_exclusive": 114754,
+        "end_exclusive_hex": "0x1c042",
+        "length": 10,
+        "start": 114744,
+        "start_hex": "0x1c038"
+      },
+      {
+        "end_exclusive": 114759,
+        "end_exclusive_hex": "0x1c047",
+        "length": 4,
+        "start": 114755,
+        "start_hex": "0x1c043"
+      },
+      {
+        "end_exclusive": 114763,
+        "end_exclusive_hex": "0x1c04b",
+        "length": 3,
+        "start": 114760,
+        "start_hex": "0x1c048"
+      },
+      {
+        "end_exclusive": 114781,
+        "end_exclusive_hex": "0x1c05d",
+        "length": 17,
+        "start": 114764,
+        "start_hex": "0x1c04c"
+      },
+      {
+        "end_exclusive": 114791,
+        "end_exclusive_hex": "0x1c067",
+        "length": 9,
+        "start": 114782,
+        "start_hex": "0x1c05e"
+      },
+      {
+        "end_exclusive": 114797,
+        "end_exclusive_hex": "0x1c06d",
+        "length": 5,
+        "start": 114792,
+        "start_hex": "0x1c068"
+      },
+      {
+        "end_exclusive": 114823,
+        "end_exclusive_hex": "0x1c087",
+        "length": 25,
+        "start": 114798,
+        "start_hex": "0x1c06e"
+      },
+      {
+        "end_exclusive": 114826,
+        "end_exclusive_hex": "0x1c08a",
+        "length": 2,
+        "start": 114824,
+        "start_hex": "0x1c088"
+      },
+      {
+        "end_exclusive": 114841,
+        "end_exclusive_hex": "0x1c099",
+        "length": 14,
+        "start": 114827,
+        "start_hex": "0x1c08b"
+      },
+      {
+        "end_exclusive": 114845,
+        "end_exclusive_hex": "0x1c09d",
+        "length": 3,
+        "start": 114842,
+        "start_hex": "0x1c09a"
+      },
+      {
+        "end_exclusive": 114860,
+        "end_exclusive_hex": "0x1c0ac",
+        "length": 14,
+        "start": 114846,
+        "start_hex": "0x1c09e"
+      },
+      {
+        "end_exclusive": 1020322,
+        "end_exclusive_hex": "0xf91a2",
+        "length": 4,
+        "start": 1020318,
+        "start_hex": "0xf919e"
+      },
+      {
+        "end_exclusive": 1021806,
+        "end_exclusive_hex": "0xf976e",
+        "length": 4,
+        "start": 1021802,
+        "start_hex": "0xf976a"
+      },
+      {
+        "end_exclusive": 1084962,
+        "end_exclusive_hex": "0x108e22",
+        "length": 2,
+        "start": 1084960,
+        "start_hex": "0x108e20"
+      },
+      {
+        "end_exclusive": 6804520,
+        "end_exclusive_hex": "0x67d428",
+        "length": 4,
+        "start": 6804516,
+        "start_hex": "0x67d424"
+      }
+    ],
+    "filename": "opt-setting.bin",
+    "immutable_header_identical": true,
+    "md5": "13a7286f4824b1ad87d9bc32f1d3d39c",
+    "outside_allowed_ranges_identical": true,
+    "path": "/Users/mac/Desktop/cuktech-ap01-firmware-tools/artifacts/firmware/opt-setting.bin",
+    "recovery": {
+      "calculated_crc": "0xe57875a7",
+      "offset": 6804480,
+      "offset_hex": "0x67d400",
+      "stored_crc": "0xe57875a7",
+      "stored_length": 6804520
+    },
+    "recovery_structure_identical": true,
+    "sha256": "348d0843ac3f3f380eb155170c4104fd8467a018ddfd13670d67be998f269dc1",
+    "size": 6804520
+  },
+  "tool": {
+    "commit": "d56c15f45045d1f41ef63dab4a5e66b941e9148a",
+    "scoped_code_dirty": true
+  }
+}

@@ -1,0 +1,43 @@
+{
+  "checked_at_beijing": "2026-07-28T16:56:39+08:00",
+  "gates": {
+    "linked_payload_fits": false,
+    "optimizer_output_deterministic": true,
+    "patch_plan_allowed": false,
+    "payload_candidate_space_ready": true,
+    "pixel_and_timing_equivalent": true,
+    "reason": "设备端载荷尚未完成链接、符号、重定位和调用检查",
+    "resource_identity_matches": true
+  },
+  "payload_space": {
+    "aligned": true,
+    "capacity": 10180,
+    "end_exclusive": "0x5f9174",
+    "start": "0x5f69b0"
+  },
+  "report_type": "firmware-payload-space-inspection",
+  "resource": {
+    "data_offset": "0x57e830",
+    "data_pointer": "0xa057d830",
+    "descriptor_offset": "0x57e814",
+    "frame_count": 20,
+    "height": 240,
+    "loop": 0,
+    "optimized_sha256": "6f09647a3d97baeb10b78f9f08d30cd03e77b437dfe14a17a42489952e2e8b99",
+    "optimized_size": 491894,
+    "original_sha256": "053b16cc10cff7a52544ab0c495f561b10727f718d0ce6a3efa2f034cda3a9e2",
+    "original_size": 502081,
+    "pixel_and_timing_equivalent": true,
+    "width": 320
+  },
+  "schema_version": 1,
+  "stage_input": {
+    "path": "/Users/mac/Desktop/cuktech-ap01-firmware-tools/artifacts/firmware/opt-setting.bin",
+    "read_only": true
+  },
+  "tool": {
+    "commit": "c13da09dc421b7e2c922b53747e8958d405f925c",
+    "gifsicle": "LCDF Gifsicle 1.96",
+    "scoped_code_dirty": true
+  }
+}

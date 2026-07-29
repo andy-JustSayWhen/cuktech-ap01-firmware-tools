@@ -1,0 +1,274 @@
+{
+  "built_at_beijing": "2026-07-28T15:47:49+08:00",
+  "cloud_latest": {
+    "checked": true,
+    "checked_at": "2026-07-28T15:47:48+0800",
+    "matches_baseline": true,
+    "md5": "469a7329d496f81ae8625c4d76ccf56d",
+    "version": "1.0.2_0031"
+  },
+  "declared_patches": [
+    {
+      "evidence_note": "证据文档第 21 节：164 字节处理程序立即同步首尾列表位置",
+      "evidence_path": "knowledge/AP01-官方固件分析/cases/2026-07-27-系统设置菜单首尾循环静态定位.md",
+      "expected_before_hex": "0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+      "length": 164,
+      "name": "首尾循环处理程序",
+      "objective": "在已验证零填充代码间隙中处理动态项目数和首尾循环",
+      "offset": 114696,
+      "offset_hex": "0x1c008",
+      "region_kind": "application-code",
+      "replacement_hex": "03a58900efa09a7daa8a83c71400094763f4ea006fd0cd0b938617fd63f4da006fd00d0b638456016fd02d1703a5890081450146efb03a5c93070003a380f40003a589009385faff0146ef809d506fd02d0803a58900efa07a78aa8a83c71400094763f4ea006fd0ad06938607fd63e456016fd0ed0599c26fd0ed6e03a58900930500190146efb01a579387fa02a380f40003a5890081451386faffef807d4b6fd00d03"
+    },
+    {
+      "evidence_note": "证据文档第 21 节：跳转目标为 0xa001b008",
+      "evidence_path": "knowledge/AP01-官方固件分析/cases/2026-07-27-系统设置菜单首尾循环静态定位.md",
+      "expected_before_hex": "83c71400",
+      "length": 4,
+      "name": "右旋状态挂接",
+      "objective": "把系统设置右旋状态检查交给版本限定处理",
+      "offset": 1020318,
+      "offset_hex": "0xf919e",
+      "region_kind": "application-code",
+      "replacement_hex": "6f20b2e6"
+    },
+    {
+      "evidence_note": "证据文档第 21 节：跳转目标为 0xa001b05a",
+      "evidence_path": "knowledge/AP01-官方固件分析/cases/2026-07-27-系统设置菜单首尾循环静态定位.md",
+      "expected_before_hex": "83c71400",
+      "length": 4,
+      "name": "左旋状态挂接",
+      "objective": "把系统设置左旋状态检查交给版本限定处理",
+      "offset": 1021802,
+      "offset_hex": "0xf976a",
+      "region_kind": "application-code",
+      "replacement_hex": "6f20128f"
+    },
+    {
+      "evidence_note": "证据文档第 22 节：跳转目标为 0xa0107cbc",
+      "evidence_path": "knowledge/AP01-官方固件分析/cases/2026-07-27-系统设置菜单首尾循环静态定位.md",
+      "expected_before_hex": "a14d",
+      "length": 2,
+      "name": "中途反向边沿过滤",
+      "objective": "忽略活动旋转步骤中的相反方向边沿，不强制上报反方向",
+      "offset": 1084960,
+      "offset_hex": "0x108e20",
+      "region_kind": "application-code",
+      "replacement_hex": "71bd"
+    }
+  ],
+  "input": {
+    "md5": "469a7329d496f81ae8625c4d76ccf56d",
+    "model": "njcuk.enstor.ap01",
+    "model_offsets": [
+      {
+        "offset": 19784,
+        "offset_hex": "0x4d48"
+      },
+      {
+        "offset": 1844888,
+        "offset_hex": "0x1c2698"
+      }
+    ],
+    "path": "/Users/mac/Desktop/cuktech-ap01-firmware-artifacts/original/ap01-1.0.2_0031.bin",
+    "read_only": true,
+    "recovery": {
+      "calculated_crc": "0x7ffd605b",
+      "offset": 6804480,
+      "offset_hex": "0x67d400",
+      "stored_crc": "0x7ffd605b",
+      "stored_length": 6804520
+    },
+    "sha256": "8a721fc8ef25458d415b2460e4a251e0503a82f7743fdff85b12612190e5c1cb",
+    "size": 6804520,
+    "version": "1.0.2_0031"
+  },
+  "manifest_type": "offline-firmware-build",
+  "output": {
+    "changed_bytes": 163,
+    "changed_ranges": [
+      {
+        "end_exclusive": 114699,
+        "end_exclusive_hex": "0x1c00b",
+        "length": 3,
+        "start": 114696,
+        "start_hex": "0x1c008"
+      },
+      {
+        "end_exclusive": 114709,
+        "end_exclusive_hex": "0x1c015",
+        "length": 9,
+        "start": 114700,
+        "start_hex": "0x1c00c"
+      },
+      {
+        "end_exclusive": 114715,
+        "end_exclusive_hex": "0x1c01b",
+        "length": 5,
+        "start": 114710,
+        "start_hex": "0x1c016"
+      },
+      {
+        "end_exclusive": 114727,
+        "end_exclusive_hex": "0x1c027",
+        "length": 11,
+        "start": 114716,
+        "start_hex": "0x1c01c"
+      },
+      {
+        "end_exclusive": 114743,
+        "end_exclusive_hex": "0x1c037",
+        "length": 15,
+        "start": 114728,
+        "start_hex": "0x1c028"
+      },
+      {
+        "end_exclusive": 114754,
+        "end_exclusive_hex": "0x1c042",
+        "length": 10,
+        "start": 114744,
+        "start_hex": "0x1c038"
+      },
+      {
+        "end_exclusive": 114759,
+        "end_exclusive_hex": "0x1c047",
+        "length": 4,
+        "start": 114755,
+        "start_hex": "0x1c043"
+      },
+      {
+        "end_exclusive": 114763,
+        "end_exclusive_hex": "0x1c04b",
+        "length": 3,
+        "start": 114760,
+        "start_hex": "0x1c048"
+      },
+      {
+        "end_exclusive": 114781,
+        "end_exclusive_hex": "0x1c05d",
+        "length": 17,
+        "start": 114764,
+        "start_hex": "0x1c04c"
+      },
+      {
+        "end_exclusive": 114791,
+        "end_exclusive_hex": "0x1c067",
+        "length": 9,
+        "start": 114782,
+        "start_hex": "0x1c05e"
+      },
+      {
+        "end_exclusive": 114797,
+        "end_exclusive_hex": "0x1c06d",
+        "length": 5,
+        "start": 114792,
+        "start_hex": "0x1c068"
+      },
+      {
+        "end_exclusive": 114823,
+        "end_exclusive_hex": "0x1c087",
+        "length": 25,
+        "start": 114798,
+        "start_hex": "0x1c06e"
+      },
+      {
+        "end_exclusive": 114826,
+        "end_exclusive_hex": "0x1c08a",
+        "length": 2,
+        "start": 114824,
+        "start_hex": "0x1c088"
+      },
+      {
+        "end_exclusive": 114841,
+        "end_exclusive_hex": "0x1c099",
+        "length": 14,
+        "start": 114827,
+        "start_hex": "0x1c08b"
+      },
+      {
+        "end_exclusive": 114845,
+        "end_exclusive_hex": "0x1c09d",
+        "length": 3,
+        "start": 114842,
+        "start_hex": "0x1c09a"
+      },
+      {
+        "end_exclusive": 114860,
+        "end_exclusive_hex": "0x1c0ac",
+        "length": 14,
+        "start": 114846,
+        "start_hex": "0x1c09e"
+      },
+      {
+        "end_exclusive": 1020322,
+        "end_exclusive_hex": "0xf91a2",
+        "length": 4,
+        "start": 1020318,
+        "start_hex": "0xf919e"
+      },
+      {
+        "end_exclusive": 1021806,
+        "end_exclusive_hex": "0xf976e",
+        "length": 4,
+        "start": 1021802,
+        "start_hex": "0xf976a"
+      },
+      {
+        "end_exclusive": 1084962,
+        "end_exclusive_hex": "0x108e22",
+        "length": 2,
+        "start": 1084960,
+        "start_hex": "0x108e20"
+      },
+      {
+        "end_exclusive": 6804520,
+        "end_exclusive_hex": "0x67d428",
+        "length": 4,
+        "start": 6804516,
+        "start_hex": "0x67d424"
+      }
+    ],
+    "immutable_header_identical": true,
+    "md5": "13a7286f4824b1ad87d9bc32f1d3d39c",
+    "outside_allowed_ranges_identical": true,
+    "path": "/Users/mac/Desktop/cuktech-ap01-firmware-tools/artifacts/firmware/opt-setting.bin",
+    "read_only": true,
+    "recovery": {
+      "calculated_crc": "0xe57875a7",
+      "offset": 6804480,
+      "offset_hex": "0x67d400",
+      "stored_crc": "0xe57875a7",
+      "stored_length": 6804520
+    },
+    "recovery_structure_identical": true,
+    "sha256": "348d0843ac3f3f380eb155170c4104fd8467a018ddfd13670d67be998f269dc1",
+    "size": 6804520
+  },
+  "plan": {
+    "baseline_sha256": "8a721fc8ef25458d415b2460e4a251e0503a82f7743fdff85b12612190e5c1cb",
+    "path": "/Users/mac/Desktop/cuktech-ap01-firmware-tools/artifacts/build/settings-menu-wrap-direction-filter-approved.json",
+    "status": "approved-for-offline-build",
+    "target_model": "njcuk.enstor.ap01",
+    "target_version": "1.0.2_0031"
+  },
+  "recovery_crc_after_build": "0xe57875a7",
+  "schema_version": 1,
+  "tool": {
+    "commit": "da9ca1d846a07b6ebcf91f489d256eab0aabcb38",
+    "scoped_code_dirty": false,
+    "version": "0.1.0"
+  },
+  "validation": {
+    "changed_ranges_outside_plan": false,
+    "experimental_download_allowed": false,
+    "frozen_readback_sha256_matches": true,
+    "immutable_header_preserved": true,
+    "input_output_paths_distinct": true,
+    "input_outside_repository": true,
+    "installation_allowed": false,
+    "old_bytes_asserted": true,
+    "output_name_fixed": true,
+    "recovery_structure_preserved": true,
+    "total_length_preserved": true
+  }
+}

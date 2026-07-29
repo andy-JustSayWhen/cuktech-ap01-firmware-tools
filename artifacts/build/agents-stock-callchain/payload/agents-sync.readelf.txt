@@ -1,0 +1,139 @@
+ELF Header:
+  Magic:   7f 45 4c 46 01 01 01 00 00 00 00 00 00 00 00 00 
+  Class:                             ELF32
+  Data:                              2's complement, little endian
+  Version:                           1 (current)
+  OS/ABI:                            UNIX - System V
+  ABI Version:                       0
+  Type:                              EXEC (Executable file)
+  Machine:                           RISC-V
+  Version:                           0x1
+  Entry point address:               0xa02465d0
+  Start of program headers:          52 (bytes into file)
+  Start of section headers:          37420 (bytes into file)
+  Flags:                             0x1, RVC, soft-float ABI
+  Size of this header:               52 (bytes)
+  Size of program headers:           32 (bytes)
+  Number of program headers:         2
+  Size of section headers:           40 (bytes)
+  Number of section headers:         5
+  Section header string table index: 4
+
+Section Headers:
+  [Nr] Name              Type            Addr     Off    Size   ES Flg Lk Inf Al
+  [ 0]                   NULL            00000000 000000 000000 00      0   0  0
+  [ 1] .payload          PROGBITS        a02465d0 0005d0 007f18 00  AX  0   0  4
+  [ 2] .symtab           SYMTAB          00000000 0084e8 000650 10      3  74  4
+  [ 3] .strtab           STRTAB          00000000 008b38 0006ce 00      0   0  1
+  [ 4] .shstrtab         STRTAB          00000000 009206 000024 00      0   0  1
+Key to Flags:
+  W (write), A (alloc), X (execute), M (merge), S (strings), I (info),
+  L (link order), O (extra OS processing required), G (group), T (TLS),
+  C (compressed), x (unknown), o (OS specific), E (exclude),
+  D (mbind), p (processor specific)
+
+There are no relocations in this file.
+
+Symbol table '.symtab' contains 101 entries:
+   Num:    Value  Size Type    Bind   Vis      Ndx Name
+     0: 00000000     0 NOTYPE  LOCAL  DEFAULT  UND 
+     1: a02465d0     0 SECTION LOCAL  DEFAULT    1 .payload
+     2: 00000000     0 FILE    LOCAL  DEFAULT  ABS page-registration.o
+     3: 00000001     0 NOTYPE  LOCAL  DEFAULT  ABS STOCK_PET_REUSE
+     4: 00000001     0 NOTYPE  LOCAL  DEFAULT  ABS SYNC_LOADER
+     5: 41504754     0 NOTYPE  LOCAL  DEFAULT  ABS AGENTS_STATE_MAGIC
+     6: 00000011     0 NOTYPE  LOCAL  DEFAULT  ABS EVENT_KEY
+     7: 00000029     0 NOTYPE  LOCAL  DEFAULT  ABS EVENT_DELETE
+     8: 00000013     0 NOTYPE  LOCAL  DEFAULT  ABS KEY_LEFT
+     9: 00000014     0 NOTYPE  LOCAL  DEFAULT  ABS KEY_RIGHT
+    10: 0000000a     0 NOTYPE  LOCAL  DEFAULT  ABS KEY_ENTER
+    11: a5010000     0 NOTYPE  LOCAL  DEFAULT  ABS AGENTS_TAIL_MAGIC
+    12: ffff0000     0 NOTYPE  LOCAL  DEFAULT  ABS AGENTS_TAIL_MAGI[...]
+    13: 00000000     0 NOTYPE  LOCAL  DEFAULT  ABS AGENTS_STATE_CLOSED
+    14: 00000001     0 NOTYPE  LOCAL  DEFAULT  ABS AGENTS_STATE_OVERVIEW
+    15: 00000002     0 NOTYPE  LOCAL  DEFAULT  ABS AGENTS_STATE_WEEKLY
+    16: 00000003     0 NOTYPE  LOCAL  DEFAULT  ABS AGENTS_STATE_TODAY
+    17: 00000004     0 NOTYPE  LOCAL  DEFAULT  ABS AGENTS_STATE_LAS[...]
+    18: a01f7090     0 NOTYPE  LOCAL  DEFAULT  ABS STOCK_PET_DESCRIPTOR
+    19: a02465d0     0 NOTYPE  LOCAL  DEFAULT    1 $xrv32i2p1_m2p0_[...]
+    20: 00000000     0 FILE    LOCAL  DEFAULT  ABS result_loader.c
+    21: a0247958    17 OBJECT  LOCAL  DEFAULT    1 meta_path
+    22: a024796c    16 OBJECT  LOCAL  DEFAULT    1 ack_path
+    23: a024797c    18 OBJECT  LOCAL  DEFAULT    1 page00
+    24: a0247990    18 OBJECT  LOCAL  DEFAULT    1 page01
+    25: a02479a4    18 OBJECT  LOCAL  DEFAULT    1 page02
+    26: a02479b8    18 OBJECT  LOCAL  DEFAULT    1 page03
+    27: a02479cc    18 OBJECT  LOCAL  DEFAULT    1 page10
+    28: a02479e0    18 OBJECT  LOCAL  DEFAULT    1 page11
+    29: a02479f4    18 OBJECT  LOCAL  DEFAULT    1 page12
+    30: a0247a08    18 OBJECT  LOCAL  DEFAULT    1 page13
+    31: a0247a1c    18 OBJECT  LOCAL  DEFAULT    1 page20
+    32: a0247a30    18 OBJECT  LOCAL  DEFAULT    1 page21
+    33: a0247a44    18 OBJECT  LOCAL  DEFAULT    1 page22
+    34: a0247a58    18 OBJECT  LOCAL  DEFAULT    1 page23
+    35: a0247a6c   256 OBJECT  LOCAL  DEFAULT    1 sha256_constants
+    36: a0246d76     0 NOTYPE  LOCAL  DEFAULT    1 $xrv32i2p1_m2p0_[...]
+    37: a0246d76    20 FUNC    LOCAL  DEFAULT    1 memory_zero
+    38: a0246d8a    40 FUNC    LOCAL  DEFAULT    1 bytes_equal
+    39: a0246db2    16 FUNC    LOCAL  DEFAULT    1 read_u16
+    40: a0246dc2    30 FUNC    LOCAL  DEFAULT    1 read_u32
+    41: a0246de0    48 FUNC    LOCAL  DEFAULT    1 agents_state_decode
+    42: a0246e10    10 FUNC    LOCAL  DEFAULT    1 fw_open
+    43: a0246e1a    10 FUNC    LOCAL  DEFAULT    1 fw_close
+    44: a0246e24    10 FUNC    LOCAL  DEFAULT    1 fw_read
+    45: a0246e2e    10 FUNC    LOCAL  DEFAULT    1 fw_write
+    46: a0246e38    78 FUNC    LOCAL  DEFAULT    1 write_all
+    47: a0246e86    78 FUNC    LOCAL  DEFAULT    1 read_exact
+    48: a0246ed4   166 FUNC    LOCAL  DEFAULT    1 page_path
+    49: a0246f7a    22 FUNC    LOCAL  DEFAULT    1 meta_check
+    50: a0246f90    64 FUNC    LOCAL  DEFAULT    1 meta_valid
+    51: a0246fd0   102 FUNC    LOCAL  DEFAULT    1 read_record
+    52: a0247036   100 FUNC    LOCAL  DEFAULT    1 write_record
+    53: a024709a   470 FUNC    LOCAL  DEFAULT    1 sha256_transform
+    54: a0247270    94 FUNC    LOCAL  DEFAULT    1 sha256_init
+    55: a02472ce   106 FUNC    LOCAL  DEFAULT    1 sha256_update
+    56: a0247338   290 FUNC    LOCAL  DEFAULT    1 sha256_final
+    57: a024745a    88 FUNC    LOCAL  DEFAULT    1 hmac_init
+    58: a02474b2   202 FUNC    LOCAL  DEFAULT    1 hmac_final
+    59: a024757c   120 FUNC    LOCAL  DEFAULT    1 gif_header_valid
+    60: a02475f4   354 FUNC    LOCAL  DEFAULT    1 validate_package[...]
+    61: a0247756    80 FUNC    LOCAL  DEFAULT    1 open_current_page
+    62: a02477a6   170 FUNC    LOCAL  DEFAULT    1 finish_current_page
+    63: a0247850   264 FUNC    LOCAL  DEFAULT    1 consume_body
+    64: a0246a28     0 NOTYPE  LOCAL  DEFAULT    1 $xrv32i2p1_m2p0_[...]
+    65: 00000000     0 FILE    LOCAL  DEFAULT  ABS fallback-assets.o
+    66: a024961d     0 NOTYPE  LOCAL  DEFAULT    1 agents_fallback_[...]
+    67: a0247bb8     0 NOTYPE  LOCAL  DEFAULT    1 agents_fallback_[...]
+    68: a024b0a6     0 NOTYPE  LOCAL  DEFAULT    1 agents_fallback_[...]
+    69: a024963c     0 NOTYPE  LOCAL  DEFAULT    1 agents_fallback_[...]
+    70: a024ca7e     0 NOTYPE  LOCAL  DEFAULT    1 agents_fallback_[...]
+    71: a024b0c4     0 NOTYPE  LOCAL  DEFAULT    1 agents_fallback_[...]
+    72: a024e4e8     0 NOTYPE  LOCAL  DEFAULT    1 agents_fallback_[...]
+    73: a024ca9c     0 NOTYPE  LOCAL  DEFAULT    1 agents_fallback_[...]
+    74: a02468f0   156 FUNC    GLOBAL DEFAULT    1 ap01_agents_show_page
+    75: a0247b7c     0 NOTYPE  GLOBAL DEFAULT    1 agents_secret_key
+    76: a0246a28   216 FUNC    GLOBAL DEFAULT    1 ap01_agents_sink
+    77: a024662c    60 FUNC    GLOBAL DEFAULT    1 ap01_agents_find[...]
+    78: a00bbfee     0 NOTYPE  GLOBAL DEFAULT  ABS stock_key_event
+    79: a0246ca4   210 FUNC    GLOBAL DEFAULT    1 ap01_agents_ui_t[...]
+    80: a024698c    64 FUNC    GLOBAL DEFAULT    1 ap01_agents_rest[...]
+    81: a0246972     0 NOTYPE  GLOBAL DEFAULT    1 ap01_agents_show[...]
+    82: a024ca80     0 NOTYPE  GLOBAL DEFAULT    1 agents_fallback_[...]
+    83: a00be3ca     0 NOTYPE  GLOBAL DEFAULT  ABS stock_get_child
+    84: a00cf8d8     0 NOTYPE  GLOBAL DEFAULT  ABS lv_gif_set_src
+    85: a024b0a8     0 NOTYPE  GLOBAL DEFAULT    1 agents_fallback_[...]
+    86: a0246668   648 FUNC    GLOBAL DEFAULT    1 ap01_agents_key_event
+    87: a0249620     0 NOTYPE  GLOBAL DEFAULT    1 agents_fallback_[...]
+    88: a024660c    30 FUNC    GLOBAL DEFAULT    1 ap01_agents_stat[...]
+    89: a02465d0     2 FUNC    GLOBAL DEFAULT    1 ap01_agents_page[...]
+    90: a0247b6c     0 NOTYPE  GLOBAL DEFAULT    1 agents_device_id
+    91: a00be388     0 NOTYPE  GLOBAL DEFAULT  ABS stock_get_dispat[...]
+    92: a0246b00   272 FUNC    GLOBAL DEFAULT    1 ap01_agents_webc[...]
+    93: a02465d4    56 FUNC    GLOBAL DEFAULT    1 ap01_agents_stat[...]
+    94: a02468d0     0 NOTYPE  GLOBAL DEFAULT    1 ap01_agents_stoc[...]
+    95: a0247b9c     0 NOTYPE  GLOBAL DEFAULT    1 agents_fallback_[...]
+    96: a00bfa4e     0 NOTYPE  GLOBAL DEFAULT  ABS stock_switch_page
+    97: a0246c10   148 FUNC    GLOBAL DEFAULT    1 ap01_agents_appl[...]
+    98: a02469cc    92 FUNC    GLOBAL DEFAULT    1 ap01_agents_deta[...]
+    99: a02468aa     0 NOTYPE  GLOBAL DEFAULT    1 ap01_agents_swit[...]
+   100: a00bf7ea     0 NOTYPE  GLOBAL DEFAULT  ABS lv_event_get_key

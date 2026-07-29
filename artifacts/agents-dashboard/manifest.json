@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "generation": 1785312691,
+  "generated_at": "2026-07-29T16:11:31+08:00",
+  "package_bytes": 124366,
+  "package_sha256": "c2b58ca5af3262a4afde96e949247771f769eb18cce099b14d1f72e82868a299",
+  "pages": [
+    {
+      "name": "01-overview.gif",
+      "bytes": 29854,
+      "sha256": "e38846c0b2bf3ba40966a4143717994b6db62699dd1cd4c52f6b59e66436faad"
+    },
+    {
+      "name": "02-weekly.gif",
+      "bytes": 31551,
+      "sha256": "323983d90552b961711f256ed2c1e144c715a24398cf2726a368237f090a9e93"
+    },
+    {
+      "name": "03-today.gif",
+      "bytes": 27543,
+      "sha256": "1ec210cc48e1a182ca62305743231a4067804aac091bae005229272007c0f507"
+    },
+    {
+      "name": "04-last-30-days.gif",
+      "bytes": 35162,
+      "sha256": "be1166d8ec5cbe423cd03b5524b54eafb69c3677e0e736aa5a6e8338c1eac971"
+    }
+  ]
+}

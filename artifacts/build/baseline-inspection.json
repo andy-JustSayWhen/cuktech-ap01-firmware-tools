@@ -1,0 +1,52 @@
+{
+  "baseline": {
+    "md5": "469a7329d496f81ae8625c4d76ccf56d",
+    "model": "njcuk.enstor.ap01",
+    "model_offsets": [
+      {
+        "offset": 19784,
+        "offset_hex": "0x4d48"
+      },
+      {
+        "offset": 1844888,
+        "offset_hex": "0x1c2698"
+      }
+    ],
+    "recovery": {
+      "calculated_crc": "0x7ffd605b",
+      "offset": 6804480,
+      "offset_hex": "0x67d400",
+      "stored_crc": "0x7ffd605b",
+      "stored_length": 6804520
+    },
+    "sha256": "8a721fc8ef25458d415b2460e4a251e0503a82f7743fdff85b12612190e5c1cb",
+    "size": 6804520,
+    "version": "1.0.2_0031"
+  },
+  "checked_at_beijing": "2026-07-28T00:52:57+08:00",
+  "cloud_latest": {
+    "checked": true,
+    "checked_at": "2026-07-28T00:50:57+0800",
+    "matches_baseline": true,
+    "md5": "469a7329d496f81ae8625c4d76ccf56d",
+    "version": "1.0.2_0031"
+  },
+  "gates": {
+    "experimental_download_allowed": false,
+    "installation_allowed": false,
+    "offline_build_allowed": false,
+    "reason": "没有已批准且具备直接证据的修改清单",
+    "static_analysis_allowed": true
+  },
+  "report_type": "baseline-inspection",
+  "schema_version": 1,
+  "source": {
+    "path": "/Users/mac/Desktop/cuktech-ap01-firmware-artifacts/original/ap01-1.0.2_0031.bin",
+    "read_only": true
+  },
+  "tool": {
+    "commit": "6557e7da31be3b4687696911181d8243f627de46",
+    "scoped_code_dirty": false,
+    "version": "0.1.0"
+  }
+}

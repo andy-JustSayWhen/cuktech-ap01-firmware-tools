@@ -1,0 +1,160 @@
+{
+  "built_at_beijing": "2026-07-28T18:22:46+08:00",
+  "draft_modifications": [
+    {
+      "expected_before_hex": "2ae30500",
+      "name": "原厂第一张动图数据长度",
+      "offset": "0x1f809c",
+      "replacement_hex": "16f50400"
+    },
+    {
+      "length": 324886,
+      "name": "原厂第一张动图无损优化结果",
+      "offset": "0x1f80ac",
+      "replacement_sha256": "d574246a17af026384688799eff1a289ce670cd1c396d7ab799a100d8a3c806b"
+    },
+    {
+      "expected_before_hex": "5285eff02079",
+      "name": "AGENTS 页面注册挂接",
+      "offset": "0x0b3732",
+      "replacement_hex": "ef80b6970100"
+    },
+    {
+      "expected_before_hex": "0000000000000000",
+      "name": "AGENTS 页面绝对跳板",
+      "offset": "0x01c0ac",
+      "replacement_hex": "b76224a06780025d"
+    },
+    {
+      "expected_before_hex": "b7c50ba0",
+      "name": "一级键值回调包装地址高位",
+      "offset": "0x0b3838",
+      "replacement_hex": "b76524a0"
+    },
+    {
+      "expected_before_hex": "9385e5fe",
+      "name": "一级键值回调包装地址低位",
+      "offset": "0x0b3842",
+      "replacement_hex": "9385c569"
+    },
+    {
+      "length": 27480,
+      "name": "AGENTS 页面注册载荷",
+      "offset": "0x2475d0",
+      "replacement_sha256": "6c3d5fdc460753ba4d1e4c806be594bbde7e13be95b0d8aa8c1f261955a55fad"
+    }
+  ],
+  "fallback_assets": [
+    {
+      "file": "/Users/mac/Desktop/cuktech-ap01-firmware-tools/artifacts/build/agents-observation-057e483/payload/fallback-assets/fallback-overview.gif",
+      "frame_duration_ms": 800,
+      "frames": 2,
+      "height": 240,
+      "key": "overview",
+      "sha256": "282cb48522a920c4cea84c7517d7d948f90a6e1de122b4155f0181c5fd45904d",
+      "size": 6757,
+      "title": "AGENTS 看板",
+      "width": 320
+    },
+    {
+      "file": "/Users/mac/Desktop/cuktech-ap01-firmware-tools/artifacts/build/agents-observation-057e483/payload/fallback-assets/fallback-weekly.gif",
+      "frame_duration_ms": 800,
+      "frames": 2,
+      "height": 240,
+      "key": "weekly",
+      "sha256": "43d8b196db000746678bfa06ec34c6eee2fbd137893c6ef8f546225088267dad",
+      "size": 6762,
+      "title": "周剩余额度",
+      "width": 320
+    },
+    {
+      "file": "/Users/mac/Desktop/cuktech-ap01-firmware-tools/artifacts/build/agents-observation-057e483/payload/fallback-assets/fallback-today.gif",
+      "frame_duration_ms": 800,
+      "frames": 2,
+      "height": 240,
+      "key": "today",
+      "sha256": "312b91c230598a95bc06a1a7957fe74010b2fd5ab94ea7d8e30e802fb7395237",
+      "size": 6586,
+      "title": "今日消耗",
+      "width": 320
+    },
+    {
+      "file": "/Users/mac/Desktop/cuktech-ap01-firmware-tools/artifacts/build/agents-observation-057e483/payload/fallback-assets/fallback-last_30_days.gif",
+      "frame_duration_ms": 800,
+      "frames": 2,
+      "height": 240,
+      "key": "last_30_days",
+      "sha256": "5501b430d78c434757887887c808c909e2cbac53031fabd5a78c203c10b1bb2b",
+      "size": 6732,
+      "title": "近30天消耗",
+      "width": 320
+    }
+  ],
+  "gates": {
+    "current_index_getter_present": true,
+    "entry_matches": true,
+    "fallback_descriptors_valid": true,
+    "firmware_output_allowed": false,
+    "hook_old_bytes_match": true,
+    "key_callback_old_bytes_match": true,
+    "key_event_entry_present": true,
+    "payload_fits": true,
+    "reason": "当前完成独立页面、四张内置等待页、概览显示和详情旋钮事件，尚未完成刷新",
+    "relocations_zero": true,
+    "required_callees_present": true,
+    "trampoline_space_zero": true
+  },
+  "input": {
+    "path": "/Users/mac/Desktop/cuktech-ap01-firmware-tools/artifacts/firmware/opt-setting.bin",
+    "read_only": true
+  },
+  "optimized_source_resource": {
+    "data_offset": "0x1f80ac",
+    "file": "/Users/mac/Desktop/cuktech-ap01-firmware-tools/artifacts/build/agents-observation-057e483/payload/optimized-source.gif",
+    "optimized_sha256": "d574246a17af026384688799eff1a289ce670cd1c396d7ab799a100d8a3c806b",
+    "optimized_size": 324886,
+    "original_size": 385834,
+    "report": "/Users/mac/Desktop/cuktech-ap01-firmware-tools/artifacts/build/agents-observation-057e483/payload/payload-space-report.json",
+    "size_offset": "0x1f809c"
+  },
+  "payload": {
+    "capacity": 60934,
+    "file": "/Users/mac/Desktop/cuktech-ap01-firmware-tools/artifacts/build/agents-observation-057e483/payload/page-registration.bin",
+    "file_offset": "0x2475d0",
+    "relocations": 0,
+    "remaining": 33454,
+    "required_callees": [
+      "0xa00c1ec6",
+      "0xa00bebee",
+      "0xa00c0060",
+      "0xa00c5d84",
+      "0xa01aa0b6",
+      "0xa01930fe",
+      "0xa00cf8d8",
+      "0xa00bf7ea",
+      "0xa00b0290",
+      "0xa00b06f4",
+      "0xa007e1c4",
+      "0xa007c256",
+      "0xa00bbfee"
+    ],
+    "runtime_address": "0xa02465d0",
+    "sha256": "6c3d5fdc460753ba4d1e4c806be594bbde7e13be95b0d8aa8c1f261955a55fad",
+    "size": 27480
+  },
+  "report_type": "agents-page-registration-payload",
+  "schema_version": 1,
+  "status": "draft-not-approved-for-firmware-output",
+  "tool": {
+    "commit": "057e483e44a90befa930b6c1679b3d26ddc8c1b9",
+    "scoped_code_dirty": false,
+    "versions": {
+      "riscv64-elf-as": "GNU assembler (GNU Binutils) 2.46.1",
+      "riscv64-elf-ld": "GNU ld (GNU Binutils) 2.46.1",
+      "riscv64-elf-nm": "GNU nm (GNU Binutils) 2.46.1",
+      "riscv64-elf-objcopy": "GNU objcopy (GNU Binutils) 2.46.1",
+      "riscv64-elf-objdump": "GNU objdump (GNU Binutils) 2.46.1",
+      "riscv64-elf-readelf": "GNU readelf (GNU Binutils) 2.46.1"
+    }
+  }
+}

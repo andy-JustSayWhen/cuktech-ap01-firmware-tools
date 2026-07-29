@@ -4,19 +4,12 @@
 # Node.js
 node_modules/
 dist/
-build/
+/build/
 *.log
 
 # Python
 __pycache__/
 *.py[cod]
-
-# 固件与构建产物
-artifacts/firmware/*
-!artifacts/firmware/README.md
-artifacts/build/
-artifacts/rejected/
-artifacts/agents-dashboard/
 
 # 环境与密钥
 env/

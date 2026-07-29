@@ -1,0 +1,109 @@
+
+Merging object attributes
+
+
+Discarded input sections
+
+ .riscv.attributes
+                0x00000000       0x4c /Users/mac/Desktop/cuktech-ap01-firmware-tools/artifacts/build/agents-stock-pet-reuse/payload/page-registration.o
+ .comment       0x00000000       0x13 /Users/mac/Desktop/cuktech-ap01-firmware-tools/artifacts/build/agents-stock-pet-reuse/payload/result-loader.o
+ .note.GNU-stack
+                0x00000000        0x0 /Users/mac/Desktop/cuktech-ap01-firmware-tools/artifacts/build/agents-stock-pet-reuse/payload/result-loader.o
+ .riscv.attributes
+                0x00000000       0x4e /Users/mac/Desktop/cuktech-ap01-firmware-tools/artifacts/build/agents-stock-pet-reuse/payload/result-loader.o
+ .riscv.attributes
+                0x00000000       0x4c /Users/mac/Desktop/cuktech-ap01-firmware-tools/artifacts/build/agents-stock-pet-reuse/payload/device-config.o
+ .riscv.attributes
+                0x00000000       0x4c /Users/mac/Desktop/cuktech-ap01-firmware-tools/artifacts/build/agents-stock-pet-reuse/payload/fallback-assets.o
+
+Memory Configuration
+
+Name             Origin             Length             Attributes
+PAYLOAD          0xa02465d0         0x0000ee06         xr
+*default*        0x00000000         0xffffffff
+
+Linker script and memory map
+
+                [!provide]                        PROVIDE (lv_obj_create = 0xa00c1ec6)
+                [!provide]                        PROVIDE (lv_obj_del = 0xa00bebee)
+                [!provide]                        PROVIDE (lv_obj_set_size = 0xa00c0060)
+                [!provide]                        PROVIDE (lv_obj_set_style_border_width = 0xa00c7b56)
+                [!provide]                        PROVIDE (lv_obj_set_style_pad_all = 0xa00b14b0)
+                [!provide]                        PROVIDE (lv_obj_center = 0xa00c0710)
+                [!provide]                        PROVIDE (lv_obj_remove_flag = 0xa00c1680)
+                [!provide]                        PROVIDE (lv_obj_set_scrollbar_mode = 0xa019397a)
+                [!provide]                        PROVIDE (lv_obj_set_x = 0xa00bf942)
+                [!provide]                        PROVIDE (lv_obj_set_y = 0xa00bfe62)
+                0xa00c5d84                        PROVIDE (lv_obj_get_child = 0xa00c5d84)
+                [!provide]                        PROVIDE (lv_obj_get_child_count = 0xa00c5fe4)
+                [!provide]                        PROVIDE (lv_obj_add_event_cb = 0xa01aa0b6)
+                [!provide]                        PROVIDE (lv_obj_add_flag = 0xa00c1400)
+                [!provide]                        PROVIDE (lv_gif_create = 0xa01930fe)
+                0xa00cf8d8                        PROVIDE (lv_gif_set_src = 0xa00cf8d8)
+                0xa00bf7ea                        PROVIDE (lv_event_get_key = 0xa00bf7ea)
+                0xa00b0290                        PROVIDE (window_get_active = 0xa00b0290)
+                [!provide]                        PROVIDE (window_get_count = 0xa00b0570)
+                0xa00b06f4                        PROVIDE (window_set_active = 0xa00b06f4)
+                [!provide]                        PROVIDE (malloc = 0xa007e1c4)
+                [!provide]                        PROVIDE (free = 0xa007c256)
+                0xa00bbfee                        PROVIDE (stock_key_event = 0xa00bbfee)
+                [!provide]                        PROVIDE (stock_settings_key_event = 0xa00f8096)
+                [!provide]                        PROVIDE (stock_settings_row_create = 0xa0192fb4)
+                [!provide]                        PROVIDE (stock_scroll_to_y = 0xa00c6dfe)
+                [!provide]                        PROVIDE (stock_selection_transition = 0xa00f3d5a)
+
+.payload        0xa02465d0     0x7d80
+ *(.payload)
+ .payload       0xa02465d0      0x34c /Users/mac/Desktop/cuktech-ap01-firmware-tools/artifacts/build/agents-stock-pet-reuse/payload/page-registration.o
+                0xa02465d0                ap01_agents_page_register
+                0xa02465d4                ap01_agents_find_pet_state
+                0xa0246610                ap01_agents_key_event
+                0xa0246810                ap01_agents_show_page
+                0xa0246898                ap01_agents_restore_pet
+                0xa02468cc                ap01_agents_detail_active
+ *(.text.entry)
+ .text.entry    0xa024691c      0x2f0 /Users/mac/Desktop/cuktech-ap01-firmware-tools/artifacts/build/agents-stock-pet-reuse/payload/result-loader.o
+                0xa024691c                ap01_agents_sink
+                0xa02469f4                ap01_agents_webclient_wrapper
+                0xa0246b04                ap01_agents_apply_current
+                0xa0246b82                ap01_agents_ui_timer_wrapper
+ *(.text .text.*)
+ .text          0xa0246c0c        0x0 /Users/mac/Desktop/cuktech-ap01-firmware-tools/artifacts/build/agents-stock-pet-reuse/payload/page-registration.o
+ .text          0xa0246c0c      0xbb2 /Users/mac/Desktop/cuktech-ap01-firmware-tools/artifacts/build/agents-stock-pet-reuse/payload/result-loader.o
+ .text          0xa02477be        0x0 /Users/mac/Desktop/cuktech-ap01-firmware-tools/artifacts/build/agents-stock-pet-reuse/payload/device-config.o
+ .text          0xa02477be        0x0 /Users/mac/Desktop/cuktech-ap01-firmware-tools/artifacts/build/agents-stock-pet-reuse/payload/fallback-assets.o
+ *(.rodata .rodata.*)
+ *fill*         0xa02477be        0x2 
+ .rodata        0xa02477c0      0x214 /Users/mac/Desktop/cuktech-ap01-firmware-tools/artifacts/build/agents-stock-pet-reuse/payload/result-loader.o
+ .rodata        0xa02479d4       0x30 /Users/mac/Desktop/cuktech-ap01-firmware-tools/artifacts/build/agents-stock-pet-reuse/payload/device-config.o
+                0xa02479d4                agents_device_id
+                0xa02479e4                agents_secret_key
+ *(.assets)
+ .assets        0xa0247a04     0x694c /Users/mac/Desktop/cuktech-ap01-firmware-tools/artifacts/build/agents-stock-pet-reuse/payload/fallback-assets.o
+                0xa0247a04                agents_fallback_overview_descriptor
+                0xa0249488                agents_fallback_weekly_descriptor
+                0xa024af10                agents_fallback_today_descriptor
+                0xa024c8e8                agents_fallback_last_30_days_descriptor
+
+.data           0xa024e350        0x0
+ .data          0xa024e350        0x0 /Users/mac/Desktop/cuktech-ap01-firmware-tools/artifacts/build/agents-stock-pet-reuse/payload/page-registration.o
+ .data          0xa024e350        0x0 /Users/mac/Desktop/cuktech-ap01-firmware-tools/artifacts/build/agents-stock-pet-reuse/payload/result-loader.o
+ .data          0xa024e350        0x0 /Users/mac/Desktop/cuktech-ap01-firmware-tools/artifacts/build/agents-stock-pet-reuse/payload/device-config.o
+ .data          0xa024e350        0x0 /Users/mac/Desktop/cuktech-ap01-firmware-tools/artifacts/build/agents-stock-pet-reuse/payload/fallback-assets.o
+
+.bss            0xa024e350        0x0
+ .bss           0xa024e350        0x0 /Users/mac/Desktop/cuktech-ap01-firmware-tools/artifacts/build/agents-stock-pet-reuse/payload/page-registration.o
+ .bss           0xa024e350        0x0 /Users/mac/Desktop/cuktech-ap01-firmware-tools/artifacts/build/agents-stock-pet-reuse/payload/result-loader.o
+ .bss           0xa024e350        0x0 /Users/mac/Desktop/cuktech-ap01-firmware-tools/artifacts/build/agents-stock-pet-reuse/payload/device-config.o
+ .bss           0xa024e350        0x0 /Users/mac/Desktop/cuktech-ap01-firmware-tools/artifacts/build/agents-stock-pet-reuse/payload/fallback-assets.o
+
+/DISCARD/
+ *(.comment)
+ *(.note*)
+ *(.riscv.attributes)
+ *(.eh_frame*)
+LOAD /Users/mac/Desktop/cuktech-ap01-firmware-tools/artifacts/build/agents-stock-pet-reuse/payload/page-registration.o
+LOAD /Users/mac/Desktop/cuktech-ap01-firmware-tools/artifacts/build/agents-stock-pet-reuse/payload/result-loader.o
+LOAD /Users/mac/Desktop/cuktech-ap01-firmware-tools/artifacts/build/agents-stock-pet-reuse/payload/device-config.o
+LOAD /Users/mac/Desktop/cuktech-ap01-firmware-tools/artifacts/build/agents-stock-pet-reuse/payload/fallback-assets.o
+OUTPUT(/Users/mac/Desktop/cuktech-ap01-firmware-tools/artifacts/build/agents-stock-pet-reuse/payload/agents-sync.elf elf32-littleriscv)

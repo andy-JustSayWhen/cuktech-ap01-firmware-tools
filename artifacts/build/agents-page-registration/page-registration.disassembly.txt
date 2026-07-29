@@ -1,0 +1,23 @@
+
+/Users/mac/Desktop/cuktech-ap01-firmware-tools/artifacts/build/agents-page-registration/page-registration.elf:     file format elf32-littleriscv
+
+
+Disassembly of section .payload:
+
+a05f59b0 <ap01_agents_page_register>:
+a05f59b0:	1141                	c.addi	x2,-16
+a05f59b2:	c606                	c.swsp	x1,12(x2)
+a05f59b4:	8552                	c.mv	x10,x20
+a05f59b6:	ffacc097          	auipc	x1,0xffacc
+a05f59ba:	510080e7          	jalr	x1,1296(x1) # a00c1ec6 <lv_obj_create>
+a05f59be:	c909                	c.beqz	x10,a05f59d0 <ap01_agents_page_register+0x20>
+a05f59c0:	14000593          	addi	x11,x0,320
+a05f59c4:	0f000613          	addi	x12,x0,240
+a05f59c8:	ffaca097          	auipc	x1,0xffaca
+a05f59cc:	698080e7          	jalr	x1,1688(x1) # a00c0060 <lv_obj_set_size>
+a05f59d0:	8552                	c.mv	x10,x20
+a05f59d2:	ffacc097          	auipc	x1,0xffacc
+a05f59d6:	4f4080e7          	jalr	x1,1268(x1) # a00c1ec6 <lv_obj_create>
+a05f59da:	40b2                	c.lwsp	x1,12(x2)
+a05f59dc:	0141                	c.addi	x2,16
+a05f59de:	8082                	c.jr	x1

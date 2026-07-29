@@ -1,0 +1,174 @@
+{
+  "evidence_path": "knowledge/AP01-官方固件分析/cases/2026-07-27-系统设置菜单首尾循环静态定位.md",
+  "patches": [
+    {
+      "evidence_note": "证据文档第 4 至 6 节：118 字节处理程序位于完整零填充函数间隙",
+      "evidence_path": "knowledge/AP01-官方固件分析/cases/2026-07-27-系统设置菜单首尾循环静态定位.md",
+      "expected_before_hex": "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+      "length": 118,
+      "name": "首尾循环处理程序",
+      "objective": "在已验证零填充代码间隙中处理动态项目数和首尾循环",
+      "offset": 114696,
+      "offset_hex": "0x1c008",
+      "region_kind": "application-code",
+      "replacement_hex": "83c71400094763f4ea006fd06d0c938617fd63f4da006fd0ad0b638456016fd0cd1793070003a380f40003a589009385faff0146ef80fd516fd08d0983c71400094763f4ea006fd0ad08938607fd63e456016fd0ed0799c26fd0ed709387fa02a380f40003a5890081451386faffef805d4e6fd0ed05",
+      "runtime_address_hex": "0xa001b008"
+    },
+    {
+      "evidence_note": "证据文档第 5、6 节：跳转目标为 0xa001b008",
+      "evidence_path": "knowledge/AP01-官方固件分析/cases/2026-07-27-系统设置菜单首尾循环静态定位.md",
+      "expected_before_hex": "83c71400",
+      "length": 4,
+      "name": "右旋状态挂接",
+      "objective": "把系统设置右旋状态检查交给版本限定处理",
+      "offset": 1020318,
+      "offset_hex": "0xf919e",
+      "region_kind": "application-code",
+      "replacement_hex": "6f20b2e6",
+      "runtime_address_hex": "0xa00f819e"
+    },
+    {
+      "evidence_note": "证据文档第 5、6 节：跳转目标为 0xa001b044",
+      "evidence_path": "knowledge/AP01-官方固件分析/cases/2026-07-27-系统设置菜单首尾循环静态定位.md",
+      "expected_before_hex": "83c71400",
+      "length": 4,
+      "name": "左旋状态挂接",
+      "objective": "把系统设置左旋状态检查交给版本限定处理",
+      "offset": 1021802,
+      "offset_hex": "0xf976a",
+      "region_kind": "application-code",
+      "replacement_hex": "6f20b28d",
+      "runtime_address_hex": "0xa00f876a"
+    }
+  ],
+  "review": {
+    "approval_required": "用户必须明确批准证据文档中的 3 个精确区间，才能另行形成允许离线构建的清单",
+    "code_gap": {
+      "end_exclusive_hex": "0x1c100",
+      "start_hex": "0x1c008",
+      "total_zero_bytes": 248,
+      "used_bytes": 118
+    },
+    "firmware_output_allowed": false,
+    "logging_changed": false,
+    "patch_count": 3,
+    "preserved_log_ranges": [
+      {
+        "end_exclusive_hex": "0xf914e",
+        "name": "右旋通用日志",
+        "start_hex": "0xf912c"
+      },
+      {
+        "end_exclusive_hex": "0xf918c",
+        "name": "右旋系统设置日志",
+        "start_hex": "0xf9172"
+      },
+      {
+        "end_exclusive_hex": "0xf971a",
+        "name": "左旋通用日志",
+        "start_hex": "0xf96f8"
+      },
+      {
+        "end_exclusive_hex": "0xf9758",
+        "name": "左旋系统设置日志",
+        "start_hex": "0xf973e"
+      }
+    ]
+  },
+  "schema_version": 1,
+  "source_validation": {
+    "md5": "469a7329d496f81ae8625c4d76ccf56d",
+    "model": "njcuk.enstor.ap01",
+    "model_offsets": [
+      {
+        "offset": 19784,
+        "offset_hex": "0x4d48"
+      },
+      {
+        "offset": 1844888,
+        "offset_hex": "0x1c2698"
+      }
+    ],
+    "recovery": {
+      "calculated_crc": "0x7ffd605b",
+      "offset": 6804480,
+      "offset_hex": "0x67d400",
+      "stored_crc": "0x7ffd605b",
+      "stored_length": 6804520
+    },
+    "sha256": "8a721fc8ef25458d415b2460e4a251e0503a82f7743fdff85b12612190e5c1cb",
+    "size": 6804520,
+    "version": "1.0.2_0031"
+  },
+  "status": "draft-awaiting-user-approval",
+  "target": {
+    "baseline_sha256": "8a721fc8ef25458d415b2460e4a251e0503a82f7743fdff85b12612190e5c1cb",
+    "model": "njcuk.enstor.ap01",
+    "version": "1.0.2_0031"
+  },
+  "tool_revision": {
+    "commit": "8a15a0c2edce86539b80768659bd5a676c338266",
+    "scoped_code_dirty": false
+  },
+  "toolchain": {
+    "assembly_sha256": "93b44e0c46a129af9a006d5d744b3ecb30a2f6c471e0236fce98a15c48a71553",
+    "linker_script_sha256": "493a1fe3bcbf192f92a760ff8b96ea85779a8c6d00d5dc65dbf607613d0f7d30",
+    "tools": {
+      "assembler": "GNU assembler (GNU Binutils) 2.46.1",
+      "copier": "GNU objcopy (GNU Binutils) 2.46.1",
+      "disassembler": "GNU objdump (GNU Binutils) 2.46.1",
+      "linker": "GNU ld (GNU Binutils) 2.46.1"
+    },
+    "verified_control_flow": [
+      {
+        "source_hex": "0xa001b012",
+        "target_hex": "0xa00f80d8"
+      },
+      {
+        "source_hex": "0xa001b01e",
+        "target_hex": "0xa00f80d8"
+      },
+      {
+        "source_hex": "0xa001b026",
+        "target_hex": "0xa00f81a2"
+      },
+      {
+        "source_hex": "0xa001b03c",
+        "target_hex": "0xa00f3d5a"
+      },
+      {
+        "source_hex": "0xa001b040",
+        "target_hex": "0xa00f80d8"
+      },
+      {
+        "source_hex": "0xa001b04e",
+        "target_hex": "0xa00f80d8"
+      },
+      {
+        "source_hex": "0xa001b05a",
+        "target_hex": "0xa00f80d8"
+      },
+      {
+        "source_hex": "0xa001b060",
+        "target_hex": "0xa00f876e"
+      },
+      {
+        "source_hex": "0xa001b076",
+        "target_hex": "0xa00f3d5a"
+      },
+      {
+        "source_hex": "0xa001b07a",
+        "target_hex": "0xa00f80d8"
+      },
+      {
+        "source_hex": "0xa00f819e",
+        "target_hex": "0xa001b008"
+      },
+      {
+        "source_hex": "0xa00f876a",
+        "target_hex": "0xa001b044"
+      }
+    ],
+    "version": "2.46.1"
+  }
+}

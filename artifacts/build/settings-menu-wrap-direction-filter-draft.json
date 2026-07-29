@@ -1,0 +1,268 @@
+{
+  "evidence_path": "knowledge/AP01-官方固件分析/cases/2026-07-27-系统设置菜单首尾循环静态定位.md",
+  "patches": [
+    {
+      "evidence_note": "证据文档第 21 节：164 字节处理程序立即同步首尾列表位置",
+      "evidence_path": "knowledge/AP01-官方固件分析/cases/2026-07-27-系统设置菜单首尾循环静态定位.md",
+      "expected_before_hex": "0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+      "length": 164,
+      "name": "首尾循环处理程序",
+      "objective": "在已验证零填充代码间隙中处理动态项目数和首尾循环",
+      "offset": 114696,
+      "offset_hex": "0x1c008",
+      "region_kind": "application-code",
+      "replacement_hex": "03a58900efa09a7daa8a83c71400094763f4ea006fd0cd0b938617fd63f4da006fd00d0b638456016fd02d1703a5890081450146efb03a5c93070003a380f40003a589009385faff0146ef809d506fd02d0803a58900efa07a78aa8a83c71400094763f4ea006fd0ad06938607fd63e456016fd0ed0599c26fd0ed6e03a58900930500190146efb01a579387fa02a380f40003a5890081451386faffef807d4b6fd00d03",
+      "runtime_address_hex": "0xa001b008"
+    },
+    {
+      "evidence_note": "证据文档第 21 节：跳转目标为 0xa001b008",
+      "evidence_path": "knowledge/AP01-官方固件分析/cases/2026-07-27-系统设置菜单首尾循环静态定位.md",
+      "expected_before_hex": "83c71400",
+      "length": 4,
+      "name": "右旋状态挂接",
+      "objective": "把系统设置右旋状态检查交给版本限定处理",
+      "offset": 1020318,
+      "offset_hex": "0xf919e",
+      "region_kind": "application-code",
+      "replacement_hex": "6f20b2e6",
+      "runtime_address_hex": "0xa00f819e"
+    },
+    {
+      "evidence_note": "证据文档第 21 节：跳转目标为 0xa001b05a",
+      "evidence_path": "knowledge/AP01-官方固件分析/cases/2026-07-27-系统设置菜单首尾循环静态定位.md",
+      "expected_before_hex": "83c71400",
+      "length": 4,
+      "name": "左旋状态挂接",
+      "objective": "把系统设置左旋状态检查交给版本限定处理",
+      "offset": 1021802,
+      "offset_hex": "0xf976a",
+      "region_kind": "application-code",
+      "replacement_hex": "6f20128f",
+      "runtime_address_hex": "0xa00f876a"
+    },
+    {
+      "evidence_note": "证据文档第 22 节：跳转目标为 0xa0107cbc",
+      "evidence_path": "knowledge/AP01-官方固件分析/cases/2026-07-27-系统设置菜单首尾循环静态定位.md",
+      "expected_before_hex": "a14d",
+      "length": 2,
+      "name": "中途反向边沿过滤",
+      "objective": "忽略活动旋转步骤中的相反方向边沿，不强制上报反方向",
+      "offset": 1084960,
+      "offset_hex": "0x108e20",
+      "region_kind": "application-code",
+      "replacement_hex": "71bd",
+      "runtime_address_hex": "0xa0107e20"
+    }
+  ],
+  "review": {
+    "approval_required": "用户必须明确批准证据文档中的 4 个精确区间，才能另行形成允许离线构建的清单",
+    "code_gap": {
+      "end_exclusive_hex": "0x1c100",
+      "start_hex": "0x1c008",
+      "total_zero_bytes": 248,
+      "used_bytes": 164
+    },
+    "firmware_output_allowed": false,
+    "logging_behavior_change": "被过滤的中途反向边沿不再执行原厂强制完成日志；日志正文和日志调用代码字节保持不变",
+    "logging_changed": true,
+    "patch_count": 4,
+    "preserved_log_ranges": [
+      {
+        "end_exclusive_hex": "0xf914e",
+        "name": "右旋通用日志",
+        "start_hex": "0xf912c"
+      },
+      {
+        "end_exclusive_hex": "0xf918c",
+        "name": "右旋系统设置日志",
+        "start_hex": "0xf9172"
+      },
+      {
+        "end_exclusive_hex": "0xf971a",
+        "name": "左旋通用日志",
+        "start_hex": "0xf96f8"
+      },
+      {
+        "end_exclusive_hex": "0xf9758",
+        "name": "左旋系统设置日志",
+        "start_hex": "0xf973e"
+      },
+      {
+        "end_exclusive_hex": "0x108e52",
+        "name": "旋钮顺时针方向变化日志调用",
+        "start_hex": "0x108e30"
+      },
+      {
+        "end_exclusive_hex": "0x108f40",
+        "name": "旋钮逆时针方向变化日志调用",
+        "start_hex": "0x108f22"
+      },
+      {
+        "end_exclusive_hex": "0x523f4c",
+        "name": "旋钮方向变化日志正文",
+        "start_hex": "0x523ed8"
+      }
+    ]
+  },
+  "schema_version": 1,
+  "source_validation": {
+    "md5": "469a7329d496f81ae8625c4d76ccf56d",
+    "model": "njcuk.enstor.ap01",
+    "model_offsets": [
+      {
+        "offset": 19784,
+        "offset_hex": "0x4d48"
+      },
+      {
+        "offset": 1844888,
+        "offset_hex": "0x1c2698"
+      }
+    ],
+    "recovery": {
+      "calculated_crc": "0x7ffd605b",
+      "offset": 6804480,
+      "offset_hex": "0x67d400",
+      "stored_crc": "0x7ffd605b",
+      "stored_length": 6804520
+    },
+    "sha256": "8a721fc8ef25458d415b2460e4a251e0503a82f7743fdff85b12612190e5c1cb",
+    "size": 6804520,
+    "version": "1.0.2_0031"
+  },
+  "status": "draft-awaiting-user-approval",
+  "target": {
+    "baseline_sha256": "8a721fc8ef25458d415b2460e4a251e0503a82f7743fdff85b12612190e5c1cb",
+    "model": "njcuk.enstor.ap01",
+    "version": "1.0.2_0031"
+  },
+  "tool_revision": {
+    "commit": "be57529d67fade4d070e22a1c372a48804c0f2c8",
+    "scoped_code_dirty": false
+  },
+  "toolchain": {
+    "assembly_sha256": "a81b22ae77e5cade92ca19b6cc8b8528d2ad9aa09c5926f8dfe66c4de3e58fd4",
+    "encoder_assembly_sha256": "90373f9cf720030bbc447bf6acf9a2af9f330c612439400c29e7089a667ab420",
+    "linker_script_sha256": "f69a9927f7056f0aacf88eb6556bb9e8258e29223414e735d97c150551f22393",
+    "tools": {
+      "assembler": "GNU assembler (GNU Binutils) 2.46.1",
+      "copier": "GNU objcopy (GNU Binutils) 2.46.1",
+      "disassembler": "GNU objdump (GNU Binutils) 2.46.1",
+      "linker": "GNU ld (GNU Binutils) 2.46.1"
+    },
+    "verified_control_flow": [
+      {
+        "source_hex": "0xa001b00c",
+        "target_hex": "0xa00c5fe4"
+      },
+      {
+        "source_hex": "0xa001b01c",
+        "target_hex": "0xa00f80d8"
+      },
+      {
+        "source_hex": "0xa001b028",
+        "target_hex": "0xa00f80d8"
+      },
+      {
+        "source_hex": "0xa001b030",
+        "target_hex": "0xa00f81a2"
+      },
+      {
+        "source_hex": "0xa001b03c",
+        "target_hex": "0xa00c6dfe"
+      },
+      {
+        "source_hex": "0xa001b052",
+        "target_hex": "0xa00f3d5a"
+      },
+      {
+        "source_hex": "0xa001b056",
+        "target_hex": "0xa00f80d8"
+      },
+      {
+        "source_hex": "0xa001b05e",
+        "target_hex": "0xa00c5fe4"
+      },
+      {
+        "source_hex": "0xa001b06e",
+        "target_hex": "0xa00f80d8"
+      },
+      {
+        "source_hex": "0xa001b07a",
+        "target_hex": "0xa00f80d8"
+      },
+      {
+        "source_hex": "0xa001b080",
+        "target_hex": "0xa00f876e"
+      },
+      {
+        "source_hex": "0xa001b08e",
+        "target_hex": "0xa00c6dfe"
+      },
+      {
+        "source_hex": "0xa001b0a4",
+        "target_hex": "0xa00f3d5a"
+      },
+      {
+        "source_hex": "0xa001b0a8",
+        "target_hex": "0xa00f80d8"
+      },
+      {
+        "source_hex": "0xa00f819e",
+        "target_hex": "0xa001b008"
+      },
+      {
+        "source_hex": "0xa00f876a",
+        "target_hex": "0xa001b05a"
+      },
+      {
+        "source_hex": "0xa0107e20",
+        "target_hex": "0xa0107cbc"
+      }
+    ],
+    "verified_list_count_loads": [
+      {
+        "address_hex": "0xa001b008",
+        "operands": "x10,8(x19)"
+      },
+      {
+        "address_hex": "0xa001b010",
+        "operands": "x21,x10"
+      },
+      {
+        "address_hex": "0xa001b05a",
+        "operands": "x10,8(x19)"
+      },
+      {
+        "address_hex": "0xa001b062",
+        "operands": "x21,x10"
+      }
+    ],
+    "verified_position_sync_setup": [
+      {
+        "address_hex": "0xa001b034",
+        "operands": "x10,8(x19)"
+      },
+      {
+        "address_hex": "0xa001b038",
+        "operands": "x11,0"
+      },
+      {
+        "address_hex": "0xa001b03a",
+        "operands": "x12,0"
+      },
+      {
+        "address_hex": "0xa001b084",
+        "operands": "x10,8(x19)"
+      },
+      {
+        "address_hex": "0xa001b088",
+        "operands": "x11,x0,400"
+      },
+      {
+        "address_hex": "0xa001b08c",
+        "operands": "x12,0"
+      }
+    ],
+    "version": "2.46.1"
+  }
+}

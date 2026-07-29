@@ -1,0 +1,40 @@
+
+Merging object attributes
+
+
+Discarded input sections
+
+ .riscv.attributes
+                0x00000000       0x4c /Users/mac/Desktop/cuktech-ap01-firmware-tools/artifacts/build/agents-page-registration/page-registration.o
+
+Memory Configuration
+
+Name             Origin             Length             Attributes
+PAYLOAD          0xa05f59b0         0x000027c4         xr
+*default*        0x00000000         0xffffffff
+
+Linker script and memory map
+
+                0xa00c1ec6                        PROVIDE (lv_obj_create = 0xa00c1ec6)
+                0xa00c0060                        PROVIDE (lv_obj_set_size = 0xa00c0060)
+
+.payload        0xa05f59b0       0x30
+ *(.payload)
+ .payload       0xa05f59b0       0x30 /Users/mac/Desktop/cuktech-ap01-firmware-tools/artifacts/build/agents-page-registration/page-registration.o
+                0xa05f59b0                ap01_agents_page_register
+
+.text           0xa05f59e0        0x0
+ .text          0xa05f59e0        0x0 /Users/mac/Desktop/cuktech-ap01-firmware-tools/artifacts/build/agents-page-registration/page-registration.o
+
+.data           0xa05f59e0        0x0
+ .data          0xa05f59e0        0x0 /Users/mac/Desktop/cuktech-ap01-firmware-tools/artifacts/build/agents-page-registration/page-registration.o
+
+.bss            0xa05f59e0        0x0
+ .bss           0xa05f59e0        0x0 /Users/mac/Desktop/cuktech-ap01-firmware-tools/artifacts/build/agents-page-registration/page-registration.o
+
+/DISCARD/
+ *(.comment)
+ *(.note*)
+ *(.riscv.attributes)
+LOAD /Users/mac/Desktop/cuktech-ap01-firmware-tools/artifacts/build/agents-page-registration/page-registration.o
+OUTPUT(/Users/mac/Desktop/cuktech-ap01-firmware-tools/artifacts/build/agents-page-registration/page-registration.elf elf32-littleriscv)

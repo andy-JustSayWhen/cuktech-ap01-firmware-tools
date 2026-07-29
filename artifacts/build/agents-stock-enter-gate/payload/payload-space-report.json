@@ -1,0 +1,46 @@
+{
+  "checked_at_beijing": "2026-07-29T05:10:33+08:00",
+  "gates": {
+    "independent_decoder_equivalent": true,
+    "linked_payload_fits": false,
+    "optimizer_output_deterministic": true,
+    "patch_plan_allowed": false,
+    "payload_candidate_space_ready": true,
+    "pixel_and_timing_equivalent": true,
+    "reason": "设备端载荷尚未完成链接、符号、重定位和调用检查",
+    "resource_identity_matches": true
+  },
+  "payload_space": {
+    "aligned": true,
+    "capacity": 60934,
+    "end_exclusive": "0x2563d6",
+    "start": "0x2475d0"
+  },
+  "report_type": "firmware-payload-space-inspection",
+  "resource": {
+    "data_offset": "0x1f80ac",
+    "data_pointer": "0xa01f70ac",
+    "descriptor_offset": "0x1f8090",
+    "frame_count": 41,
+    "height": 240,
+    "independent_decoder_equivalent": true,
+    "loop": 0,
+    "optimized_sha256": "d574246a17af026384688799eff1a289ce670cd1c396d7ab799a100d8a3c806b",
+    "optimized_size": 324886,
+    "original_sha256": "5e656788665f7f0022b0b5500d569a8aae07f4a46b080d033b3cacfa4abc940d",
+    "original_size": 385834,
+    "pixel_and_timing_equivalent": true,
+    "width": 320
+  },
+  "schema_version": 1,
+  "stage_input": {
+    "path": "/Users/mac/Desktop/cuktech-ap01-firmware-tools/artifacts/firmware/opt-setting.bin",
+    "read_only": true
+  },
+  "tool": {
+    "commit": "ae1e8d5f226a93150fd2d7a21135425a96790fb3",
+    "ffmpeg": "ffmpeg version 8.1.1",
+    "gifsicle": "LCDF Gifsicle 1.96",
+    "scoped_code_dirty": false
+  }
+}

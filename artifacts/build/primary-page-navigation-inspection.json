@@ -1,0 +1,142 @@
+{
+  "checked_at_beijing": "2026-07-28T16:49:58+08:00",
+  "control_calls": [
+    {
+      "file_offset": "0x0b348a",
+      "instruction_hex": "eff0501b",
+      "name": "创建一级窗口容器",
+      "source_address": "0xa00b248a",
+      "target_address": "0xa00c1e3e"
+    },
+    {
+      "file_offset": "0x0b37b0",
+      "instruction_hex": "ef305103",
+      "name": "初始化统计窗口数量",
+      "source_address": "0xa00b27b0",
+      "target_address": "0xa00c5fe4"
+    },
+    {
+      "file_offset": "0x0b1934",
+      "instruction_hex": "eff0df95",
+      "name": "导航读取当前序号一",
+      "source_address": "0xa00b0934",
+      "target_address": "0xa00b0290"
+    },
+    {
+      "file_offset": "0x0b193e",
+      "instruction_hex": "eff07fdb",
+      "name": "导航按序号切换",
+      "source_address": "0xa00b093e",
+      "target_address": "0xa00b06f4"
+    },
+    {
+      "file_offset": "0x0b1962",
+      "instruction_hex": "eff0ff92",
+      "name": "左向再次读取当前序号",
+      "source_address": "0xa00b0962",
+      "target_address": "0xa00b0290"
+    },
+    {
+      "file_offset": "0x0b1974",
+      "instruction_hex": "eff0dfbf",
+      "name": "左向读取窗口数量",
+      "source_address": "0xa00b0974",
+      "target_address": "0xa00b0570"
+    },
+    {
+      "file_offset": "0x0b1982",
+      "instruction_hex": "eff0ff90",
+      "name": "右向读取当前序号",
+      "source_address": "0xa00b0982",
+      "target_address": "0xa00b0290"
+    },
+    {
+      "file_offset": "0x0b1990",
+      "instruction_hex": "eff01fbe",
+      "name": "右向读取窗口数量",
+      "source_address": "0xa00b0990",
+      "target_address": "0xa00b0570"
+    }
+  ],
+  "display_process_entry": "0xa00b2420",
+  "gates": {
+    "dynamic_navigation_evidence_ready": true,
+    "page_registration_evidence_ready": true,
+    "patch_plan_allowed": false,
+    "payload_space_proven": false,
+    "reason": "新增载荷所在文件区间尚未证明未使用且可执行",
+    "stage_regions_preserved": true
+  },
+  "original": {
+    "path": "/Users/mac/Desktop/cuktech-ap01-firmware-tools/artifacts/firmware/original/ap01-1.0.2_0031.bin",
+    "sha256": "8a721fc8ef25458d415b2460e4a251e0503a82f7743fdff85b12612190e5c1cb"
+  },
+  "page_hook_candidate": {
+    "before_window_count_commit": true,
+    "file_offset": "0x0b3752",
+    "original_hex": "930500142685efd0",
+    "runtime_address": "0xa00b2752"
+  },
+  "report_type": "primary-page-navigation-inspection",
+  "schema_version": 1,
+  "stage_input": {
+    "checked_regions_identical_to_original": true,
+    "path": "/Users/mac/Desktop/cuktech-ap01-firmware-tools/artifacts/firmware/opt-setting.bin",
+    "sha256": "348d0843ac3f3f380eb155170c4104fd8467a018ddfd13670d67be998f269dc1"
+  },
+  "tool": {
+    "commit": "c1caf5af4b5843da0316513348b8b17bc69e2c32",
+    "scoped_code_dirty": true
+  },
+  "window_create_calls": [
+    {
+      "file_offset": "0x0b3602",
+      "instruction_hex": "eff0500c",
+      "name": "功率窗口对象",
+      "source_address": "0xa00b2602",
+      "target_address": "0xa00c1ec6"
+    },
+    {
+      "file_offset": "0x0b3696",
+      "instruction_hex": "eff01003",
+      "name": "时间窗口对象",
+      "source_address": "0xa00b2696",
+      "target_address": "0xa00c1ec6"
+    },
+    {
+      "file_offset": "0x0b36b4",
+      "instruction_hex": "eff03001",
+      "name": "日期窗口对象",
+      "source_address": "0xa00b26b4",
+      "target_address": "0xa00c1ec6"
+    },
+    {
+      "file_offset": "0x0b36d4",
+      "instruction_hex": "eff0207f",
+      "name": "天气窗口对象",
+      "source_address": "0xa00b26d4",
+      "target_address": "0xa00c1ec6"
+    },
+    {
+      "file_offset": "0x0b36f4",
+      "instruction_hex": "eff0207d",
+      "name": "设置窗口对象",
+      "source_address": "0xa00b26f4",
+      "target_address": "0xa00c1ec6"
+    },
+    {
+      "file_offset": "0x0b3714",
+      "instruction_hex": "eff0207b",
+      "name": "萌宠窗口对象",
+      "source_address": "0xa00b2714",
+      "target_address": "0xa00c1ec6"
+    },
+    {
+      "file_offset": "0x0b3734",
+      "instruction_hex": "eff02079",
+      "name": "米家详情对象",
+      "source_address": "0xa00b2734",
+      "target_address": "0xa00c1ec6"
+    }
+  ]
+}

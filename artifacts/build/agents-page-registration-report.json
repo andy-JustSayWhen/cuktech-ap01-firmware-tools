@@ -1,0 +1,66 @@
+{
+  "built_at_beijing": "2026-07-28T17:02:22+08:00",
+  "draft_modifications": [
+    {
+      "expected_before_hex": "5285eff02079",
+      "name": "AGENTS 页面注册挂接",
+      "offset": "0x0b3732",
+      "replacement_hex": "ef80b6970100"
+    },
+    {
+      "expected_before_hex": "0000000000000000",
+      "name": "AGENTS 页面绝对跳板",
+      "offset": "0x01c0ac",
+      "replacement_hex": "b7625fa06780029b"
+    },
+    {
+      "length": 48,
+      "name": "AGENTS 页面注册载荷",
+      "offset": "0x5f69b0",
+      "replacement_sha256": "d2d9898a712b3267b5e940cbcfdca4e1ff01521ed67db60e6781f1d54495f503"
+    }
+  ],
+  "gates": {
+    "entry_matches": true,
+    "firmware_output_allowed": false,
+    "hook_old_bytes_match": true,
+    "payload_fits": true,
+    "reason": "当前只完成独立页面根对象注册载荷，尚未完成画面、详情事件和刷新",
+    "relocations_zero": true,
+    "required_callees_present": true,
+    "trampoline_space_zero": true
+  },
+  "input": {
+    "path": "/Users/mac/Desktop/cuktech-ap01-firmware-tools/artifacts/firmware/opt-setting.bin",
+    "read_only": true
+  },
+  "payload": {
+    "capacity": 10180,
+    "file": "/Users/mac/Desktop/cuktech-ap01-firmware-tools/artifacts/build/agents-page-registration/page-registration.bin",
+    "file_offset": "0x5f69b0",
+    "relocations": 0,
+    "remaining": 10132,
+    "required_callees": [
+      "0xa00c1ec6",
+      "0xa00c0060"
+    ],
+    "runtime_address": "0xa05f59b0",
+    "sha256": "d2d9898a712b3267b5e940cbcfdca4e1ff01521ed67db60e6781f1d54495f503",
+    "size": 48
+  },
+  "report_type": "agents-page-registration-payload",
+  "schema_version": 1,
+  "status": "draft-not-approved-for-firmware-output",
+  "tool": {
+    "commit": "58b489cda706c049a812caddc18a387e53264ee5",
+    "scoped_code_dirty": true,
+    "versions": {
+      "riscv64-elf-as": "GNU assembler (GNU Binutils) 2.46.1",
+      "riscv64-elf-ld": "GNU ld (GNU Binutils) 2.46.1",
+      "riscv64-elf-nm": "GNU nm (GNU Binutils) 2.46.1",
+      "riscv64-elf-objcopy": "GNU objcopy (GNU Binutils) 2.46.1",
+      "riscv64-elf-objdump": "GNU objdump (GNU Binutils) 2.46.1",
+      "riscv64-elf-readelf": "GNU readelf (GNU Binutils) 2.46.1"
+    }
+  }
+}
