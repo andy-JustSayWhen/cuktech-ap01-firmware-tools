@@ -34,8 +34,8 @@ from features.agents_dashboard_firmware.build import (
 from features.agents_dashboard_firmware.sync_build import (
     INSTRUCTION_EXPECTED,
     LOADER_SOURCE,
-    OPT_INTEGRATION_OUTPUT_FILENAME,
     OPT_PAGE_FILTER_HOOK,
+    OPT_REWRITE_OUTPUT_FILENAME,
     PET_STATE_SIZE_EXTENDED,
     PET_STATE_SIZE_OFFSET,
     PET_STATE_SIZE_ORIGINAL,
@@ -56,9 +56,8 @@ from features.agents_dashboard_firmware.sync_build import (
     build_sync_payload,
     decode_agents_state,
     encode_agents_state,
-    route_stock_callchain,
-    route_stock_enter_gate,
-    validate_stock_callchain_routes,
+    route_stock_local_branch,
+    validate_stock_local_branch_routes,
 )
 from features.primary_page_settings import (
     REQUIRED_SYMBOLS as PAGE_SETTINGS_SYMBOLS,
@@ -228,14 +227,12 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
         self.assertEqual(
             payload.route_validation,
             {
-                "dispatch_key_cases": 27,
-                "gate_dispatch_key_cases": 27,
-                "gate_stock_direct_cases": 14,
-                "gate_wrapped_cases": 13,
+                "local_branch_state_cases": 15,
                 "detail_rotation_cases": 6,
+                "disabled_page_cases": 2,
                 "invalid_tail_cases": 5,
                 "valid_tail_cases": 5,
-                "switch_failure_recovery_cases": 3,
+                "switch_failure_recovery_cases": 2,
                 "gif_failure_recovery_cases": 2,
                 "lifecycle_recovery_cases": 2,
             },
@@ -246,7 +243,7 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
         )
         self.assertTrue(
             manifest_document["validation"][
-                "four_local_branch_targets_verified"
+                "three_local_branch_targets_verified"
             ]
         )
         self.assertTrue(
@@ -261,11 +258,15 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
         )
         callchain_gates = manifest_document["callchain_gates"]
         self.assertEqual(
-            callchain_gates["route_validation"]["dispatch_key_cases"],
-            27,
+            callchain_gates["route_validation"]["local_branch_state_cases"],
+            15,
         )
         self.assertIn(
-            "switch_failure_restore_call",
+            "retired_total_key_wrapper_absent",
+            callchain_gates["disassembly"],
+        )
+        self.assertIn(
+            "retired_window_navigation_absent",
             callchain_gates["disassembly"],
         )
         self.assertIn(
@@ -375,43 +376,15 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
             "# a00c5d84 <lv_obj_get_child>",
             "# a00c5fe4 <lv_obj_get_child_count>",
             "# a00b0290 <window_get_active>",
+            "# a00b0570 <window_get_count>",
             "# a00b06f4 <window_set_active>",
+            "# a00bbfee <stock_key_event>",
             "# a007e1c4 <malloc>",
             "# a007c256 <free>",
         ):
             self.assertNotIn(forbidden, disassembly)
-        key_event = disassembly.split("<ap01_agents_key_event>:", 1)[1].split(
-            "<ap01_agents_stock_power_left_entry>:", 1
-        )[0]
-        self.assertIn("<ap01_agents_find_pet_state>", key_event)
-        self.assertIn("<stock_get_dispatch_index>", key_event)
-        self.assertIn("<stock_switch_page>", key_event)
-        self.assertIn("<ap01_agents_stock_passthrough>", key_event)
-        self.assertNotIn("52(s1)", key_event)
-        self.assertNotIn("56(s1)", key_event)
-        self.assertNotIn("60(s1)", key_event)
-        self.assertIn("<stock_key_event>", key_event)
-        fast_gate = disassembly.split(
-            "<ap01_agents_key_event>:", 1
-        )[1].split("<ap01_agents_wrapped_key_event>:", 1)[0]
-        self.assertNotIn("addi\tsp", fast_gate)
-        self.assertNotIn("sw\t", fast_gate)
-        self.assertNotIn("call", fast_gate)
-        self.assertIn("52(t1)", fast_gate)
-        self.assertIn("<ap01_agents_fast_stock_passthrough>", fast_gate)
-        self.assertGreaterEqual(
-            fast_gate.count("<ap01_agents_wrapped_key_event>"),
-            2,
-        )
-        self.assertNotIn("<ap01_agents_page_register>", fast_gate)
-        fast_passthrough = disassembly.split(
-            "<ap01_agents_fast_stock_passthrough>:", 1
-        )[1].split("<ap01_agents_stock_power_left_entry>:", 1)[0]
-        self.assertIn("<stock_key_event>", fast_passthrough)
-        self.assertNotIn("lw\t", fast_passthrough)
-        self.assertNotIn("sw\t", fast_passthrough)
         local_branches = disassembly.split(
-            "<ap01_agents_stock_power_left_entry>:", 1
+            "<ap01_agents_stock_pet_left_entry>:", 1
         )[1].split("<ap01_agents_show_page>:", 1)[0]
         for marker in (
             "<ap01_agents_find_pet_state>",
@@ -419,7 +392,6 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
             "<ap01_agents_show_page>",
             "<ap01_agents_restore_pet>",
             "<stock_switch_page>",
-            "<stock_power_left_resume>",
             "<stock_pet_left_resume>",
             "<stock_pet_right_resume>",
             "<stock_pet_enter_resume>",
@@ -427,6 +399,8 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
         ):
             self.assertIn(marker, local_branches)
         self.assertNotIn("<stock_key_event>", local_branches)
+        self.assertNotIn("<ap01_agents_key_event>:", disassembly)
+        self.assertNotIn("<ap01_agents_stock_power_left_entry>:", disassembly)
         state_write = disassembly.split(
             "<ap01_agents_state_write>:", 1
         )[1].split("<ap01_agents_find_pet_state>:", 1)[0]
@@ -434,55 +408,50 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
         for offset in (0, 4, 8, 12):
             self.assertNotIn(f"{offset}(a0)", state_write)
         find_state = disassembly.split("<ap01_agents_find_pet_state>:", 1)[1].split(
-            "<ap01_agents_key_event>:", 1
+            "<ap01_agents_stock_pet_left_entry>:", 1
         )[0]
         self.assertIn("li\ta1,7", find_state)
         self.assertIn("# a00be3ca <stock_get_child>", find_state)
         self.assertIn("16(a0)", find_state)
         self.assertIn("4(t0)", find_state)
 
-    def test_stock_callchain_routes_all_dispatch_key_pairs(self) -> None:
-        report = validate_stock_callchain_routes()
-        self.assertEqual(report["dispatch_key_cases"], 27)
-        self.assertEqual(report["gate_dispatch_key_cases"], 27)
-        self.assertEqual(report["gate_stock_direct_cases"], 14)
-        self.assertEqual(report["gate_wrapped_cases"], 13)
-        for dispatch in (1, 2, 8):
-            for key in (19, 20, 10):
-                self.assertEqual(
-                    route_stock_callchain(dispatch, key, 1).action,
-                    "stock-callback",
-                )
-                self.assertEqual(
-                    route_stock_enter_gate(dispatch, key),
-                    "stock-direct",
-                )
-        for dispatch in (0, 3, 4, 5, 6):
-            self.assertEqual(
-                route_stock_callchain(dispatch, 10, 1).action,
-                "stock-callback",
-            )
-            self.assertEqual(
-                route_stock_enter_gate(dispatch, 10),
-                "stock-direct",
-            )
-        self.assertEqual(route_stock_enter_gate(7, 10), "wrapped")
+    def test_stock_local_branches_cover_all_states(self) -> None:
+        report = validate_stock_local_branch_routes()
+        self.assertEqual(report["local_branch_state_cases"], 15)
+        self.assertEqual(report["detail_rotation_cases"], 6)
+        self.assertEqual(report["disabled_page_cases"], 2)
         self.assertEqual(
-            route_stock_callchain(7, 10, 1).target_state,
+            route_stock_local_branch("pet-left", 0).action,
+            "stock-resume",
+        )
+        self.assertEqual(
+            route_stock_local_branch("pet-right", 0).target_state,
+            1,
+        )
+        self.assertEqual(
+            route_stock_local_branch("pet-enter", 1).target_state,
             2,
         )
         for state in (2, 3, 4):
             self.assertEqual(
-                route_stock_callchain(7, 10, state).target_state,
+                route_stock_local_branch("pet-enter", state).target_state,
                 1,
             )
         self.assertEqual(
-            route_stock_callchain(7, 19, None).target_dispatch,
+            route_stock_local_branch(
+                "pet-left",
+                1,
+                pet_enabled=False,
+            ).target_dispatch,
             6,
         )
         self.assertEqual(
-            route_stock_callchain(7, 20, None).target_state,
-            1,
+            route_stock_local_branch(
+                "pet-right",
+                0,
+                agents_enabled=False,
+            ).action,
+            "stock-resume",
         )
 
     def test_full_integration_candidate_uses_local_page_filter(self) -> None:
@@ -503,7 +472,7 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
                 assembler=Path(assembler),
                 compiler=Path(compiler),
             )
-            output = root / OPT_INTEGRATION_OUTPUT_FILENAME
+            output = root / OPT_REWRITE_OUTPUT_FILENAME
             manifest = root / "manifest.json"
             result = build_sync_firmware(
                 self.stage,
@@ -517,7 +486,7 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
                 extra_objects=settings.objects,
                 required_extra_symbols=PAGE_SETTINGS_SYMBOLS,
                 candidate_mutators=(apply_page_settings_patches,),
-                expected_output_name=OPT_INTEGRATION_OUTPUT_FILENAME,
+                expected_output_name=OPT_REWRITE_OUTPUT_FILENAME,
                 implemented_scope_extra=("一级导航跳过关闭页面",),
                 reuse_stock_pet=True,
             )
@@ -533,7 +502,7 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
 
         self.assertEqual(
             document["manifest_type"],
-            "opt-integration-candidate-firmware",
+            "opt-rewrite-candidate-firmware",
         )
         self.assertEqual(
             document["status"],
@@ -543,7 +512,7 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
         self.assertTrue(
             document["validation"]["page_filter_switch_call_verified"]
         )
-        self.assertEqual(len(document["callchain_gates"]["local_branch_hooks"]), 5)
+        self.assertEqual(len(document["callchain_gates"]["local_branch_hooks"]), 4)
         self.assertEqual(result.sha256, document["output"]["sha256"])
         self.assertEqual(
             output_bytes[MENU_LIMIT_OFFSET : MENU_LIMIT_OFFSET + 2],
@@ -567,6 +536,17 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
         self.assertIn(f"<{symbol}>:", disassembly)
         self.assertIn("<ap01_page_settings_load_mask>", disassembly)
         self.assertIn("<stock_switch_page>", disassembly)
+        self.assertIn("<stock_get_dispatch_index>", disassembly)
+        self.assertIn("<ap01_agents_restore_pet>", disassembly)
+        self.assertNotIn("<ap01_agents_key_event>:", disassembly)
+        self.assertNotIn("<ap01_primary_page_navigation_event>:", disassembly)
+        for retired_address in (
+            "# a00b0290",
+            "# a00b0570",
+            "# a00b06f4",
+            "# a00bbfee",
+        ):
+            self.assertNotIn(retired_address, disassembly.lower())
 
     def test_independent_tail_detects_all_defined_corruption_classes(self) -> None:
         for state in range(5):

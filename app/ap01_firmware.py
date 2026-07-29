@@ -23,7 +23,7 @@ from features.agents_dashboard_firmware import (
     AgentsDashboardFirmwareError,
     CONFIRM_COMPAT_OUTPUT_FILENAME,
     DETAIL_COMPAT_OUTPUT_FILENAME,
-    OPT_INTEGRATION_OUTPUT_FILENAME,
+    OPT_REWRITE_OUTPUT_FILENAME,
     PET_OVERLAY_OUTPUT_FILENAME,
     STOCK_CALLCHAIN_OUTPUT_FILENAME,
     STOCK_DISPATCH_OUTPUT_FILENAME,
@@ -306,7 +306,7 @@ def _parser() -> argparse.ArgumentParser:
 
     stock_local_branches_command = commands.add_parser(
         "agents-stock-local-branches-build",
-        help="生成只挂接原厂四个局部分支的 AGENTS 离线观察固件",
+        help="生成只挂接原厂三个萌宠局部分支的 AGENTS 离线观察固件",
     )
     stock_local_branches_command.add_argument(
         "--input", type=Path, required=True
@@ -889,7 +889,7 @@ def main(argv: list[str] | None = None) -> int:
                 extra_objects=settings.objects,
                 required_extra_symbols=PAGE_SETTINGS_SYMBOLS,
                 candidate_mutators=(apply_page_settings_patches,),
-                expected_output_name=OPT_INTEGRATION_OUTPUT_FILENAME,
+                expected_output_name=OPT_REWRITE_OUTPUT_FILENAME,
                 implemented_scope_extra=(
                     "设置菜单新增开关一级页面",
                     "六个一级页面复选状态",

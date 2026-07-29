@@ -97,6 +97,9 @@ STOCK_LOCAL_BRANCHES_OUTPUT_FILENAME = (
 OPT_INTEGRATION_OUTPUT_FILENAME = (
     "ap01-1.0.2_0031-opt-integration-candidate.bin"
 )
+OPT_REWRITE_OUTPUT_FILENAME = (
+    "ap01-1.0.2_0031-opt-rewrite-candidate.bin"
+)
 XIP_DELTA = 0x9FFFF000
 PET_STATE_SIZE_OFFSET = 0x0B502C
 PET_STATE_SIZE_ORIGINAL = bytes.fromhex("4145")
@@ -106,17 +109,9 @@ LOADER_TRAMPOLINE_VA = XIP_DELTA + LOADER_TRAMPOLINE_OFFSET
 LOADER_TRAMPOLINE_ORIGINAL = b"\x00" * 8
 STOCK_LOCAL_BRANCH_HOOKS = (
     (
-        0x0BD336,
-        bytes.fromhex("81452685"),
-        0x01C0BC,
-        "ap01_agents_stock_power_left_entry",
-        0xA00BC33A,
-        "功率左旋",
-    ),
-    (
         0x0BD460,
         bytes.fromhex("9d452685"),
-        0x01C0C4,
+        0x01C0BC,
         "ap01_agents_stock_pet_left_entry",
         0xA00BC464,
         "萌宠左旋",
@@ -124,7 +119,7 @@ STOCK_LOCAL_BRANCH_HOOKS = (
     (
         0x0BD712,
         bytes.fromhex("9d452685"),
-        0x01C0CC,
+        0x01C0C4,
         "ap01_agents_stock_pet_right_entry",
         0xA00BC716,
         "萌宠右旋",
@@ -132,7 +127,7 @@ STOCK_LOCAL_BRANCH_HOOKS = (
     (
         0x0BEA64,
         bytes.fromhex("26859d45"),
-        0x01C0D4,
+        0x01C0CC,
         "ap01_agents_stock_pet_enter_entry",
         0xA00BDA68,
         "萌宠确认",
@@ -141,7 +136,7 @@ STOCK_LOCAL_BRANCH_HOOKS = (
 OPT_PAGE_FILTER_HOOK = (
     0x0BD092,
     bytes.fromhex("ef30d01b"),
-    0x01C0DC,
+    0x01C0D4,
     "ap01_primary_page_filter_and_switch",
     0xA00BC096,
     "一级切页过滤",
@@ -192,7 +187,6 @@ INSTRUCTION_EXPECTED = {
 }
 REQUIRED_SYMBOLS = (
     "ap01_agents_page_register",
-    "ap01_agents_key_event",
     "ap01_agents_sink",
     "ap01_agents_webclient_wrapper",
     "ap01_agents_apply_current",
@@ -232,7 +226,9 @@ STOCK_PET_FORBIDDEN_CALLEES = (
     0xA00C5D84,
     0xA00C5FE4,
     0xA00B0290,
+    0xA00B0570,
     0xA00B06F4,
+    0xA00BBFEE,
     0xA007E1C4,
     0xA007C256,
 )
@@ -240,15 +236,10 @@ STOCK_PET_REQUIRED_SYMBOLS = (
     "ap01_agents_state_read",
     "ap01_agents_state_write",
     "ap01_agents_find_pet_state",
-    "ap01_agents_wrapped_key_event",
-    "ap01_agents_fast_stock_passthrough",
-    "ap01_agents_switch_failed",
-    "ap01_agents_stock_passthrough",
     "ap01_agents_show_failed",
     "ap01_agents_show_page",
     "ap01_agents_restore_pet",
     "ap01_agents_detail_active",
-    "ap01_agents_stock_power_left_entry",
     "ap01_agents_stock_pet_left_entry",
     "ap01_agents_stock_pet_right_entry",
     "ap01_agents_stock_pet_enter_entry",
@@ -281,24 +272,11 @@ class SyncFirmwareResult:
 
 
 @dataclass(frozen=True)
-class StockCallchainRoute:
+class StockLocalBranchRoute:
     action: str
     target_dispatch: int | None = None
     target_state: int | None = None
     switch_mode: int | None = None
-
-
-STOCK_CALLCHAIN_SEQUENCE = (0, 3, 4, 5, 6, 7, "agents")
-STOCK_CALLCHAIN_KEYS = (19, 20, 10)
-STOCK_CALLCHAIN_DISPATCHES = frozenset((0, 3, 4, 5, 6, 7))
-
-
-def route_stock_enter_gate(dispatch: int, key: int) -> str:
-    if key == 10:
-        return "wrapped" if dispatch == 7 else "stock-direct"
-    if key in (19, 20) and dispatch in STOCK_CALLCHAIN_DISPATCHES:
-        return "wrapped"
-    return "stock-direct"
 
 
 def encode_agents_state(state: int) -> int:
@@ -318,114 +296,101 @@ def decode_agents_state(encoded: int) -> int | None:
     return state
 
 
-def route_stock_callchain(
-    dispatch: int,
-    key: int,
+def route_stock_local_branch(
+    branch: str,
     agents_state: int | None,
-) -> StockCallchainRoute:
-    if key not in STOCK_CALLCHAIN_KEYS or dispatch not in STOCK_CALLCHAIN_DISPATCHES:
-        return StockCallchainRoute("stock-callback")
-    if key == 10:
-        if dispatch != 7 or agents_state not in (1, 2, 3, 4):
-            return StockCallchainRoute("stock-callback")
-        return StockCallchainRoute(
+    *,
+    pet_enabled: bool = True,
+    agents_enabled: bool = True,
+) -> StockLocalBranchRoute:
+    if branch not in ("pet-left", "pet-right", "pet-enter"):
+        raise ValueError("未知的原厂萌宠局部分支")
+    if agents_state not in range(5):
+        return StockLocalBranchRoute("restore-then-stock")
+
+    if branch == "pet-enter":
+        if agents_state == 0:
+            return StockLocalBranchRoute("stock-resume")
+        return StockLocalBranchRoute(
             "show-agents",
             target_state=2 if agents_state == 1 else 1,
         )
 
-    mode = 2 if key == 19 else 1
-    if dispatch == 7:
-        normalized = agents_state if agents_state in range(5) else 0
-        if normalized in (2, 3, 4):
-            detail_target = {
-                (2, 19): 4,
-                (3, 19): 2,
-                (4, 19): 3,
-                (2, 20): 3,
-                (3, 20): 4,
-                (4, 20): 2,
-            }[(normalized, key)]
-            return StockCallchainRoute(
-                "show-agents",
-                target_state=detail_target,
-            )
-        position = 6 if normalized == 1 else 5
-    else:
-        position = {0: 0, 3: 1, 4: 2, 5: 3, 6: 4}[dispatch]
+    if agents_state in (2, 3, 4):
+        target = {
+            ("pet-left", 2): 4,
+            ("pet-left", 3): 2,
+            ("pet-left", 4): 3,
+            ("pet-right", 2): 3,
+            ("pet-right", 3): 4,
+            ("pet-right", 4): 2,
+        }[(branch, agents_state)]
+        return StockLocalBranchRoute("show-agents", target_state=target)
 
-    target_position = (position - 1) % 7 if key == 19 else (position + 1) % 7
-    target = STOCK_CALLCHAIN_SEQUENCE[target_position]
-    if target == "agents":
-        return StockCallchainRoute(
-            "show-agents",
-            target_dispatch=7 if dispatch != 7 else None,
-            target_state=1,
-            switch_mode=mode if dispatch != 7 else None,
-        )
-    if target == 7:
-        return StockCallchainRoute(
-            "restore-pet",
-            target_dispatch=7 if dispatch != 7 else None,
+    if branch == "pet-left":
+        if agents_state == 0:
+            return StockLocalBranchRoute("stock-resume")
+        if pet_enabled:
+            return StockLocalBranchRoute("restore-pet", target_state=0)
+        return StockLocalBranchRoute(
+            "switch-stock",
+            target_dispatch=6,
             target_state=0,
-            switch_mode=mode if dispatch != 7 else None,
+            switch_mode=2,
         )
-    return StockCallchainRoute(
+
+    if agents_state == 0:
+        if not agents_enabled:
+            return StockLocalBranchRoute("stock-resume")
+        return StockLocalBranchRoute(
+            "show-agents",
+            target_state=1,
+        )
+    return StockLocalBranchRoute(
         "switch-stock",
-        target_dispatch=int(target),
-        target_state=0 if dispatch == 7 and agents_state == 1 else None,
-        switch_mode=mode,
+        target_dispatch=0,
+        target_state=0,
+        switch_mode=1,
     )
 
 
-def validate_stock_callchain_routes() -> dict[str, int]:
+def validate_stock_local_branch_routes() -> dict[str, int]:
+    branches = ("pet-left", "pet-right", "pet-enter")
     matrix = {
-        (dispatch, key): route_stock_callchain(dispatch, key, 0)
-        for dispatch in range(9)
-        for key in STOCK_CALLCHAIN_KEYS
+        (branch, state): route_stock_local_branch(branch, state)
+        for branch in branches
+        for state in range(5)
     }
-    if len(matrix) != 27:
-        raise AgentsDashboardFirmwareError("原厂分派与键值路由组合数不完整")
-    gate_matrix = {
-        (dispatch, key): route_stock_enter_gate(dispatch, key)
-        for dispatch in range(9)
-        for key in STOCK_CALLCHAIN_KEYS
-    }
-    if len(gate_matrix) != 27:
-        raise AgentsDashboardFirmwareError("无栈入口路由组合数不完整")
-    for dispatch in (1, 2, 8):
-        for key in STOCK_CALLCHAIN_KEYS:
-            if matrix[(dispatch, key)].action != "stock-callback":
-                raise AgentsDashboardFirmwareError("原厂内部或条件页没有直接透传")
-            if gate_matrix[(dispatch, key)] != "stock-direct":
-                raise AgentsDashboardFirmwareError("原厂内部或条件页没有无栈透传")
-    for dispatch in (0, 3, 4, 5, 6):
-        if matrix[(dispatch, 10)].action != "stock-callback":
-            raise AgentsDashboardFirmwareError("非萌宠确认没有直接透传")
-        if gate_matrix[(dispatch, 10)] != "stock-direct":
-            raise AgentsDashboardFirmwareError("非萌宠确认没有无栈透传")
-    if gate_matrix[(7, 10)] != "wrapped":
-        raise AgentsDashboardFirmwareError("萌宠确认没有进入 AGENTS 包装")
-    direct_gate_cases = sum(
-        route == "stock-direct" for route in gate_matrix.values()
-    )
-    wrapped_gate_cases = sum(
-        route == "wrapped" for route in gate_matrix.values()
-    )
-    if direct_gate_cases != 14 or wrapped_gate_cases != 13:
-        raise AgentsDashboardFirmwareError("无栈入口路由数量与设计不一致")
-
     expected_details = {
-        (2, 19): 4,
-        (3, 19): 2,
-        (4, 19): 3,
-        (2, 20): 3,
-        (3, 20): 4,
-        (4, 20): 2,
+        ("pet-left", 2): 4,
+        ("pet-left", 3): 2,
+        ("pet-left", 4): 3,
+        ("pet-right", 2): 3,
+        ("pet-right", 3): 4,
+        ("pet-right", 4): 2,
     }
-    for (state, key), target in expected_details.items():
-        route = route_stock_callchain(7, key, state)
+    for (branch, state), target in expected_details.items():
+        route = matrix[(branch, state)]
         if route.action != "show-agents" or route.target_state != target:
             raise AgentsDashboardFirmwareError("AGENTS 三个详情没有首尾循环")
+    if matrix[("pet-left", 0)].action != "stock-resume":
+        raise AgentsDashboardFirmwareError("原厂萌宠左键未保持原继续路径")
+    if matrix[("pet-right", 0)].target_state != 1:
+        raise AgentsDashboardFirmwareError("萌宠右键没有进入 AGENTS 概览")
+    if matrix[("pet-enter", 0)].action != "stock-resume":
+        raise AgentsDashboardFirmwareError("原厂萌宠确认未保持原继续路径")
+    if route_stock_local_branch(
+        "pet-left",
+        1,
+        pet_enabled=False,
+    ).target_dispatch != 6:
+        raise AgentsDashboardFirmwareError("萌宠关闭后的左向目标不正确")
+    if route_stock_local_branch(
+        "pet-right",
+        0,
+        agents_enabled=False,
+    ).action != "stock-resume":
+        raise AgentsDashboardFirmwareError("AGENTS 关闭后没有恢复原厂右键路径")
 
     recovery_words = (
         0,
@@ -442,14 +407,12 @@ def validate_stock_callchain_routes() -> dict[str, int]:
     ):
         raise AgentsDashboardFirmwareError("AGENTS 独立状态编解码不一致")
     return {
-        "dispatch_key_cases": len(matrix),
-        "gate_dispatch_key_cases": len(gate_matrix),
-        "gate_stock_direct_cases": direct_gate_cases,
-        "gate_wrapped_cases": wrapped_gate_cases,
+        "local_branch_state_cases": len(matrix),
         "detail_rotation_cases": len(expected_details),
+        "disabled_page_cases": 2,
         "invalid_tail_cases": len(recovery_words),
         "valid_tail_cases": 5,
-        "switch_failure_recovery_cases": 3,
+        "switch_failure_recovery_cases": 2,
         "gif_failure_recovery_cases": 2,
         "lifecycle_recovery_cases": 2,
     }
@@ -631,6 +594,13 @@ def _validate_stock_pet_reuse_disassembly(
     integration_mode: bool = False,
 ) -> dict[str, object]:
     lowered = disassembly.lower()
+    if "<ap01_agents_key_event>:" in lowered:
+        raise AgentsDashboardFirmwareError("优化载荷仍链接了已停用的一级总键值包装")
+    for address in (0xA00B0290, 0xA00B0570, 0xA00B06F4, 0xA00BBFEE):
+        if f"# {address:08x} <" in lowered:
+            raise AgentsDashboardFirmwareError(
+                f"优化载荷仍调用了已停用入口：0x{address:08x}"
+            )
     if not integration_mode:
         for address in STOCK_PET_FORBIDDEN_CALLEES:
             if f"# {address:08x} <" in lowered:
@@ -676,7 +646,7 @@ def _validate_stock_pet_reuse_disassembly(
     find_state = _symbol_block(
         disassembly,
         "ap01_agents_find_pet_state",
-        "ap01_agents_key_event",
+        "ap01_agents_stock_pet_left_entry",
     )
     if (
         "x11,7" not in find_state
@@ -687,139 +657,6 @@ def _validate_stock_pet_reuse_disassembly(
         or "x7,10" not in find_state
     ):
         raise AgentsDashboardFirmwareError("原厂萌宠状态对象链检查未通过")
-
-    key_event = _symbol_block(
-        disassembly,
-        "ap01_agents_key_event",
-        "ap01_agents_stock_power_left_entry",
-    )
-    fast_gate = _symbol_block(
-        disassembly,
-        "ap01_agents_key_event",
-        "ap01_agents_wrapped_key_event",
-    )
-    fast_gate_loads = re.findall(
-        r"\blw\s+x\d+,(-?\d+)\(x\d+\)",
-        fast_gate,
-    )
-    if (
-        fast_gate_loads != ["8", "16", "0", "0", "52"]
-        or re.search(r"\b(?:sw|sb|sh)\s", fast_gate)
-        or re.search(r"\b(?:addi|c\.addi16sp)\s+x2,", fast_gate)
-        or re.search(r"\b(?:jal|jalr)\s+x1,", fast_gate)
-        or "<ap01_agents_find_pet_state>" in fast_gate
-        or "<ap01_agents_state_read>" in fast_gate
-        or fast_gate.count("<ap01_agents_fast_stock_passthrough>") < 6
-        or fast_gate.count("<ap01_agents_wrapped_key_event>") < 2
-        or "<ap01_agents_page_register>" in fast_gate
-    ):
-        raise AgentsDashboardFirmwareError("确认键无栈透传入口检查未通过")
-    fast_passthrough = _symbol_block(
-        disassembly,
-        "ap01_agents_fast_stock_passthrough",
-        "ap01_agents_stock_power_left_entry",
-    )
-    fast_passthrough_instructions = [
-        line
-        for line in fast_passthrough.splitlines()
-        if re.match(r"^\s*[0-9a-f]+:\s", line)
-    ]
-    alignment_only = (
-        len(fast_passthrough_instructions) == 3
-        and "c.addi" in fast_passthrough_instructions[-1]
-        and "x0,0" in fast_passthrough_instructions[-1]
-    )
-    if (
-        not (
-            len(fast_passthrough_instructions) == 2
-            or alignment_only
-        )
-        or "# a00bbfee <stock_key_event>" not in fast_passthrough
-        or re.search(r"\b(?:lw|sw|sb|sh)\s", fast_passthrough)
-        or re.search(r"\b(?:addi|c\.addi16sp)\s+x2,", fast_passthrough)
-        or re.search(r"\b(?:jal|jalr)\s+x1,", fast_passthrough)
-    ):
-        raise AgentsDashboardFirmwareError("确认键无栈原厂跳板检查未通过")
-    wrapped_key_event = _symbol_block(
-        disassembly,
-        "ap01_agents_wrapped_key_event",
-        "ap01_agents_fast_stock_passthrough",
-    )
-    wrapped_instructions = [
-        line
-        for line in wrapped_key_event.splitlines()
-        if re.match(r"^\s*[0-9a-f]+:\s", line)
-    ]
-    wrapped_stack_marker = (
-        "c.addi16sp"
-        if wrapped_instructions
-        and "c.addi16sp" in wrapped_instructions[0]
-        else "x2,x2,-64"
-    )
-    if (
-        not wrapped_instructions
-        or not (
-            (
-                "c.addi16sp" in wrapped_instructions[0]
-                and "x2,-64" in wrapped_instructions[0]
-            )
-            or (
-                "\taddi\t" in wrapped_instructions[0]
-                and "x2,x2,-64" in wrapped_instructions[0]
-            )
-        )
-    ):
-        raise AgentsDashboardFirmwareError("完整键值包装没有从固定栈帧开始")
-    first_state_read = key_event.find("<ap01_agents_find_pet_state>")
-    guarded_prefix = key_event[:first_state_read]
-    if (
-        first_state_read < 0
-        or "<stock_get_dispatch_index>" not in guarded_prefix
-        or "<ap01_agents_stock_passthrough>" not in guarded_prefix
-        or re.search(
-            r"\bbne\s+x19,x6,[0-9a-f]+ "
-            r"<ap01_agents_stock_passthrough>",
-            guarded_prefix,
-        )
-        is None
-        or re.search(
-            r"\bbltu\s+x5,x19,[0-9a-f]+ "
-            r"<ap01_agents_stock_passthrough>",
-            guarded_prefix,
-        )
-        is None
-        or "# a00bfa4e <stock_switch_page>" not in key_event
-        or "# a00bbfee <stock_key_event>" not in key_event
-        or any(
-            f"{offset}(x9)" in key_event
-            for offset in (52, 56, 60)
-        )
-        or re.search(r"\bsw\s+x\d+,(?:0|4|8|12)\(x20\)", key_event)
-    ):
-        raise AgentsDashboardFirmwareError(
-            "原厂确认透传、真实切页或禁止字段检查未通过"
-        )
-    passthrough = _symbol_block(
-        disassembly,
-        "ap01_agents_stock_passthrough",
-        "ap01_agents_fast_stock_passthrough",
-    )
-    if (
-        "# a00bbfee <stock_key_event>" not in passthrough
-        or "<ap01_agents_find_pet_state>" in passthrough
-        or "<ap01_agents_state_read>" in passthrough
-    ):
-        raise AgentsDashboardFirmwareError("原厂事件透传路径仍读取自定义状态")
-    switch_failed = _symbol_block(
-        disassembly,
-        "ap01_agents_switch_failed",
-        "ap01_agents_stock_passthrough",
-    )
-    if (
-        "<ap01_agents_switch_failed>" not in key_event
-        or "<ap01_agents_restore_pet>" not in switch_failed
-    ):
-        raise AgentsDashboardFirmwareError("真实页面切换核对失败没有关闭恢复")
 
     show_page = _symbol_block(
         disassembly,
@@ -883,43 +720,8 @@ def _validate_stock_pet_reuse_disassembly(
     ):
         raise AgentsDashboardFirmwareError("后台刷新原厂分派与萌宠对象链检查未通过")
     return {
-        "stackless_gate_entry": _instruction_address(
-            fast_gate,
-            "8(x10)",
-        ),
-        "stackless_stock_tail": _instruction_address(
-            fast_passthrough,
-            "# a00bbfee <stock_key_event>",
-        ),
-        "wrapped_stack_entry": _instruction_address(
-            wrapped_key_event,
-            wrapped_stack_marker,
-        ),
-        "key_dispatch_first_call": _instruction_address(
-            key_event,
-            "# a00be388 <stock_get_dispatch_index>",
-        ),
-        "key_first_pet_state_lookup": _instruction_address(
-            key_event,
-            "<ap01_agents_find_pet_state>",
-        ),
-        "key_stock_switch_call": _instruction_address(
-            key_event,
-            "# a00bfa4e <stock_switch_page>",
-        ),
-        "key_switch_verification_call": _instruction_address(
-            key_event,
-            "# a00be388 <stock_get_dispatch_index>",
-            last=True,
-        ),
-        "switch_failure_restore_call": _instruction_address(
-            switch_failed,
-            "<ap01_agents_restore_pet>",
-        ),
-        "stock_passthrough_tail": _instruction_address(
-            passthrough,
-            "# a00bbfee <stock_key_event>",
-        ),
+        "retired_total_key_wrapper_absent": True,
+        "retired_window_navigation_absent": True,
         "independent_tail_store": _instruction_address(
             state_write,
             "16(x10)",
@@ -964,7 +766,7 @@ def _validate_stock_local_branches_disassembly(
     )
     local_branches = _symbol_block(
         disassembly,
-        "ap01_agents_stock_power_left_entry",
+        "ap01_agents_stock_pet_left_entry",
         "ap01_agents_show_page",
     )
     required_markers = (
@@ -973,7 +775,6 @@ def _validate_stock_local_branches_disassembly(
         "<ap01_agents_show_page>",
         "<ap01_agents_restore_pet>",
         "# a00bfa4e <stock_switch_page>",
-        "# a00bc33a <stock_power_left_resume>",
         "# a00bc464 <stock_pet_left_resume>",
         "# a00bc716 <stock_pet_right_resume>",
         "# a00bda68 <stock_pet_enter_resume>",
@@ -990,7 +791,6 @@ def _validate_stock_local_branches_disassembly(
         or any(
             local_branches.count(f"# {address:08x} <") != 1
             for address in (
-                0xA00BC33A,
                 0xA00BC464,
                 0xA00BC716,
                 0xA00BDA68,
@@ -999,7 +799,6 @@ def _validate_stock_local_branches_disassembly(
     ):
         raise AgentsDashboardFirmwareError("局部分支恢复与消费出口不是一一对应")
     for symbol in (
-        "ap01_agents_stock_power_left_entry",
         "ap01_agents_stock_pet_left_entry",
         "ap01_agents_stock_pet_right_entry",
         "ap01_agents_stock_pet_enter_entry",
@@ -1048,12 +847,17 @@ def _validate_stock_local_branches_disassembly(
                 page_filter,
                 "# a00bfa4e <stock_switch_page>",
             ),
+            "switch_verification": _instruction_address(
+                page_filter,
+                "# a00be388 <stock_get_dispatch_index>",
+            ),
+            "failure_restore": _instruction_address(
+                page_filter,
+                "<ap01_agents_restore_pet>",
+                last=True,
+            ),
         }
     evidence["local_branch_resume_targets"] = {
-        "power_left": _instruction_address(
-            local_branches,
-            "# a00bc33a <stock_power_left_resume>",
-        ),
         "pet_left": _instruction_address(
             local_branches,
             "# a00bc464 <stock_pet_left_resume>",
@@ -1338,7 +1142,7 @@ def build_sync_payload(
             disassembly,
             integration_mode=integration_mode,
         )
-        route_validation = validate_stock_callchain_routes()
+        route_validation = validate_stock_local_branch_routes()
     else:
         _validate_pet_overlay_disassembly(disassembly)
     disassembly_path.write_text(disassembly, encoding="utf-8")
@@ -1393,7 +1197,6 @@ def build_sync_firmware(
     tool_revision: dict[str, object],
     extra_objects: tuple[Path, ...] = (),
     required_extra_symbols: tuple[str, ...] = (),
-    key_callback_symbol: str = "ap01_agents_key_event",
     candidate_mutators: tuple[
         Callable[[bytearray, dict[str, int]], list[ByteRange]], ...
     ] = (),
@@ -1404,7 +1207,7 @@ def build_sync_firmware(
     if tool_revision.get("scoped_code_dirty") is not False:
         raise AgentsDashboardFirmwareError("制作代码尚未提交，不能冻结同步实验成品")
     output = output_path.expanduser().resolve()
-    integration_mode = expected_output_name == OPT_INTEGRATION_OUTPUT_FILENAME
+    integration_mode = expected_output_name == OPT_REWRITE_OUTPUT_FILENAME
     if output.name != expected_output_name:
         raise AgentsDashboardFirmwareError(
             f"同步实验成品文件名必须是 {expected_output_name}"
@@ -1414,14 +1217,12 @@ def build_sync_firmware(
         or expected_output_name
         not in (
             STOCK_LOCAL_BRANCHES_OUTPUT_FILENAME,
-            OPT_INTEGRATION_OUTPUT_FILENAME,
+            OPT_REWRITE_OUTPUT_FILENAME,
         )
     ):
         raise AgentsDashboardFirmwareError(
             "旧 AGENTS 固件路径已停用，只允许生成局部分支观察或完整离线组合候选"
         )
-    if key_callback_symbol != "ap01_agents_key_event":
-        raise AgentsDashboardFirmwareError("不得替换原厂一级总键值回调")
     if not integration_mode and (
         extra_objects or required_extra_symbols or candidate_mutators
     ):
@@ -1644,7 +1445,7 @@ def build_sync_firmware(
     manifest: dict[str, object] = {
         "schema_version": 1,
         "manifest_type": (
-            "opt-integration-candidate-firmware"
+            "opt-rewrite-candidate-firmware"
             if integration_mode
             else "agents-stock-local-branches-observation-firmware"
         ),
@@ -1698,7 +1499,8 @@ def build_sync_firmware(
             "界面线程只切换已提交页面",
             "固定周期后台刷新",
             "复用原厂萌宠既有动图对象",
-            "只挂接原厂已筛选的四个局部分支",
+            "只挂接原厂已筛选的三个萌宠局部分支",
+            "功率左键保持原厂并由实际切页过滤处理",
             "原厂功率确认和两个全局回调保持原字节",
             "真实页面使用原厂实际切页入口",
             "AGENTS 状态使用萌宠状态新增尾部",
@@ -1776,7 +1578,7 @@ def build_sync_firmware(
             "page_registration_unchanged": True,
             "legacy_page_trampoline_unchanged": True,
             "stock_callchain_verified": True,
-            "four_local_branch_targets_verified": True,
+            "three_local_branch_targets_verified": True,
             "page_filter_switch_call_verified": integration_mode,
             "global_key_callback_registration_unchanged": True,
             "global_ui_timer_callback_registration_unchanged": True,
@@ -1868,8 +1670,8 @@ def build_stock_local_branches_firmware(
         tool_revision=tool_revision,
         expected_output_name=STOCK_LOCAL_BRANCHES_OUTPUT_FILENAME,
         implemented_scope_extra=(
-            "功率左旋和萌宠三种键值局部接入",
-            "未消费事件从四个原厂继续地址恢复",
+            "萌宠左旋、右旋和确认三个局部分支接入",
+            "未消费事件从三个原厂继续地址恢复",
             "消费事件从原厂公共退出地址返回",
             "异常尾部先恢复原厂萌宠再继续处理",
         ),

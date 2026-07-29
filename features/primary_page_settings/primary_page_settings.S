@@ -229,100 +229,6 @@ ap01_page_settings_event:
     .size ap01_page_settings_event, .-ap01_page_settings_event
 
     .align 2
-    .global ap01_primary_page_navigation_event
-    .type ap01_primary_page_navigation_event, @function
-ap01_primary_page_navigation_event:
-    addi sp, sp, -48
-    sw ra, 44(sp)
-    sw s0, 40(sp)
-    sw s1, 36(sp)
-    sw s2, 32(sp)
-    sw s3, 28(sp)
-    sw s4, 24(sp)
-    mv s4, a0
-    lw s0, 0(a0)
-    beqz s0, .Lprimary_unhandled
-    lw t0, 8(s4)
-    li t1, 0xffff7fff
-    and t0, t0, t1
-    li t1, EVENT_KEY
-    bne t0, t1, .Lprimary_unhandled
-    mv a0, s4
-    call lv_event_get_key
-    li t0, KEY_RIGHT
-    beq a0, t0, .Lprimary_right
-    li t0, KEY_LEFT
-    bne a0, t0, .Lprimary_unhandled
-    li s3, -1
-    li s4, 2
-    j .Lprimary_direction_ready
-.Lprimary_right:
-    li s3, 1
-    li s4, 1
-.Lprimary_direction_ready:
-    mv a0, s0
-    call window_get_active
-    mv s1, a0
-    la t0, primary_page_indices
-    li s2, 0
-.Lprimary_find_position:
-    li t1, 7
-    bgeu s2, t1, .Lprimary_unhandled
-    add t2, t0, s2
-    lbu t2, 0(t2)
-    beq t2, s1, .Lprimary_position_found
-    addi s2, s2, 1
-    j .Lprimary_find_position
-.Lprimary_position_found:
-    call ap01_page_settings_load_mask
-    mv s1, a0
-    li t3, 0
-.Lprimary_search:
-    li t0, 7
-    bgeu t3, t0, .Lprimary_unhandled
-    add s2, s2, s3
-    bgez s2, .Lprimary_wrap_high
-    li s2, 6
-    j .Lprimary_wrapped
-.Lprimary_wrap_high:
-    li t0, 7
-    bltu s2, t0, .Lprimary_wrapped
-    li s2, 0
-.Lprimary_wrapped:
-    la t0, primary_page_bits
-    add t0, t0, s2
-    lbu t1, 0(t0)
-    li t2, 255
-    beq t1, t2, .Lprimary_target
-    li t2, 1
-    sll t2, t2, t1
-    and t2, t2, s1
-    bnez t2, .Lprimary_target
-    addi t3, t3, 1
-    j .Lprimary_search
-.Lprimary_target:
-    la t0, primary_page_indices
-    add t0, t0, s2
-    lbu a1, 0(t0)
-    mv a0, s0
-    mv a2, s4
-    call window_set_active
-    li a0, 1
-    j .Lprimary_done
-.Lprimary_unhandled:
-    li a0, 0
-.Lprimary_done:
-    lw ra, 44(sp)
-    lw s0, 40(sp)
-    lw s1, 36(sp)
-    lw s2, 32(sp)
-    lw s3, 28(sp)
-    lw s4, 24(sp)
-    addi sp, sp, 48
-    ret
-    .size ap01_primary_page_navigation_event, .-ap01_primary_page_navigation_event
-
-    .align 2
     .global ap01_primary_page_filter_and_switch
     .type ap01_primary_page_filter_and_switch, @function
 ap01_primary_page_filter_and_switch:
@@ -427,6 +333,7 @@ ap01_primary_page_filter_and_switch:
     li a1, AGENTS_STATE_OVERVIEW
     call ap01_agents_show_page
     beqz a0, .Lfilter_fallback
+    li s4, -1
     j .Lfilter_switch
 
 .Lfilter_advance:
@@ -463,6 +370,14 @@ ap01_primary_page_filter_and_switch:
     mv a1, s1
     mv a2, s2
     call stock_switch_page
+    bgez s4, .Lfilter_done
+    mv a0, s0
+    call stock_get_dispatch_index
+    beq a0, s1, .Lfilter_done
+    mv a0, s0
+    call ap01_agents_find_pet_state
+    beqz a0, .Lfilter_done
+    call ap01_agents_restore_pet
     j .Lfilter_done
 
 .Lfilter_fallback:
@@ -739,7 +654,3 @@ ap01_page_settings_delete_event:
     .balign 4
 page_settings_menu_label:
     .asciz "开关一级页面"
-primary_page_indices:
-    .byte 0, 3, 4, 5, 6, 7, 8
-primary_page_bits:
-    .byte 1, 0, 3, 2, 255, 4, 5

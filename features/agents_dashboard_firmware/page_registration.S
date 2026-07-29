@@ -110,356 +110,6 @@ ap01_agents_find_pet_state:
     .size ap01_agents_find_pet_state, .-ap01_agents_find_pet_state
 
     .align 2
-    .global ap01_agents_key_event
-    .type ap01_agents_key_event, @function
-
-ap01_agents_key_event:
-    /*
-     * Keep every stock confirm outside dispatch 7 adjacent to the stock
-     * callback: no stack frame, calls, writes, or AGENTS state reads.
-     * The non-null path at 0xa00be388 is exactly lw a0, 52(a0), so this gate
-     * reproduces that single read without calling through another frame.
-     */
-    lw t0, 8(a0)
-    li t1, 0xffff7fff
-    and t0, t0, t1
-    li t1, EVENT_KEY
-    bne t0, t1, .Lsync_fast_stock_key_event
-    lw t0, 16(a0)
-    beqz t0, .Lsync_fast_stock_key_event
-    lw t0, 0(t0)
-    li t1, KEY_LEFT
-    beq t0, t1, .Lsync_gate_dispatch
-    li t1, KEY_RIGHT
-    beq t0, t1, .Lsync_gate_dispatch
-    li t1, KEY_ENTER
-    bne t0, t1, .Lsync_fast_stock_key_event
-
-.Lsync_gate_dispatch:
-    lw t1, 0(a0)
-    beqz t1, .Lsync_fast_stock_key_event
-    lw t1, 52(t1)
-    li t2, KEY_ENTER
-    beq t0, t2, .Lsync_gate_enter
-    beqz t1, .Lsync_wrapped_key_event
-    li t2, 3
-    bltu t1, t2, .Lsync_fast_stock_key_event
-    li t2, 7
-    bltu t2, t1, .Lsync_fast_stock_key_event
-    j .Lsync_wrapped_key_event
-
-.Lsync_gate_enter:
-    li t2, 7
-    bne t1, t2, .Lsync_fast_stock_key_event
-
-    .global ap01_agents_wrapped_key_event
-ap01_agents_wrapped_key_event:
-.Lsync_wrapped_key_event:
-    addi sp, sp, -64
-    sw ra, 60(sp)
-    sw s0, 56(sp)
-    sw s1, 52(sp)
-    sw s2, 48(sp)
-    sw s3, 44(sp)
-    sw s4, 40(sp)
-    sw s5, 36(sp)
-    sw s6, 32(sp)
-    sw s7, 28(sp)
-    sw s8, 24(sp)
-    mv s0, a0
-    li s4, 0
-
-    lw s1, 0(s0)
-    beqz s1, .Lsync_stock_key_event
-    lw t0, 8(s0)
-    li t1, 0xffff7fff
-    and t0, t0, t1
-    li t1, EVENT_KEY
-    bne t0, t1, .Lsync_stock_key_event
-
-    mv a0, s0
-    call lv_event_get_key
-    mv s2, a0
-    li t0, KEY_LEFT
-    beq s2, t0, .Lsync_read_dispatch
-    li t0, KEY_RIGHT
-    beq s2, t0, .Lsync_read_dispatch
-    li t0, KEY_ENTER
-    bne s2, t0, .Lsync_stock_key_event
-
-.Lsync_read_dispatch:
-    mv a0, s1
-    call stock_get_dispatch_index
-    mv s3, a0
-
-    /* Only stock primary dispatches 0 and 3..7 are safe to wrap. */
-    beqz s3, .Lsync_dispatch_allowed
-    li t0, 3
-    bltu s3, t0, .Lsync_stock_key_event
-    li t0, 7
-    bltu t0, s3, .Lsync_stock_key_event
-
-.Lsync_dispatch_allowed:
-    li t1, KEY_ENTER
-    bne s2, t1, .Lsync_rotation
-    /* Every non-pet confirm returns before pet state or its tail is touched. */
-    li t1, 7
-    bne s3, t1, .Lsync_stock_key_event
-    j .Lsync_confirm
-
-.Lsync_confirm:
-    mv a0, s1
-    call ap01_agents_find_pet_state
-    mv s4, a0
-    beqz s4, .Lsync_stock_key_event
-    mv a0, s4
-    call ap01_agents_state_read
-    mv s5, a0
-    bgez s5, .Lsync_confirm_valid
-    mv a0, s4
-    call ap01_agents_restore_pet
-    j .Lsync_stock_key_event
-
-.Lsync_confirm_valid:
-    beqz s5, .Lsync_stock_key_event
-    li a1, AGENTS_STATE_OVERVIEW
-    li t0, AGENTS_STATE_OVERVIEW
-    bne s5, t0, .Lsync_confirm_show
-    li a1, AGENTS_STATE_WEEKLY
-
-.Lsync_confirm_show:
-    mv a0, s4
-    call ap01_agents_show_page
-    j .Lsync_key_consumed
-
-.Lsync_rotation:
-    /* Dispatch 7 needs the independent tail to distinguish pet and AGENTS. */
-    li t1, 7
-    bne s3, t1, .Lsync_map_stock_position
-    mv a0, s1
-    call ap01_agents_find_pet_state
-    mv s4, a0
-    beqz s4, .Lsync_stock_key_event
-    mv a0, s4
-    call ap01_agents_state_read
-    mv s5, a0
-    bgez s5, .Lsync_pet_state_valid
-    mv a0, s4
-    call ap01_agents_restore_pet
-    li s5, AGENTS_STATE_CLOSED
-
-.Lsync_pet_state_valid:
-    li t0, AGENTS_STATE_WEEKLY
-    bgeu s5, t0, .Lsync_rotate_detail
-    beqz s5, .Lsync_position_pet
-    li s6, 6
-    j .Lsync_choose_target
-
-.Lsync_position_pet:
-    li s6, 5
-    j .Lsync_choose_target
-
-.Lsync_rotate_detail:
-    li t0, KEY_LEFT
-    bne s2, t0, .Lsync_detail_right
-    li t0, AGENTS_STATE_WEEKLY
-    beq s5, t0, .Lsync_detail_left_wrap
-    addi a1, s5, -1
-    j .Lsync_show_selected
-
-.Lsync_detail_left_wrap:
-    li a1, AGENTS_STATE_LAST_30_DAYS
-    j .Lsync_show_selected
-
-.Lsync_detail_right:
-    li t0, AGENTS_STATE_LAST_30_DAYS
-    beq s5, t0, .Lsync_detail_right_wrap
-    addi a1, s5, 1
-    j .Lsync_show_selected
-
-.Lsync_detail_right_wrap:
-    li a1, AGENTS_STATE_WEEKLY
-
-.Lsync_show_selected:
-    mv a0, s4
-    call ap01_agents_show_page
-    j .Lsync_key_consumed
-
-.Lsync_map_stock_position:
-    beqz s3, .Lsync_position_power
-    li t0, 3
-    beq s3, t0, .Lsync_position_time
-    li t0, 4
-    beq s3, t0, .Lsync_position_date
-    li t0, 5
-    beq s3, t0, .Lsync_position_weather
-    li s6, 4
-    j .Lsync_choose_target
-
-.Lsync_position_power:
-    li s6, 0
-    j .Lsync_choose_target
-
-.Lsync_position_time:
-    li s6, 1
-    j .Lsync_choose_target
-
-.Lsync_position_date:
-    li s6, 2
-    j .Lsync_choose_target
-
-.Lsync_position_weather:
-    li s6, 3
-
-.Lsync_choose_target:
-    li t0, KEY_LEFT
-    bne s2, t0, .Lsync_choose_right
-    li s7, 2
-    bnez s6, .Lsync_left_no_wrap
-    li s6, 6
-    j .Lsync_target_ready
-
-.Lsync_left_no_wrap:
-    addi s6, s6, -1
-    j .Lsync_target_ready
-
-.Lsync_choose_right:
-    li s7, 1
-    li t0, 6
-    bne s6, t0, .Lsync_right_no_wrap
-    li s6, 0
-    j .Lsync_target_ready
-
-.Lsync_right_no_wrap:
-    addi s6, s6, 1
-
-.Lsync_target_ready:
-    li t0, 5
-    beq s6, t0, .Lsync_target_pet
-    li t0, 6
-    beq s6, t0, .Lsync_target_agents
-
-    /* Map navigation position 0..4 to stock dispatch 0,3,4,5,6. */
-    beqz s6, .Lsync_target_power
-    addi s8, s6, 2
-    j .Lsync_switch_stock_target
-
-.Lsync_target_power:
-    li s8, 0
-
-.Lsync_switch_stock_target:
-    li t0, 7
-    bne s3, t0, .Lsync_call_stock_switch
-    beqz s5, .Lsync_call_stock_switch
-    mv a0, s4
-    call ap01_agents_restore_pet
-
-.Lsync_call_stock_switch:
-    mv a0, s1
-    mv a1, s8
-    mv a2, s7
-    call stock_switch_page
-    mv a0, s1
-    call stock_get_dispatch_index
-    beq a0, s8, .Lsync_key_consumed
-    j .Lsync_switch_failed
-
-.Lsync_target_pet:
-    bnez s4, .Lsync_pet_state_ready
-    mv a0, s1
-    call ap01_agents_find_pet_state
-    mv s4, a0
-    beqz s4, .Lsync_stock_key_event
-    mv a0, s4
-    call ap01_agents_state_read
-    bgez a0, .Lsync_pet_state_ready
-
-.Lsync_pet_state_ready:
-    mv a0, s4
-    call ap01_agents_restore_pet
-    li t0, 7
-    beq s3, t0, .Lsync_key_consumed
-    li s8, 7
-    j .Lsync_call_stock_switch
-
-.Lsync_target_agents:
-    bnez s4, .Lsync_agents_state_ready
-    mv a0, s1
-    call ap01_agents_find_pet_state
-    mv s4, a0
-    beqz s4, .Lsync_stock_key_event
-    mv a0, s4
-    call ap01_agents_state_read
-    bgez a0, .Lsync_agents_state_ready
-    mv a0, s4
-    call ap01_agents_restore_pet
-
-.Lsync_agents_state_ready:
-    mv a0, s4
-    li a1, AGENTS_STATE_OVERVIEW
-    call ap01_agents_show_page
-    beqz a0, .Lsync_key_consumed
-    li t0, 7
-    beq s3, t0, .Lsync_key_consumed
-    li s8, 7
-    j .Lsync_call_stock_switch
-
-    .global ap01_agents_switch_failed
-ap01_agents_switch_failed:
-.Lsync_switch_failed:
-    beqz s4, .Lsync_key_consumed
-    mv a0, s4
-    call ap01_agents_restore_pet
-
-.Lsync_key_consumed:
-    lw ra, 60(sp)
-    lw s0, 56(sp)
-    lw s1, 52(sp)
-    lw s2, 48(sp)
-    lw s3, 44(sp)
-    lw s4, 40(sp)
-    lw s5, 36(sp)
-    lw s6, 32(sp)
-    lw s7, 28(sp)
-    lw s8, 24(sp)
-    addi sp, sp, 64
-    ret
-
-    .global ap01_agents_stock_passthrough
-ap01_agents_stock_passthrough:
-.Lsync_stock_key_event:
-    mv a0, s0
-    lw ra, 60(sp)
-    lw s0, 56(sp)
-    lw s1, 52(sp)
-    lw s2, 48(sp)
-    lw s3, 44(sp)
-    lw s4, 40(sp)
-    lw s5, 36(sp)
-    lw s6, 32(sp)
-    lw s7, 28(sp)
-    lw s8, 24(sp)
-    addi sp, sp, 64
-    tail stock_key_event
-
-    .global ap01_agents_fast_stock_passthrough
-ap01_agents_fast_stock_passthrough:
-.Lsync_fast_stock_key_event:
-    tail stock_key_event
-
-    .size ap01_agents_key_event, .-ap01_agents_key_event
-
-    .align 2
-    .global ap01_agents_stock_power_left_entry
-    .type ap01_agents_stock_power_left_entry, @function
-ap01_agents_stock_power_left_entry:
-    addi sp, sp, -16
-    sw ra, 12(sp)
-    sw s2, 8(sp)
-    sw s3, 4(sp)
-    li s3, 0
-    j .Llocal_find_state
-
     .global ap01_agents_stock_pet_left_entry
     .type ap01_agents_stock_pet_left_entry, @function
 ap01_agents_stock_pet_left_entry:
@@ -497,7 +147,6 @@ ap01_agents_stock_pet_enter_entry:
     mv a0, s2
     call ap01_agents_state_read
     bltz a0, .Llocal_invalid_state
-    beqz s3, .Llocal_power_left
     li t0, 1
     beq s3, t0, .Llocal_pet_left
     li t0, 2
@@ -512,37 +161,11 @@ ap01_agents_stock_pet_enter_entry:
     j .Llocal_dispatch
 
 .Llocal_dispatch:
-    beqz s3, .Llocal_power_left
     li t0, 1
     beq s3, t0, .Llocal_pet_left
     li t0, 2
     beq s3, t0, .Llocal_pet_right
     j .Llocal_pet_enter
-
-.Llocal_power_left:
-    .ifdef OPT_INTEGRATION
-    call ap01_page_settings_load_mask
-    li t0, 1
-    li t1, PAGE_BIT_AGENTS
-    sll t0, t0, t1
-    and t0, t0, a0
-    beqz t0, .Llocal_fallback
-    .endif
-    mv a0, s2
-    li a1, AGENTS_STATE_OVERVIEW
-    call ap01_agents_show_page
-    beqz a0, .Llocal_fallback
-    mv a0, s1
-    li a1, 7
-    li a2, 2
-    call stock_switch_page
-    mv a0, s1
-    call stock_get_dispatch_index
-    li t0, 7
-    beq a0, t0, .Llocal_consumed
-    mv a0, s2
-    call ap01_agents_restore_pet
-    j .Llocal_fallback
 
 .Llocal_pet_left:
     beqz a0, .Llocal_fallback
@@ -658,7 +281,6 @@ ap01_agents_stock_pet_enter_entry:
     lw s2, 8(sp)
     lw s3, 4(sp)
     addi sp, sp, 16
-    beqz t0, .Llocal_resume_power_left
     li t1, 1
     beq t0, t1, .Llocal_resume_pet_left
     li t1, 2
@@ -666,11 +288,6 @@ ap01_agents_stock_pet_enter_entry:
     mv a0, s1
     li a1, 7
     tail stock_pet_enter_resume
-
-.Llocal_resume_power_left:
-    mv a0, s1
-    li a1, 0
-    tail stock_power_left_resume
 
 .Llocal_resume_pet_left:
     mv a0, s1
@@ -689,7 +306,6 @@ ap01_agents_stock_pet_enter_entry:
     addi sp, sp, 16
     tail stock_key_epilogue
 
-    .size ap01_agents_stock_power_left_entry, .-ap01_agents_stock_power_left_entry
     .size ap01_agents_stock_pet_left_entry, .-ap01_agents_stock_pet_left_entry
     .size ap01_agents_stock_pet_right_entry, .-ap01_agents_stock_pet_right_entry
     .size ap01_agents_stock_pet_enter_entry, .-ap01_agents_stock_pet_enter_entry
