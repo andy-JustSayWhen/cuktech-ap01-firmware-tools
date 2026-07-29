@@ -5,7 +5,8 @@
 采集本机聚合数据并生成四张 320×240 对照图。
 
 用户可见字段口径只见
-[`reference/SPEC.md` 第 4.2 节](../../reference/SPEC.md#42-看板字段口径)；数据清单、原始
+[`SPEC-DASHBOARD-021` 至 `SPEC-DASHBOARD-028`](../../reference/SPEC.md#spec-dashboard-fields)；
+数据清单、原始
 字段、直接来源、采集方法和安全边界只见
 [`DESIGN` 第 7.4 节](../../reference/DESIGN/AP01-1.0.2_0031-opt.bin.md#74-本机真实数据采集)；
 模型单价与费用公式只见

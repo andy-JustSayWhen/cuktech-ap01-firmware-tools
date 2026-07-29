@@ -1,7 +1,7 @@
 # Codex 模型 API 计费表
 
 本文是 AGENTS 看板使用的模型标识映射、标准 API Token 单价、长上下文附加规则和费用计算
-公式的唯一原文。[`SPEC`](SPEC.md#42-看板字段口径) 与
+公式的唯一原文。[`SPEC-DASHBOARD-022`](SPEC.md#spec-dashboard-fields) 与
 [`DESIGN`](DESIGN/AP01-1.0.2_0031-opt.bin.md#743-api-成本计算) 只引用本文，不复制或改写
 表内单价和公式。
 

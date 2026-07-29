@@ -92,7 +92,8 @@ def generate(output: Path = DEFAULT_OUTPUT, font_directory: Path = DEFAULT_FONTS
         "- 字体：主数字使用 Michroma，其余文字使用 MiSans",
         (
             "- 字段口径：见 "
-            "[`SPEC` 第 4.2 节](../../../../SPEC.md#42-看板字段口径)"
+            "[`SPEC-DASHBOARD-021` 至 `SPEC-DASHBOARD-028`]"
+            "(../../../../SPEC.md#spec-dashboard-fields)"
         ),
         (
             "- 原始字段、取数方法与安全边界：见 "
