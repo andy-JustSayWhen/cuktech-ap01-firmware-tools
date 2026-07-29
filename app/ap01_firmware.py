@@ -14,7 +14,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from core.firmware_image import FirmwareValidationError
+from core.firmware_image import FirmwareValidationError, prepare_read_only_copy
 from features.agents_dashboard.result_package import (
     ResultPackageError,
     load_credentials,
@@ -89,6 +89,16 @@ def _tool_revision() -> dict[str, object]:
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
+
+    prepare_input_command = commands.add_parser(
+        "firmware-input-prepare",
+        help="核对版本化固件并生成本机只读工作副本",
+    )
+    prepare_input_command.add_argument("--source", type=Path, required=True)
+    prepare_input_command.add_argument("--target-dir", type=Path, required=True)
+    prepare_input_command.add_argument("--expected-size", type=int, required=True)
+    prepare_input_command.add_argument("--expected-sha256", required=True)
+    prepare_input_command.add_argument("--expected-md5")
 
     inspect_command = commands.add_parser("inspect", help="检查原厂固件基线")
     inspect_command.add_argument("--input", type=Path, required=True)
@@ -380,6 +390,26 @@ def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     revision = _tool_revision()
     try:
+        if args.command == "firmware-input-prepare":
+            prepared = prepare_read_only_copy(
+                args.source,
+                args.target_dir,
+                expected_size=args.expected_size,
+                expected_sha256=args.expected_sha256,
+                expected_md5=args.expected_md5,
+            )
+            print(
+                json.dumps(
+                    {
+                        "result": "只读固件工作副本已准备",
+                        "material": prepared.to_dict(),
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                )
+            )
+            return 0
+
         if args.command == "inspect":
             report = inspect_baseline(
                 args.input,

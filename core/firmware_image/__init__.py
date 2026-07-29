@@ -15,6 +15,7 @@ from .image import (
     validate_baseline,
     validate_candidate,
 )
+from .material import PreparedFirmware, prepare_read_only_copy
 
 __all__ = [
     "AP01_1_0_2_0031",
@@ -23,9 +24,11 @@ __all__ = [
     "ByteRange",
     "CandidateReport",
     "FirmwareValidationError",
+    "PreparedFirmware",
     "RecoveryTrailer",
     "changed_ranges",
     "load_read_only_baseline",
+    "prepare_read_only_copy",
     "recovery_crc",
     "refresh_recovery_crc",
     "validate_baseline",

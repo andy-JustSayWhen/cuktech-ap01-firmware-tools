@@ -1,15 +1,19 @@
 from __future__ import annotations
 
 import hashlib
+import stat
 import struct
+import tempfile
 import unittest
 from dataclasses import replace
+from pathlib import Path
 
 from core.firmware_image import (
     BaselineDefinition,
     ByteRange,
     FirmwareValidationError,
     changed_ranges,
+    prepare_read_only_copy,
     recovery_crc,
     refresh_recovery_crc,
     validate_baseline,
@@ -114,6 +118,104 @@ class FirmwareImageTests(unittest.TestCase):
 
         with self.assertRaisesRegex(FirmwareValidationError, "SHA-256"):
             validate_baseline(firmware, wrong)
+
+    def test_prepare_read_only_copy_verifies_and_freezes_material(self) -> None:
+        payload = b"firmware-material"
+        with tempfile.TemporaryDirectory() as selected:
+            root = Path(selected)
+            source = root / "source.bin"
+            source.write_bytes(payload)
+
+            prepared = prepare_read_only_copy(
+                source,
+                root / "private",
+                expected_size=len(payload),
+                expected_sha256=hashlib.sha256(payload).hexdigest(),
+                expected_md5=hashlib.md5(payload).hexdigest(),
+            )
+
+            self.assertEqual(prepared.path.read_bytes(), payload)
+            self.assertFalse(
+                prepared.path.stat().st_mode
+                & (stat.S_IWUSR | stat.S_IWGRP | stat.S_IWOTH)
+            )
+            self.assertFalse(prepared.reused)
+
+    def test_prepare_read_only_copy_rejects_wrong_fingerprint(self) -> None:
+        payload = b"firmware-material"
+        with tempfile.TemporaryDirectory() as selected:
+            root = Path(selected)
+            source = root / "source.bin"
+            source.write_bytes(payload)
+
+            with self.assertRaisesRegex(FirmwareValidationError, "SHA-256"):
+                prepare_read_only_copy(
+                    source,
+                    root / "private",
+                    expected_size=len(payload),
+                    expected_sha256="0" * 64,
+                )
+
+    def test_prepare_read_only_copy_does_not_overwrite_unknown_target(self) -> None:
+        payload = b"firmware-material"
+        with tempfile.TemporaryDirectory() as selected:
+            root = Path(selected)
+            source = root / "source.bin"
+            source.write_bytes(payload)
+            target_directory = root / "private"
+            target_directory.mkdir()
+            target = target_directory / source.name
+            target.write_bytes(b"unknown")
+
+            with self.assertRaisesRegex(FirmwareValidationError, "字节数"):
+                prepare_read_only_copy(
+                    source,
+                    target_directory,
+                    expected_size=len(payload),
+                    expected_sha256=hashlib.sha256(payload).hexdigest(),
+                )
+            self.assertEqual(target.read_bytes(), b"unknown")
+
+    def test_prepare_read_only_copy_rejects_matching_writable_target(self) -> None:
+        payload = b"firmware-material"
+        with tempfile.TemporaryDirectory() as selected:
+            root = Path(selected)
+            source = root / "source.bin"
+            source.write_bytes(payload)
+            target_directory = root / "private"
+            target_directory.mkdir()
+            target = target_directory / source.name
+            target.write_bytes(payload)
+
+            with self.assertRaisesRegex(FirmwareValidationError, "仍可写"):
+                prepare_read_only_copy(
+                    source,
+                    target_directory,
+                    expected_size=len(payload),
+                    expected_sha256=hashlib.sha256(payload).hexdigest(),
+                )
+
+    def test_prepare_read_only_copy_reuses_matching_read_only_target(self) -> None:
+        payload = b"firmware-material"
+        with tempfile.TemporaryDirectory() as selected:
+            root = Path(selected)
+            source = root / "source.bin"
+            source.write_bytes(payload)
+            target_directory = root / "private"
+            target_directory.mkdir()
+            target = target_directory / source.name
+            target.write_bytes(payload)
+            target.chmod(stat.S_IRUSR | stat.S_IRGRP | stat.S_IROTH)
+
+            prepared = prepare_read_only_copy(
+                source,
+                target_directory,
+                expected_size=len(payload),
+                expected_sha256=hashlib.sha256(payload).hexdigest(),
+            )
+
+            self.assertTrue(prepared.reused)
+            self.assertEqual(prepared.path, target.resolve())
 
 
 if __name__ == "__main__":
