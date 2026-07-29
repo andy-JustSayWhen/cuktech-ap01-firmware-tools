@@ -15,3 +15,5 @@ __pycache__/
 env/
 .env
 .env.local
+artifacts/build/opt-integration-candidate/work/
+artifacts/firmware/ap01-1.0.2_0031-opt-integration-candidate.bin
