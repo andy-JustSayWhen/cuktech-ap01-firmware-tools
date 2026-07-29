@@ -8,7 +8,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from core.firmware_image import changed_ranges
+from core.firmware_image import changed_ranges, prepare_read_only_copy
 from features.primary_page_settings.hook_observation import (
     HOOK_OFFSET,
     MENU_LIMIT_OFFSET,
@@ -18,6 +18,9 @@ from features.primary_page_settings.hook_observation import (
     SETTINGS_CALLBACK_HIGH_ORIGINAL,
     SETTINGS_CALLBACK_LOW_OFFSET,
     SETTINGS_CALLBACK_LOW_ORIGINAL,
+    STAGE_MD5,
+    STAGE_SHA256,
+    STAGE_SIZE,
     SettingsHookObservationError,
     build_settings_hook_observation,
 )
@@ -44,9 +47,22 @@ TOOLS = {
 
 
 class SettingsHookObservationTests(unittest.TestCase):
-    def setUp(self) -> None:
+    @classmethod
+    def setUpClass(cls) -> None:
         if not STAGE.is_file() or not all(item.is_file() for item in TOOLS.values()):
-            self.skipTest("本机缺少已验收同步固件或设备端构建工具")
+            raise unittest.SkipTest("本机缺少已验收同步固件或设备端构建工具")
+        cls._material_directory = tempfile.TemporaryDirectory()
+        cls.stage = prepare_read_only_copy(
+            STAGE,
+            Path(cls._material_directory.name),
+            expected_size=STAGE_SIZE,
+            expected_sha256=STAGE_SHA256,
+            expected_md5=STAGE_MD5,
+        ).path
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+        cls._material_directory.cleanup()
 
     def test_build_changes_only_hook_payload_and_recovery_crc(self) -> None:
         with tempfile.TemporaryDirectory() as selected:
@@ -54,7 +70,7 @@ class SettingsHookObservationTests(unittest.TestCase):
             output = root / OUTPUT_NAME
             manifest = root / "manifest.json"
             result = build_settings_hook_observation(
-                STAGE,
+                self.stage,
                 output,
                 manifest,
                 root / "build",
@@ -62,7 +78,7 @@ class SettingsHookObservationTests(unittest.TestCase):
                 tool_revision={"commit": "test", "scoped_code_dirty": False},
             )
             document = json.loads(manifest.read_text(encoding="utf-8"))
-            before = STAGE.read_bytes()
+            before = self.stage.read_bytes()
             after = output.read_bytes()
             allowed = [
                 (item["start"], item["end_exclusive"])
@@ -107,7 +123,7 @@ class SettingsHookObservationTests(unittest.TestCase):
             root = Path(selected)
             manifest = root / "manifest.json"
             build_settings_hook_observation(
-                STAGE,
+                self.stage,
                 root / OUTPUT_NAME,
                 manifest,
                 root / "build",
@@ -137,7 +153,7 @@ class SettingsHookObservationTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as selected:
             root = Path(selected)
             modified = root / "stage.bin"
-            payload = bytearray(STAGE.read_bytes())
+            payload = bytearray(self.stage.read_bytes())
             payload[0x2000] ^= 1
             modified.write_bytes(payload)
             modified.chmod(0o444)

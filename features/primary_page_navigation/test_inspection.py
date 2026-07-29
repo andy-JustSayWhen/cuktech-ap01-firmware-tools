@@ -4,6 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from core.firmware_image import AP01_1_0_2_0031, prepare_read_only_copy
 from features.primary_page_navigation import (
     decode_jal_target,
     inspect_primary_page_navigation,
@@ -29,10 +30,27 @@ class PrimaryPageNavigationTests(unittest.TestCase):
         if not ORIGINAL.is_file() or not STAGE.is_file():
             self.skipTest("本机没有只读原厂固件或已验收阶段成品")
         with tempfile.TemporaryDirectory() as selected:
-            report_path = Path(selected) / "navigation.json"
-            document = inspect_primary_page_navigation(
+            root = Path(selected)
+            original = prepare_read_only_copy(
                 ORIGINAL,
+                root / "original",
+                expected_size=AP01_1_0_2_0031.size,
+                expected_sha256=AP01_1_0_2_0031.sha256,
+                expected_md5=AP01_1_0_2_0031.md5,
+            ).path
+            stage = prepare_read_only_copy(
                 STAGE,
+                root / "stage",
+                expected_size=6_804_520,
+                expected_sha256=(
+                    "348d0843ac3f3f380eb155170c4104fd"
+                    "8467a018ddfd13670d67be998f269dc1"
+                ),
+            ).path
+            report_path = root / "navigation.json"
+            document = inspect_primary_page_navigation(
+                original,
+                stage,
                 report_path,
                 tool_revision={"commit": "test", "scoped_code_dirty": False},
             )

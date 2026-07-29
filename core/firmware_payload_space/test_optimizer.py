@@ -5,6 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from core.firmware_image import prepare_read_only_copy
 from core.firmware_payload_space import (
     PAYLOAD_CAPACITY,
     PAYLOAD_END,
@@ -32,8 +33,17 @@ class FirmwarePayloadSpaceTests(unittest.TestCase):
             self.skipTest("本机没有阶段固件或固定动图工具")
         with tempfile.TemporaryDirectory() as selected:
             root = Path(selected)
-            document = inspect_payload_space(
+            stage = prepare_read_only_copy(
                 STAGE,
+                root / "input",
+                expected_size=6_804_520,
+                expected_sha256=(
+                    "348d0843ac3f3f380eb155170c4104fd"
+                    "8467a018ddfd13670d67be998f269dc1"
+                ),
+            ).path
+            document = inspect_payload_space(
+                stage,
                 root / "optimized.gif",
                 root / "report.json",
                 tool_revision={"commit": "test", "scoped_code_dirty": False},

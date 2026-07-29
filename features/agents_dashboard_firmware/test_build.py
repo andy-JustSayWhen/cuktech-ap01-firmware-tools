@@ -10,6 +10,7 @@ import unittest
 from dataclasses import dataclass
 from pathlib import Path
 
+from core.firmware_image import prepare_read_only_copy
 from features.agents_dashboard.result_package import encode_package
 from features.agents_dashboard_firmware import (
     build_observation_firmware,
@@ -25,6 +26,8 @@ from features.agents_dashboard_firmware.build import (
     KEY_CALLBACK_LOW_ORIGINAL,
     TRAMPOLINE_OFFSET,
     TRAMPOLINE_ORIGINAL,
+    STAGE_SHA256,
+    STAGE_SIZE,
     _absolute_tail_jump,
     _encode_jal,
 )
@@ -69,13 +72,29 @@ class TestCredentials:
 
 
 class AgentsDashboardFirmwareTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        if not STAGE.is_file():
+            raise unittest.SkipTest("本机没有阶段固件")
+        cls._material_directory = tempfile.TemporaryDirectory()
+        cls.stage = prepare_read_only_copy(
+            STAGE,
+            Path(cls._material_directory.name),
+            expected_size=STAGE_SIZE,
+            expected_sha256=STAGE_SHA256,
+        ).path
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+        cls._material_directory.cleanup()
+
     def test_real_stage_builds_linked_page_registration_payload(self) -> None:
-        if not STAGE.is_file() or not shutil.which("riscv64-elf-as"):
+        if not shutil.which("riscv64-elf-as"):
             self.skipTest("本机没有阶段固件或固定编译工具")
         with tempfile.TemporaryDirectory() as selected:
             root = Path(selected)
             document = build_page_registration_payload(
-                STAGE,
+                self.stage,
                 root / "build",
                 root / "report.json",
                 tool_revision={"commit": "test", "scoped_code_dirty": False},
@@ -124,7 +143,7 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
         )
 
     def test_changed_page_payload_cannot_reuse_observation_approval(self) -> None:
-        if not STAGE.is_file() or not shutil.which("riscv64-elf-as"):
+        if not shutil.which("riscv64-elf-as"):
             self.skipTest("本机没有阶段固件或固定编译工具")
         with tempfile.TemporaryDirectory() as selected:
             root = Path(selected)
@@ -135,7 +154,7 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
                 "真机观察批准记录字段不匹配：output_sha256",
             ):
                 build_observation_firmware(
-                    STAGE,
+                    self.stage,
                     output,
                     manifest,
                     root / "build",
@@ -144,8 +163,7 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
 
     def test_sync_payload_fits_and_full_candidate_is_bounded(self) -> None:
         if (
-            not STAGE.is_file()
-            or not shutil.which("riscv64-elf-as")
+            not shutil.which("riscv64-elf-as")
             or not shutil.which("riscv64-elf-gcc")
         ):
             self.skipTest("本机没有阶段固件或固定编译工具")
@@ -157,7 +175,7 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as selected:
             root = Path(selected)
             payload = build_sync_payload(
-                STAGE,
+                self.stage,
                 root / "payload",
                 credentials,
                 tool_revision={"commit": "test", "scoped_code_dirty": False},
@@ -172,7 +190,7 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
             output = root / STOCK_LOCAL_BRANCHES_OUTPUT_FILENAME
             manifest = root / "manifest.json"
             result = build_stock_local_branches_firmware(
-                STAGE,
+                self.stage,
                 output,
                 manifest,
                 root / "firmware",
@@ -189,7 +207,7 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
         self.assertGreater(60_934 - payload.size, 20_000)
         self.assertLessEqual(payload.maximum_static_stack, 768)
         self.assertEqual(result.payload_size, payload.size)
-        self.assertEqual(len(output_bytes), STAGE.stat().st_size)
+        self.assertEqual(len(output_bytes), self.stage.stat().st_size)
         self.assertTrue(output_bytes.startswith(b"BFNP"))
         self.assertNotIn(credentials.access_token, manifest_text)
         self.assertNotIn(credentials.secret_key.hex(), manifest_text)
@@ -247,7 +265,7 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
             "local_branch_resume_targets",
             callchain_gates["disassembly"],
         )
-        stage_bytes = STAGE.read_bytes()
+        stage_bytes = self.stage.read_bytes()
         self.assertEqual(
             stage_bytes[
                 PET_STATE_SIZE_OFFSET :
@@ -483,7 +501,7 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
                 "旧 AGENTS 固件路径已停用",
             ):
                 build_sync_firmware(
-                    STAGE,
+                    self.stage,
                     root / retired,
                     root / "manifest.json",
                     root / "build",
@@ -505,7 +523,7 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
                 "功率页确认重启停用",
             ):
                 build_stock_callchain_firmware(
-                    STAGE,
+                    self.stage,
                     root / STOCK_CALLCHAIN_OUTPUT_FILENAME,
                     root / "manifest.json",
                     root / "build",
@@ -525,7 +543,7 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
                 "功率页确认卡死停用",
             ):
                 build_stock_enter_gate_firmware(
-                    STAGE,
+                    self.stage,
                     root / STOCK_ENTER_GATE_OUTPUT_FILENAME,
                     root / "manifest.json",
                     root / "build",

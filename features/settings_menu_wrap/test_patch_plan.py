@@ -7,6 +7,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import features.settings_menu_wrap.patch_plan as patch_plan_module
+from core.firmware_image import AP01_1_0_2_0031, prepare_read_only_copy
 from features.offline_firmware_build import BuildGateError, load_patch_plan
 from features.settings_menu_wrap import (
     APPROVAL_LIMIT,
@@ -27,13 +28,29 @@ from features.settings_menu_wrap import (
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-REAL_BASELINE = Path(
-    "/Users/mac/Desktop/cuktech-ap01-firmware-artifacts/original/"
-    "ap01-1.0.2_0031.bin"
+REAL_BASELINE_SOURCE = (
+    REPO_ROOT / "artifacts/firmware/original/ap01-1.0.2_0031.bin"
 )
 
 
 class SettingsMenuWrapTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        if not REAL_BASELINE_SOURCE.is_file():
+            raise unittest.SkipTest("真实原厂基线不在本机")
+        cls._material_directory = tempfile.TemporaryDirectory()
+        cls.real_baseline = prepare_read_only_copy(
+            REAL_BASELINE_SOURCE,
+            Path(cls._material_directory.name),
+            expected_size=AP01_1_0_2_0031.size,
+            expected_sha256=AP01_1_0_2_0031.sha256,
+            expected_md5=AP01_1_0_2_0031.md5,
+        ).path
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+        cls._material_directory.cleanup()
+
     def test_patch_definitions_are_ordered_equal_length_and_non_overlapping(self) -> None:
         self.assertEqual(
             [patch.offset for patch in PATCHES],
@@ -104,9 +121,8 @@ class SettingsMenuWrapTests(unittest.TestCase):
             ],
         )
 
-    @unittest.skipUnless(REAL_BASELINE.is_file(), "真实原厂基线不在本机")
     def test_reviewed_function_gap_matches_exact_baseline(self) -> None:
-        firmware = REAL_BASELINE.read_bytes()
+        firmware = self.real_baseline.read_bytes()
 
         self.assertEqual(
             firmware[CODE_GAP_START:CODE_GAP_END],
@@ -117,9 +133,8 @@ class SettingsMenuWrapTests(unittest.TestCase):
         self.assertEqual(PATCHES[0].offset, CODE_GAP_START)
         self.assertEqual(PATCHES[0].end, 0x01C0AC)
 
-    @unittest.skipUnless(REAL_BASELINE.is_file(), "真实原厂基线不在本机")
     def test_candidate_bytes_preserve_every_reviewed_log_region(self) -> None:
-        original = REAL_BASELINE.read_bytes()
+        original = self.real_baseline.read_bytes()
         candidate = bytearray(original)
         for patch in PATCHES:
             self.assertEqual(
@@ -132,10 +147,9 @@ class SettingsMenuWrapTests(unittest.TestCase):
             with self.subTest(log=name):
                 self.assertEqual(candidate[start:end], original[start:end])
 
-    @unittest.skipUnless(REAL_BASELINE.is_file(), "真实原厂基线不在本机")
     def test_real_baseline_builds_four_range_draft(self) -> None:
         document = build_draft_plan(
-            REAL_BASELINE,
+            self.real_baseline,
             tool_revision={"commit": "test", "scoped_code_dirty": True},
         )
 
@@ -147,12 +161,11 @@ class SettingsMenuWrapTests(unittest.TestCase):
         self.assertEqual(len(document["patches"]), 4)
         self.assertEqual(document["review"]["code_gap"]["used_bytes"], 164)
 
-    @unittest.skipUnless(REAL_BASELINE.is_file(), "真实原厂基线不在本机")
     def test_draft_plan_cannot_pass_offline_build_approval_gate(self) -> None:
         with tempfile.TemporaryDirectory() as selected:
             plan_path = Path(selected) / "settings-menu-wrap-draft.json"
             write_draft_plan(
-                REAL_BASELINE,
+                self.real_baseline,
                 plan_path,
                 tool_revision={"commit": "test", "scoped_code_dirty": True},
             )
@@ -160,10 +173,9 @@ class SettingsMenuWrapTests(unittest.TestCase):
             with self.assertRaisesRegex(BuildGateError, "尚未明确批准"):
                 load_patch_plan(plan_path, REPO_ROOT)
 
-    @unittest.skipUnless(REAL_BASELINE.is_file(), "真实原厂基线不在本机")
     def test_current_four_range_approval_matches_direction_filter_scope(self) -> None:
         document = build_approved_plan(
-            REAL_BASELINE,
+            self.real_baseline,
             tool_revision={"commit": "test", "scoped_code_dirty": True},
         )
         approval = json.loads(APPROVAL_RECORD_PATH.read_text(encoding="utf-8"))
@@ -178,7 +190,6 @@ class SettingsMenuWrapTests(unittest.TestCase):
             "批准第 23 节四区间，生成并刷入当前唯一 AP01",
         )
 
-    @unittest.skipUnless(REAL_BASELINE.is_file(), "真实原厂基线不在本机")
     def test_changed_approval_scope_is_rejected(self) -> None:
         approval = json.loads(APPROVAL_RECORD_PATH.read_text(encoding="utf-8"))
         approval["patch_count"] = 4
@@ -197,16 +208,15 @@ class SettingsMenuWrapTests(unittest.TestCase):
             ):
                 with self.assertRaisesRegex(SettingsMenuWrapError, "必须重新审批"):
                     build_approved_plan(
-                        REAL_BASELINE,
+                        self.real_baseline,
                         tool_revision={"commit": "test", "scoped_code_dirty": True},
                     )
 
-    @unittest.skipUnless(REAL_BASELINE.is_file(), "真实原厂基线不在本机")
     def test_matching_visual_sync_scope_writes_approved_plan(self) -> None:
         with tempfile.TemporaryDirectory(dir=patch_plan_module.MODULE_DIR) as selected:
             plan_path = Path(selected) / "settings-menu-wrap-approved.json"
             draft = build_draft_plan(
-                REAL_BASELINE,
+                self.real_baseline,
                 tool_revision={"commit": "test", "scoped_code_dirty": True},
             )
             approval = json.loads(APPROVAL_RECORD_PATH.read_text(encoding="utf-8"))
@@ -225,7 +235,7 @@ class SettingsMenuWrapTests(unittest.TestCase):
                 matching_record,
             ):
                 write_approved_plan(
-                    REAL_BASELINE,
+                    self.real_baseline,
                     plan_path,
                     tool_revision={"commit": "test", "scoped_code_dirty": True},
                 )

@@ -9,9 +9,9 @@ from core.rotary_encoder import (
 )
 
 
-REAL_BASELINE = Path(
-    "/Users/mac/Desktop/cuktech-ap01-firmware-artifacts/original/"
-    "ap01-1.0.2_0031.bin"
+REPO_ROOT = Path(__file__).resolve().parents[2]
+REAL_BASELINE = (
+    REPO_ROOT / "artifacts/firmware/original/ap01-1.0.2_0031.bin"
 )
 
 
