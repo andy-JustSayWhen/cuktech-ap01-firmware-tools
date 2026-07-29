@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import hashlib
 import io
+import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from PIL import Image
 
@@ -14,6 +16,7 @@ from .result_package import (
     ResultPackageError,
     decode_package,
     encode_package,
+    load_credentials,
     load_or_create_credentials,
     png_to_device_gif,
 )
@@ -98,7 +101,15 @@ class ResultPackageTests(unittest.TestCase):
             first = load_or_create_credentials(path)
             second = load_or_create_credentials(path)
             self.assertEqual(first, second)
+            self.assertEqual(load_credentials(path), first)
             self.assertEqual(path.stat().st_mode & 0o777, 0o600)
+
+    def test_normal_load_refuses_to_create_missing_credentials(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "device.json"
+            with self.assertRaisesRegex(ResultPackageError, "不存在"):
+                load_credentials(path)
+            self.assertFalse(path.exists())
 
     def test_png_conversion_is_two_frame_device_gif(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -137,6 +148,55 @@ class ResultPackageTests(unittest.TestCase):
                     }
                 )
             )
+
+    def test_bridge_refresh_uses_selected_data_directories(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            codex_home = root / "codex"
+            cache = root / "cache"
+            state = BridgeState(
+                self.credentials,
+                root / "output",
+                root / "fonts",
+                codex_home=codex_home,
+                cache_directory=cache,
+            )
+            sources = {
+                "quota": True,
+                "reset_cards": False,
+                "profile": True,
+                "local_sessions": True,
+            }
+            with patch(
+                "features.agents_dashboard.bridge.publish_current_result",
+                return_value={"data_sources": sources},
+            ) as publish:
+                state.refresh()
+            publish.assert_called_once_with(
+                root / "output",
+                root / "fonts",
+                self.credentials,
+                codex_home=codex_home,
+                cache_directory=cache,
+            )
+            self.assertEqual(state.data_sources, sources)
+
+    def test_health_serves_valid_old_result_while_refresh_is_degraded(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory)
+            package = encode_package(
+                self.pages,
+                generation=10,
+                generated_at=1_700_000_003,
+                credentials=self.credentials,
+            )
+            (output / "agents-dashboard.apag").write_bytes(package)
+            state = BridgeState(self.credentials, output, output)
+            state.error = "refresh failed"
+            health = json.loads(state.health())
+            self.assertTrue(health["ok"])
+            self.assertTrue(health["degraded"])
+            self.assertEqual(health["error"], "refresh failed")
 
 
 if __name__ == "__main__":

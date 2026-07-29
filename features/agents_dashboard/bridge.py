@@ -20,6 +20,8 @@ from urllib.parse import parse_qs, urlsplit
 from .result_package import (
     DeviceCredentials,
     ResultPackageError,
+    decode_package,
+    load_credentials,
     load_or_create_credentials,
     publish_current_result,
 )
@@ -27,6 +29,7 @@ from .result_package import (
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_CONFIG = PROJECT_ROOT / "env" / "agents-dashboard-device.json"
+DEFAULT_CACHE = PROJECT_ROOT / "env" / "agents-dashboard-cache"
 DEFAULT_OUTPUT = PROJECT_ROOT / "artifacts" / "agents-dashboard"
 DEFAULT_FONTS = PROJECT_ROOT / "env" / "fonts"
 
@@ -72,18 +75,42 @@ class BridgeState:
         credentials: DeviceCredentials,
         output: Path,
         fonts: Path,
+        *,
+        codex_home: Path | None = None,
+        cache_directory: Path | None = None,
     ) -> None:
         self.credentials = credentials
         self.output = output
         self.fonts = fonts
+        self.codex_home = codex_home
+        self.cache_directory = cache_directory
         self.lock = threading.Lock()
         self.last_refresh: float | None = None
         self.last_request: float | None = None
         self.requests = 0
         self.error: str | None = None
+        self.data_sources: dict[str, bool] = {}
         self.refreshing = False
         self._nonces: deque[str] = deque(maxlen=128)
         self._nonce_set: set[str] = set()
+
+    @staticmethod
+    def _safe_error(error: Exception) -> str:
+        message = str(error)
+        for private_path in (
+            str(PROJECT_ROOT.resolve()),
+            str(Path.home().resolve()),
+        ):
+            message = message.replace(private_path, "<本机路径>")
+        return message[:300]
+
+    def has_valid_result(self) -> bool:
+        package_path = self.output / "agents-dashboard.apag"
+        try:
+            decode_package(package_path.read_bytes(), self.credentials)
+        except (OSError, ResultPackageError):
+            return False
+        return True
 
     def refresh(self) -> None:
         with self.lock:
@@ -91,13 +118,29 @@ class BridgeState:
                 return
             self.refreshing = True
         try:
-            publish_current_result(self.output, self.fonts, self.credentials)
+            manifest = publish_current_result(
+                self.output,
+                self.fonts,
+                self.credentials,
+                codex_home=self.codex_home,
+                cache_directory=self.cache_directory,
+            )
             with self.lock:
                 self.last_refresh = time.time()
                 self.error = None
+                source_status = manifest.get("data_sources", {})
+                self.data_sources = (
+                    {
+                        str(name): available
+                        for name, available in source_status.items()
+                        if isinstance(name, str) and isinstance(available, bool)
+                    }
+                    if isinstance(source_status, dict)
+                    else {}
+                )
         except Exception as error:
             with self.lock:
-                self.error = str(error)
+                self.error = self._safe_error(error)
             raise
         finally:
             with self.lock:
@@ -125,14 +168,17 @@ class BridgeState:
         return True
 
     def health(self) -> bytes:
+        result_available = self.has_valid_result()
         with self.lock:
             document = {
-                "ok": self.error is None and (self.output / "agents-dashboard.apag").is_file(),
+                "ok": result_available,
+                "degraded": self.error is not None,
                 "last_refresh": self.last_refresh,
                 "last_request": self.last_request,
                 "requests": self.requests,
                 "refreshing": self.refreshing,
                 "error": self.error,
+                "data_sources": dict(self.data_sources),
             }
         return json.dumps(
             document,
@@ -205,15 +251,40 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG)
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
     parser.add_argument("--font-directory", type=Path, default=DEFAULT_FONTS)
+    parser.add_argument("--codex-home", type=Path)
+    parser.add_argument("--cache-directory", type=Path, default=DEFAULT_CACHE)
+    parser.add_argument(
+        "--initialize-config",
+        action="store_true",
+        help="只初始化或复用设备专属配置，随后退出",
+    )
     arguments = parser.parse_args(argv)
     if not 10 <= arguments.interval <= 7200:
         parser.error("刷新周期必须在 10～7200 秒之间")
     try:
-        credentials = load_or_create_credentials(arguments.config)
-        state = BridgeState(credentials, arguments.output, arguments.font_directory)
-        state.refresh()
+        if arguments.initialize_config:
+            credentials = load_or_create_credentials(arguments.config)
+            print(f"设备专属配置已就绪：{arguments.config.expanduser().resolve()}")
+            return 0
+        credentials = load_credentials(arguments.config)
     except ResultPackageError as error:
         parser.error(str(error))
+    state = BridgeState(
+        credentials,
+        arguments.output,
+        arguments.font_directory,
+        codex_home=arguments.codex_home,
+        cache_directory=arguments.cache_directory,
+    )
+    try:
+        state.refresh()
+    except Exception as error:
+        if not state.has_valid_result():
+            parser.error(f"无法生成新结果且没有可用旧结果：{state._safe_error(error)}")
+        print(
+            "AGENTS 看板首次刷新失败，继续提供已验证的旧结果："
+            f"{state._safe_error(error)}"
+        )
     worker = threading.Thread(
         target=_refresh_loop,
         args=(state, arguments.interval),

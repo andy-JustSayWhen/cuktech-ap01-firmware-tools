@@ -17,7 +17,7 @@ if str(REPO_ROOT) not in sys.path:
 from core.firmware_image import FirmwareValidationError
 from features.agents_dashboard.result_package import (
     ResultPackageError,
-    load_or_create_credentials,
+    load_credentials,
 )
 from features.agents_dashboard_firmware import (
     AgentsDashboardFirmwareError,
@@ -557,7 +557,7 @@ def main(argv: list[str] | None = None) -> int:
             return 0
 
         if args.command == "agents-sync-build":
-            credentials = load_or_create_credentials(args.config)
+            credentials = load_credentials(args.config)
             result = build_sync_firmware(
                 args.input,
                 args.output,
@@ -587,7 +587,7 @@ def main(argv: list[str] | None = None) -> int:
             return 0
 
         if args.command == "agents-detail-compat-build":
-            credentials = load_or_create_credentials(args.config)
+            credentials = load_credentials(args.config)
             result = build_sync_firmware(
                 args.input,
                 args.output,
@@ -619,7 +619,7 @@ def main(argv: list[str] | None = None) -> int:
             return 0
 
         if args.command == "agents-confirm-compat-build":
-            credentials = load_or_create_credentials(args.config)
+            credentials = load_credentials(args.config)
             result = build_sync_firmware(
                 args.input,
                 args.output,
@@ -654,7 +654,7 @@ def main(argv: list[str] | None = None) -> int:
             return 0
 
         if args.command == "agents-pet-overlay-build":
-            credentials = load_or_create_credentials(args.config)
+            credentials = load_credentials(args.config)
             result = build_sync_firmware(
                 args.input,
                 args.output,
@@ -690,7 +690,7 @@ def main(argv: list[str] | None = None) -> int:
             return 0
 
         if args.command == "agents-stock-pet-reuse-build":
-            credentials = load_or_create_credentials(args.config)
+            credentials = load_credentials(args.config)
             result = build_sync_firmware(
                 args.input,
                 args.output,
@@ -727,7 +727,7 @@ def main(argv: list[str] | None = None) -> int:
             return 0
 
         if args.command == "agents-stock-dispatch-build":
-            credentials = load_or_create_credentials(args.config)
+            credentials = load_credentials(args.config)
             result = build_sync_firmware(
                 args.input,
                 args.output,
@@ -764,7 +764,7 @@ def main(argv: list[str] | None = None) -> int:
             return 0
 
         if args.command == "agents-stock-callchain-build":
-            credentials = load_or_create_credentials(args.config)
+            credentials = load_credentials(args.config)
             result = build_stock_callchain_firmware(
                 args.input,
                 args.output,
@@ -795,7 +795,7 @@ def main(argv: list[str] | None = None) -> int:
             return 0
 
         if args.command == "agents-stock-enter-gate-build":
-            credentials = load_or_create_credentials(args.config)
+            credentials = load_credentials(args.config)
             result = build_stock_enter_gate_firmware(
                 args.input,
                 args.output,
@@ -826,7 +826,7 @@ def main(argv: list[str] | None = None) -> int:
             return 0
 
         if args.command == "agents-stock-local-branches-build":
-            credentials = load_or_create_credentials(args.config)
+            credentials = load_credentials(args.config)
             result = build_stock_local_branches_firmware(
                 args.input,
                 args.output,
@@ -866,7 +866,7 @@ def main(argv: list[str] | None = None) -> int:
                 compiler=compiler,
             )
             router = _build_primary_router(args.build_dir / "composition", assembler)
-            credentials = load_or_create_credentials(args.config)
+            credentials = load_credentials(args.config)
             result = build_sync_firmware(
                 args.input,
                 args.output,

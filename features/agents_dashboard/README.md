@@ -28,12 +28,30 @@ python3 -m features.agents_dashboard.generate_actual
 启动本机真实数据同步服务：
 
 ```shell
-python3 -m features.agents_dashboard.bridge --port 8765 --interval 300
+python3 -m features.agents_dashboard.bridge \
+  --initialize-config \
+  --config env/agents-dashboard-device.json
+
+python3 -m features.agents_dashboard.bridge \
+  --bind 0.0.0.0 \
+  --port 8765 \
+  --interval 300 \
+  --config env/agents-dashboard-device.json \
+  --codex-home ~/.codex \
+  --cache-directory env/agents-dashboard-cache \
+  --output artifacts/agents-dashboard \
+  --font-directory env/fonts
 ```
 
-首次启动会在被版本控制忽略的 `env/agents-dashboard-device.json` 生成设备专属配置，并把
-当前四页完整包写入被版本控制忽略的 `artifacts/agents-dashboard/`。完整包格式、授权字段、
-页面顺序和大小上限只见 DESIGN 第 8 节。服务日志只记录不带查询字段的请求路径。
+初始化入口会在被版本控制忽略的 `env/agents-dashboard-device.json` 生成或复用设备专属配置，
+随后立即退出。正常服务与固件构建只读取已经存在的配置；配置缺失时停止，禁止自动生成新身份。
+换机时必须原样迁移与已刷固件配套的配置；无法取得旧配置时，新初始化的配置只适用于后续重新
+制作并安装的设备专属成品。
+
+服务把当前四页完整包写入被版本控制忽略的 `artifacts/agents-dashboard/`。完整包格式、授权
+字段、页面顺序和大小上限只见 DESIGN 第 8 节。服务日志只记录不带查询字段的请求路径。启动时
+无法生成新包，但已有包能由当前设备配置完整验签时，服务继续提供旧包并在健康结果中标记降级。
+数据根目录和安全聚合缓存目录可以按当前服务电脑显式指定，不必固定为某个用户名或仓库路径。
 
 设备专属实验固件只允许从已验收的 `opt-setting.bin` 构建：
 

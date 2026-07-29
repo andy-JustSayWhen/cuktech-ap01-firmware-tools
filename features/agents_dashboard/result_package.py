@@ -103,13 +103,7 @@ class DecodedPackage:
 def load_or_create_credentials(path: Path) -> DeviceCredentials:
     selected = path.expanduser().resolve()
     if selected.exists():
-        try:
-            document = json.loads(selected.read_text(encoding="utf-8"))
-        except (OSError, UnicodeError, json.JSONDecodeError) as error:
-            raise ResultPackageError("无法读取设备专属配置") from error
-        if not isinstance(document, dict):
-            raise ResultPackageError("设备专属配置格式错误")
-        return DeviceCredentials.from_dict(document)
+        return load_credentials(selected)
 
     selected.parent.mkdir(parents=True, exist_ok=True)
     credentials = DeviceCredentials.generate()
@@ -134,6 +128,25 @@ def load_or_create_credentials(path: Path) -> DeviceCredentials:
     finally:
         temporary.unlink(missing_ok=True)
     return credentials
+
+
+def load_credentials(path: Path) -> DeviceCredentials:
+    selected = path.expanduser().resolve()
+    if not selected.is_file():
+        raise ResultPackageError(
+            "设备专属配置不存在；请迁移原配置或先显式初始化"
+        )
+    try:
+        if os.name != "nt" and selected.stat().st_mode & 0o077:
+            raise ResultPackageError("设备专属配置权限必须为 600")
+        document = json.loads(selected.read_text(encoding="utf-8"))
+    except ResultPackageError:
+        raise
+    except (OSError, UnicodeError, json.JSONDecodeError) as error:
+        raise ResultPackageError("无法读取设备专属配置") from error
+    if not isinstance(document, dict):
+        raise ResultPackageError("设备专属配置格式错误")
+    return DeviceCredentials.from_dict(document)
 
 
 def validate_gif(path: Path) -> bytes:
@@ -318,6 +331,9 @@ def publish_current_result(
     output_directory: Path,
     font_directory: Path,
     credentials: DeviceCredentials,
+    *,
+    codex_home: Path | None = None,
+    cache_directory: Path | None = None,
 ) -> dict[str, object]:
     selected = output_directory.expanduser().resolve()
     selected.mkdir(parents=True, exist_ok=True)
@@ -325,7 +341,10 @@ def publish_current_result(
     generation = next_generation(package_path)
     with tempfile.TemporaryDirectory(prefix=".agents-dashboard.", dir=selected) as name:
         temporary = Path(name)
-        snapshot = collect_snapshot()
+        snapshot = collect_snapshot(
+            codex_home=codex_home,
+            cache_directory=cache_directory,
+        )
         png_paths = render_all(snapshot, temporary, font_directory)
         pages = tuple(
             png_to_device_gif(png_paths[png_name], temporary / gif_name)
@@ -351,6 +370,12 @@ def publish_current_result(
             "generated_at": snapshot.generated_at,
             "package_bytes": len(package),
             "package_sha256": hashlib.sha256(package).hexdigest(),
+            "data_sources": {
+                "quota": snapshot.quota_available,
+                "reset_cards": snapshot.reset_cards_source_available,
+                "profile": snapshot.profile_available,
+                "local_sessions": snapshot.local_sessions_available,
+            },
             "pages": [
                 {
                     "name": name,
