@@ -13,6 +13,8 @@
     .equ AGENTS_STATE_TODAY, 3
     .equ AGENTS_STATE_LAST_30_DAYS, 4
     .equ STOCK_PET_DESCRIPTOR, 0xa01f7090
+    .equ PAGE_BIT_PET, 4
+    .equ PAGE_BIT_AGENTS, 5
 
     .ifdef STOCK_PET_REUSE
 
@@ -518,6 +520,14 @@ ap01_agents_stock_pet_enter_entry:
     j .Llocal_pet_enter
 
 .Llocal_power_left:
+    .ifdef OPT_INTEGRATION
+    call ap01_page_settings_load_mask
+    li t0, 1
+    li t1, PAGE_BIT_AGENTS
+    sll t0, t0, t1
+    and t0, t0, a0
+    beqz t0, .Llocal_fallback
+    .endif
     mv a0, s2
     li a1, AGENTS_STATE_OVERVIEW
     call ap01_agents_show_page
@@ -538,6 +548,27 @@ ap01_agents_stock_pet_enter_entry:
     beqz a0, .Llocal_fallback
     li t0, AGENTS_STATE_OVERVIEW
     bne a0, t0, .Llocal_detail_left
+    .ifdef OPT_INTEGRATION
+    call ap01_page_settings_load_mask
+    li t0, 1
+    li t1, PAGE_BIT_PET
+    sll t0, t0, t1
+    and t0, t0, a0
+    bnez t0, .Llocal_pet_left_restore_only
+    mv a0, s2
+    call ap01_agents_restore_pet
+    beqz a0, .Llocal_fallback
+    mv a0, s1
+    li a1, 6
+    li a2, 2
+    call stock_switch_page
+    mv a0, s1
+    call stock_get_dispatch_index
+    li t0, 6
+    beq a0, t0, .Llocal_consumed
+    j .Llocal_fallback
+.Llocal_pet_left_restore_only:
+    .endif
     mv a0, s2
     call ap01_agents_restore_pet
     bnez a0, .Llocal_consumed
@@ -569,13 +600,25 @@ ap01_agents_stock_pet_enter_entry:
     mv a0, s1
     li a1, 0
     li a2, 1
+    .ifdef OPT_INTEGRATION
+    call ap01_primary_page_filter_and_switch
+    .else
     call stock_switch_page
+    .endif
     mv a0, s1
     call stock_get_dispatch_index
     beqz a0, .Llocal_consumed
     j .Llocal_fallback
 
 .Llocal_enter_agents:
+    .ifdef OPT_INTEGRATION
+    call ap01_page_settings_load_mask
+    li t0, 1
+    li t1, PAGE_BIT_AGENTS
+    sll t0, t0, t1
+    and t0, t0, a0
+    beqz t0, .Llocal_fallback
+    .endif
     mv a0, s2
     li a1, AGENTS_STATE_OVERVIEW
     call ap01_agents_show_page

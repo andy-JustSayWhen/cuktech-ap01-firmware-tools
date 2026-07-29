@@ -14,6 +14,13 @@
     .equ STATE_MASK, 36
     .equ STATE_SELECTION, 40
     .equ STATE_SETTINGS_DATA, 44
+    .equ PAGE_BIT_TIME, 0
+    .equ PAGE_BIT_POWER, 1
+    .equ PAGE_BIT_WEATHER, 2
+    .equ PAGE_BIT_DATE, 3
+    .equ PAGE_BIT_PET, 4
+    .equ PAGE_BIT_AGENTS, 5
+    .equ AGENTS_STATE_OVERVIEW, 1
 
     .section .text, "ax", @progbits
     .align 2
@@ -314,6 +321,167 @@ ap01_primary_page_navigation_event:
     addi sp, sp, 48
     ret
     .size ap01_primary_page_navigation_event, .-ap01_primary_page_navigation_event
+
+    .align 2
+    .global ap01_primary_page_filter_and_switch
+    .type ap01_primary_page_filter_and_switch, @function
+ap01_primary_page_filter_and_switch:
+    addi sp, sp, -32
+    sw ra, 28(sp)
+    sw s0, 24(sp)
+    sw s1, 20(sp)
+    sw s2, 16(sp)
+    sw s3, 12(sp)
+    sw s4, 8(sp)
+    sw s5, 4(sp)
+    mv s0, a0
+    mv s1, a1
+    mv s2, a2
+    mv s3, a1
+    li s4, 0
+    li t0, 1
+    beq s2, t0, .Lfilter_load_mask
+    li t0, 2
+    bne s2, t0, .Lfilter_fallback
+
+.Lfilter_load_mask:
+    li t0, 1
+    beq s1, t0, .Lfilter_fallback
+    li t0, 2
+    beq s1, t0, .Lfilter_fallback
+    call ap01_page_settings_load_mask
+    mv s5, a0
+
+.Lfilter_check:
+    li t0, 6
+    bgeu s4, t0, .Lfilter_fallback
+    beqz s1, .Lfilter_power
+    li t0, 3
+    beq s1, t0, .Lfilter_time
+    li t0, 4
+    beq s1, t0, .Lfilter_date
+    li t0, 5
+    beq s1, t0, .Lfilter_weather
+    li t0, 6
+    beq s1, t0, .Lfilter_switch
+    li t0, 7
+    beq s1, t0, .Lfilter_shared_page
+    j .Lfilter_fallback
+
+.Lfilter_power:
+    li t0, PAGE_BIT_POWER
+    j .Lfilter_test_bit
+.Lfilter_time:
+    li t0, PAGE_BIT_TIME
+    j .Lfilter_test_bit
+.Lfilter_date:
+    li t0, PAGE_BIT_DATE
+    j .Lfilter_test_bit
+.Lfilter_weather:
+    li t0, PAGE_BIT_WEATHER
+
+.Lfilter_test_bit:
+    li t1, 1
+    sll t1, t1, t0
+    and t1, t1, s5
+    bnez t1, .Lfilter_switch
+    j .Lfilter_advance
+
+.Lfilter_shared_page:
+    li t0, 2
+    beq s2, t0, .Lfilter_shared_left
+    li t0, PAGE_BIT_PET
+    li t1, PAGE_BIT_AGENTS
+    j .Lfilter_shared_bits_ready
+.Lfilter_shared_left:
+    li t0, PAGE_BIT_AGENTS
+    li t1, PAGE_BIT_PET
+
+.Lfilter_shared_bits_ready:
+    li t2, 1
+    sll t3, t2, t0
+    and t3, t3, s5
+    beqz t3, .Lfilter_shared_second
+    li t3, PAGE_BIT_AGENTS
+    beq t0, t3, .Lfilter_show_agents
+    j .Lfilter_show_pet
+
+.Lfilter_shared_second:
+    sll t3, t2, t1
+    and t3, t3, s5
+    beqz t3, .Lfilter_advance
+    li t3, PAGE_BIT_AGENTS
+    beq t1, t3, .Lfilter_show_agents
+
+.Lfilter_show_pet:
+    mv a0, s0
+    call ap01_agents_find_pet_state
+    beqz a0, .Lfilter_switch
+    call ap01_agents_restore_pet
+    j .Lfilter_switch
+
+.Lfilter_show_agents:
+    mv a0, s0
+    call ap01_agents_find_pet_state
+    beqz a0, .Lfilter_fallback
+    li a1, AGENTS_STATE_OVERVIEW
+    call ap01_agents_show_page
+    beqz a0, .Lfilter_fallback
+    j .Lfilter_switch
+
+.Lfilter_advance:
+    addi s4, s4, 1
+    li t0, 1
+    beq s2, t0, .Lfilter_advance_right
+    beqz s1, .Lfilter_left_power
+    li t0, 3
+    beq s1, t0, .Lfilter_left_time
+    addi s1, s1, -1
+    j .Lfilter_check
+.Lfilter_left_power:
+    li s1, 7
+    j .Lfilter_check
+.Lfilter_left_time:
+    li s1, 0
+    j .Lfilter_check
+
+.Lfilter_advance_right:
+    beqz s1, .Lfilter_right_power
+    li t0, 7
+    beq s1, t0, .Lfilter_right_pet
+    addi s1, s1, 1
+    j .Lfilter_check
+.Lfilter_right_power:
+    li s1, 3
+    j .Lfilter_check
+.Lfilter_right_pet:
+    li s1, 0
+    j .Lfilter_check
+
+.Lfilter_switch:
+    mv a0, s0
+    mv a1, s1
+    mv a2, s2
+    call stock_switch_page
+    j .Lfilter_done
+
+.Lfilter_fallback:
+    mv a0, s0
+    mv a1, s3
+    mv a2, s2
+    call stock_switch_page
+
+.Lfilter_done:
+    lw ra, 28(sp)
+    lw s0, 24(sp)
+    lw s1, 20(sp)
+    lw s2, 16(sp)
+    lw s3, 12(sp)
+    lw s4, 8(sp)
+    lw s5, 4(sp)
+    addi sp, sp, 32
+    ret
+    .size ap01_primary_page_filter_and_switch, .-ap01_primary_page_filter_and_switch
 
     .align 2
     .type ap01_page_settings_find_state, @function

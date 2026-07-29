@@ -23,6 +23,7 @@ from features.agents_dashboard_firmware import (
     AgentsDashboardFirmwareError,
     CONFIRM_COMPAT_OUTPUT_FILENAME,
     DETAIL_COMPAT_OUTPUT_FILENAME,
+    OPT_INTEGRATION_OUTPUT_FILENAME,
     PET_OVERLAY_OUTPUT_FILENAME,
     STOCK_CALLCHAIN_OUTPUT_FILENAME,
     STOCK_DISPATCH_OUTPUT_FILENAME,
@@ -364,26 +365,6 @@ def _required_tool(name: str) -> Path:
             return fallback
         raise PrimaryPageSettingsBuildError(f"缺少构建工具：{name}")
     return Path(selected)
-
-
-def _build_primary_router(build_directory: Path, assembler: Path) -> Path:
-    selected = build_directory.expanduser().resolve()
-    selected.mkdir(parents=True, exist_ok=True)
-    output = selected / "combined-primary-key-event.o"
-    subprocess.run(
-        [
-            str(assembler),
-            "-march=rv32imac",
-            "-mabi=ilp32",
-            "-o",
-            str(output),
-            str(REPO_ROOT / "app/combined_primary_key_event.S"),
-        ],
-        check=True,
-        capture_output=True,
-        text=True,
-    )
-    return output
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -895,7 +876,6 @@ def main(argv: list[str] | None = None) -> int:
                 assembler=assembler,
                 compiler=compiler,
             )
-            router = _build_primary_router(args.build_dir / "composition", assembler)
             credentials = load_credentials(args.config)
             result = build_sync_firmware(
                 args.input,
@@ -906,21 +886,17 @@ def main(argv: list[str] | None = None) -> int:
                 url_base=args.url_base,
                 refresh_seconds=args.refresh_seconds,
                 tool_revision=revision,
-                extra_objects=(*settings.objects, router),
-                required_extra_symbols=(
-                    *PAGE_SETTINGS_SYMBOLS,
-                    "ap01_agents_detail_active",
-                    "ap01_combined_primary_key_event",
-                ),
-                key_callback_symbol="ap01_combined_primary_key_event",
+                extra_objects=settings.objects,
+                required_extra_symbols=PAGE_SETTINGS_SYMBOLS,
                 candidate_mutators=(apply_page_settings_patches,),
-                expected_output_name="ap01-1.0.2_0031-opt.bin",
+                expected_output_name=OPT_INTEGRATION_OUTPUT_FILENAME,
                 implemented_scope_extra=(
                     "设置菜单新增开关一级页面",
                     "六个一级页面复选状态",
                     "两份页面开关记录轮换保存",
-                    "一级导航跳过关闭页面",
+                    "原厂实际切页调用局部过滤关闭页面",
                 ),
+                reuse_stock_pet=True,
             )
             print(
                 json.dumps(

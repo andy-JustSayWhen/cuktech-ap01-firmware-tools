@@ -33,7 +33,7 @@
 | SPEC 条款 | DESIGN 落点 | 代码或维护落点 | 验证方法 | 当前状态 |
 | --- | --- | --- | --- | --- |
 | `SPEC-PAGE-001` 至 `SPEC-PAGE-004` | [`优化固件 DESIGN`](AP01-1.0.2_0031-opt.bin.md) 第 5、14 节 | `features/primary_page_settings/`、`features/primary_page_navigation/` | 菜单进入、七项循环、复选操作、原厂对象和页面行为回归 | 验证中；历史组合方案已否定 |
-| `SPEC-PAGE-005` 至 `SPEC-PAGE-007` | [`优化固件 DESIGN`](AP01-1.0.2_0031-opt.bin.md) 第 5、11、14 节 | `features/primary_page_settings/` 的保存与恢复代码、原厂实际切页调用局部挂接 | 即时生效、保存失败、断电、重启、默认值和关闭当前页 | `FW-INTEGRATION-002` 实现前；真机持久化证据阻塞 |
+| `SPEC-PAGE-005` 至 `SPEC-PAGE-007` | [`优化固件 DESIGN`](AP01-1.0.2_0031-opt.bin.md) 第 5、11、14 节 | `features/primary_page_settings/` 的保存与恢复代码、原厂实际切页调用局部挂接 | 即时生效、保存失败、断电、重启、默认值和关闭当前页 | `FW-INTEGRATION-002` 已通过离线集成测试；真机持久化证据阻塞 |
 
 ## 5. AGENTS 看板
 

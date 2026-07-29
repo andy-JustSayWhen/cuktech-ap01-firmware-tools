@@ -34,6 +34,8 @@ from features.agents_dashboard_firmware.build import (
 from features.agents_dashboard_firmware.sync_build import (
     INSTRUCTION_EXPECTED,
     LOADER_SOURCE,
+    OPT_INTEGRATION_OUTPUT_FILENAME,
+    OPT_PAGE_FILTER_HOOK,
     PET_STATE_SIZE_EXTENDED,
     PET_STATE_SIZE_OFFSET,
     PET_STATE_SIZE_ORIGINAL,
@@ -57,6 +59,15 @@ from features.agents_dashboard_firmware.sync_build import (
     route_stock_callchain,
     route_stock_enter_gate,
     validate_stock_callchain_routes,
+)
+from features.primary_page_settings import (
+    REQUIRED_SYMBOLS as PAGE_SETTINGS_SYMBOLS,
+    apply_page_settings_patches,
+    build_page_settings_objects,
+)
+from features.primary_page_settings.build import (
+    MENU_LIMIT_EIGHT,
+    MENU_LIMIT_OFFSET,
 )
 
 
@@ -473,6 +484,89 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
             route_stock_callchain(7, 20, None).target_state,
             1,
         )
+
+    def test_full_integration_candidate_uses_local_page_filter(self) -> None:
+        assembler = shutil.which("riscv64-elf-as")
+        compiler = shutil.which("riscv64-elf-gcc")
+        if not assembler or not compiler:
+            self.skipTest("本机没有固定编译工具")
+        credentials = TestCredentials(
+            device_id="1234abcd",
+            access_token="0123456789abcdef",
+            secret_key=bytes(range(32)),
+        )
+        with tempfile.TemporaryDirectory() as selected:
+            root = Path(selected)
+            settings = build_page_settings_objects(
+                root / "page-settings",
+                REPO_ROOT / "env/fonts",
+                assembler=Path(assembler),
+                compiler=Path(compiler),
+            )
+            output = root / OPT_INTEGRATION_OUTPUT_FILENAME
+            manifest = root / "manifest.json"
+            result = build_sync_firmware(
+                self.stage,
+                output,
+                manifest,
+                root / "firmware",
+                credentials,
+                url_base="http://192.168.31.139:8765/a",
+                refresh_seconds=300,
+                tool_revision={"commit": "test", "scoped_code_dirty": False},
+                extra_objects=settings.objects,
+                required_extra_symbols=PAGE_SETTINGS_SYMBOLS,
+                candidate_mutators=(apply_page_settings_patches,),
+                expected_output_name=OPT_INTEGRATION_OUTPUT_FILENAME,
+                implemented_scope_extra=("一级导航跳过关闭页面",),
+                reuse_stock_pet=True,
+            )
+            document = json.loads(manifest.read_text(encoding="utf-8"))
+            output_bytes = output.read_bytes()
+            elf = root / "firmware/agents-sync.elf"
+            disassembly = subprocess.run(
+                ["riscv64-elf-objdump", "-d", elf],
+                check=True,
+                capture_output=True,
+                text=True,
+            ).stdout
+
+        self.assertEqual(
+            document["manifest_type"],
+            "opt-integration-candidate-firmware",
+        )
+        self.assertEqual(
+            document["status"],
+            "built-not-approved-for-installation",
+        )
+        self.assertFalse(document["validation"]["installation_allowed"])
+        self.assertTrue(
+            document["validation"]["page_filter_switch_call_verified"]
+        )
+        self.assertEqual(len(document["callchain_gates"]["local_branch_hooks"]), 5)
+        self.assertEqual(result.sha256, document["output"]["sha256"])
+        self.assertEqual(
+            output_bytes[MENU_LIMIT_OFFSET : MENU_LIMIT_OFFSET + 2],
+            MENU_LIMIT_EIGHT,
+        )
+        (
+            hook_offset,
+            hook_original,
+            trampoline_offset,
+            symbol,
+            _resume_address,
+            _label,
+        ) = OPT_PAGE_FILTER_HOOK
+        self.assertEqual(
+            output_bytes[hook_offset : hook_offset + len(hook_original)],
+            _encode_jal(
+                XIP_DELTA + hook_offset,
+                XIP_DELTA + trampoline_offset,
+            ),
+        )
+        self.assertIn(f"<{symbol}>:", disassembly)
+        self.assertIn("<ap01_page_settings_load_mask>", disassembly)
+        self.assertIn("<stock_switch_page>", disassembly)
 
     def test_independent_tail_detects_all_defined_corruption_classes(self) -> None:
         for state in range(5):

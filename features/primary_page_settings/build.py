@@ -29,6 +29,7 @@ REQUIRED_SYMBOLS = (
     "ap01_page_settings_menu_dispatch",
     "ap01_page_settings_event",
     "ap01_primary_page_navigation_event",
+    "ap01_primary_page_filter_and_switch",
     "ap01_page_settings_load_mask",
     "ap01_page_settings_save_mask",
     "page_settings_background_descriptor",
