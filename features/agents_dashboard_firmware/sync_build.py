@@ -32,7 +32,6 @@ from core.firmware_payload_space import (
     inspect_payload_space,
 )
 from .build import (
-    FONT_DIRECTORY,
     HOOK_OFFSET,
     HOOK_ORIGINAL,
     KEY_CALLBACK_HIGH_OFFSET,
@@ -1107,10 +1106,7 @@ def build_sync_payload(
         tool_revision=tool_revision,
     )
     try:
-        assets = build_fallback_assets(
-            FONT_DIRECTORY,
-            selected / "fallback-assets",
-        )
+        assets = build_fallback_assets(selected / "fallback-assets")
     except FallbackAssetError as error:
         raise AgentsDashboardFirmwareError(str(error)) from error
 

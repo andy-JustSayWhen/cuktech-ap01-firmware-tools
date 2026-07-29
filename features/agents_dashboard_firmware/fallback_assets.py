@@ -3,25 +3,22 @@
 from __future__ import annotations
 
 import hashlib
+import shutil
 from dataclasses import dataclass
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image
 
 
 WIDTH = 320
 HEIGHT = 240
 FRAME_DURATION_MS = 800
+ASSET_DIRECTORY = Path(__file__).resolve().parent / "assets"
 PAGE_TITLES = (
     ("overview", "AGENTS 看板"),
     ("weekly", "周剩余额度"),
     ("today", "今日消耗"),
     ("last_30_days", "近30天消耗"),
-)
-REQUIRED_FONTS = (
-    "MiSans-Regular.ttf",
-    "MiSans-Medium.ttf",
-    "MiSans-Semibold.ttf",
 )
 EXPECTED_ASSETS = {
     "overview": (
@@ -56,111 +53,28 @@ class FallbackAsset:
     sha256: str
 
 
-def _font(directory: Path, name: str, size: int) -> ImageFont.FreeTypeFont:
-    path = directory / name
-    if not path.is_file():
-        raise FallbackAssetError(f"缺少等待页面字体：{path}")
-    return ImageFont.truetype(str(path), size)
-
-
-def _centered(
-    draw: ImageDraw.ImageDraw,
-    y: int,
-    value: str,
-    font: ImageFont.FreeTypeFont,
-    fill: str,
-) -> None:
-    bounds = draw.textbbox((0, 0), value, font=font)
-    width = bounds[2] - bounds[0]
-    draw.text(((WIDTH - width) // 2, y), value, font=font, fill=fill)
-
-
-def _frame(
-    title: str,
-    *,
-    title_font: ImageFont.FreeTypeFont,
-    main_font: ImageFont.FreeTypeFont,
-    note_font: ImageFont.FreeTypeFont,
-    active: bool,
-) -> Image.Image:
-    image = Image.new("RGB", (WIDTH, HEIGHT), "#000000")
-    draw = ImageDraw.Draw(image)
-    draw.text((10, 8), title, font=title_font, fill="#B9BBBA")
-    draw.line((10, 35, 310, 35), fill="#252625", width=1)
-    _centered(draw, 82, "等待首次同步", main_font, "#F5F5F2")
-    _centered(draw, 127, "连接服务后自动更新", note_font, "#777A78")
-    dot = "#FFD400" if active else "#493F08"
-    draw.ellipse((301, 13, 307, 19), fill=dot)
-    draw.line((104, 170, 216, 170), fill="#3B3C3B", width=1)
-    return image
-
-
-def _write_gif(
-    path: Path,
-    frames: tuple[Image.Image, Image.Image],
-) -> None:
-    palette_sheet = Image.new("RGB", (WIDTH, HEIGHT * 2), "#000000")
-    palette_sheet.paste(frames[0], (0, 0))
-    palette_sheet.paste(frames[1], (0, HEIGHT))
-    shared_palette = palette_sheet.quantize(
-        colors=32,
-        method=Image.Quantize.MEDIANCUT,
-        dither=Image.Dither.NONE,
-    )
-    encoded = tuple(
-        frame.quantize(palette=shared_palette, dither=Image.Dither.NONE)
-        for frame in frames
-    )
-    encoded[0].save(
-        path,
-        format="GIF",
-        save_all=True,
-        append_images=[encoded[1]],
-        loop=0,
-        duration=(FRAME_DURATION_MS, FRAME_DURATION_MS),
-        disposal=2,
-        optimize=False,
-    )
-
-
 def build_fallback_assets(
-    font_directory: Path,
     output_directory: Path,
 ) -> tuple[FallbackAsset, ...]:
-    """生成、重读并校验四张确定性的设备等待页面。"""
-
-    selected_fonts = font_directory.expanduser().resolve()
-    missing = [name for name in REQUIRED_FONTS if not (selected_fonts / name).is_file()]
-    if missing:
-        raise FallbackAssetError(f"缺少等待页面字体：{', '.join(missing)}")
-    title_font = _font(selected_fonts, "MiSans-Semibold.ttf", 11)
-    main_font = _font(selected_fonts, "MiSans-Medium.ttf", 27)
-    note_font = _font(selected_fonts, "MiSans-Regular.ttf", 12)
+    """复制、重读并校验四张冻结的设备等待页面。"""
 
     selected_output = output_directory.expanduser().resolve()
     selected_output.mkdir(parents=True, exist_ok=True)
     result: list[FallbackAsset] = []
     for key, title in PAGE_TITLES:
-        path = selected_output / f"fallback-{key}.gif"
-        frames = (
-            _frame(
-                title,
-                title_font=title_font,
-                main_font=main_font,
-                note_font=note_font,
-                active=False,
-            ),
-            _frame(
-                title,
-                title_font=title_font,
-                main_font=main_font,
-                note_font=note_font,
-                active=True,
-            ),
-        )
-        _write_gif(path, frames)
-        payload = path.read_bytes()
+        source = ASSET_DIRECTORY / f"fallback-{key}.gif"
+        if not source.is_file():
+            raise FallbackAssetError(f"缺少冻结等待页面：{source.name}")
+        source_payload = source.read_bytes()
         expected_size, expected_sha256 = EXPECTED_ASSETS[key]
+        if (
+            len(source_payload) != expected_size
+            or hashlib.sha256(source_payload).hexdigest() != expected_sha256
+        ):
+            raise FallbackAssetError(f"冻结等待页面指纹不匹配：{source.name}")
+        path = selected_output / f"fallback-{key}.gif"
+        shutil.copyfile(source, path)
+        payload = path.read_bytes()
         actual_sha256 = hashlib.sha256(payload).hexdigest()
         if len(payload) != expected_size or actual_sha256 != expected_sha256:
             raise FallbackAssetError(f"等待页面固定指纹不匹配：{path.name}")

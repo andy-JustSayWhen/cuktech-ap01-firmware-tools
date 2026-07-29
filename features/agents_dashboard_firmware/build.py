@@ -41,7 +41,6 @@ MODULE_DIR = Path(__file__).resolve().parent
 SOURCE = MODULE_DIR / "page_registration.S"
 LINKER = MODULE_DIR / "page_registration.ld"
 OBSERVATION_APPROVAL = MODULE_DIR / "observation_approval_record.json"
-FONT_DIRECTORY = MODULE_DIR.parents[1] / "env/fonts"
 XIP_DELTA = 0x9FFFF000
 PAYLOAD_VA = XIP_DELTA + PAYLOAD_START
 HOOK_VA = 0xA00B2732
@@ -379,10 +378,7 @@ def build_page_registration_payload(
     asset_object_path = selected / "fallback-assets.o"
     asset_source_path = selected / "fallback-assets.S"
     try:
-        assets = build_fallback_assets(
-            FONT_DIRECTORY,
-            selected / "fallback-assets",
-        )
+        assets = build_fallback_assets(selected / "fallback-assets")
     except FallbackAssetError as error:
         raise AgentsDashboardFirmwareError(str(error)) from error
     _write_asset_assembly(asset_source_path, assets)
