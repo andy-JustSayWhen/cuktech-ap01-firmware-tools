@@ -52,8 +52,12 @@ class PageConfiguration:
     pet_enabled: bool = True
     agents_enabled: bool = True
 
-    def stock_dispatches(self) -> tuple[int, ...]:
-        pages = [0]
+    def stock_dispatches(
+        self,
+        *,
+        power_available: bool = True,
+    ) -> tuple[int, ...]:
+        pages = [0] if power_available else []
         if self.c1_enabled:
             pages.append(1)
         if self.c2_enabled:
@@ -75,6 +79,8 @@ class InteractionContract:
     page_registration_unchanged: bool
     global_key_callback_registration_unchanged: bool
     fixed_shared_pages_enabled: bool = False
+    power_confirm_guard_enabled: bool = False
+    power_confirm_guard_calls_stock_clock: bool = False
     source_manifest_sha256: str | None = None
 
     @classmethod
@@ -95,6 +101,8 @@ class InteractionState:
     dispatch: int
     agents_state: int = 0
     original_owned_context: str | None = None
+    base_connected: bool = True
+    power_data_available: bool = True
 
     @property
     def visible_page(self) -> str:
@@ -112,6 +120,32 @@ class InteractionState:
             **asdict(self),
             "visible_page": self.visible_page,
         }
+
+
+def _state_with(
+    state: InteractionState,
+    *,
+    dispatch: int,
+    agents_state: int = 0,
+    original_owned_context: str | None = None,
+    base_connected: bool | None = None,
+    power_data_available: bool | None = None,
+) -> InteractionState:
+    return InteractionState(
+        dispatch=dispatch,
+        agents_state=agents_state,
+        original_owned_context=original_owned_context,
+        base_connected=(
+            state.base_connected
+            if base_connected is None
+            else base_connected
+        ),
+        power_data_available=(
+            state.power_data_available
+            if power_data_available is None
+            else power_data_available
+        ),
+    )
 
 
 @dataclass(frozen=True)
@@ -157,15 +191,22 @@ class SimulationFailure:
 
 
 def _stock_neighbor(
-    dispatch: int,
+    state: InteractionState,
     event: str,
     configuration: PageConfiguration,
 ) -> int:
-    pages = configuration.stock_dispatches()
-    if dispatch not in pages:
+    power_available = (
+        state.base_connected and state.power_data_available
+    )
+    pages = configuration.stock_dispatches(
+        power_available=power_available,
+    )
+    if state.dispatch == 0 and not power_available:
+        return pages[0] if event == "right" else pages[-1]
+    if state.dispatch not in pages:
         raise InteractionSimulationError("当前原厂分派序号不在启用页面序列")
     offset = 1 if event == "right" else -1
-    return pages[(pages.index(dispatch) + offset) % len(pages)]
+    return pages[(pages.index(state.dispatch) + offset) % len(pages)]
 
 
 def _stock_transition(
@@ -175,9 +216,30 @@ def _stock_transition(
     contract: InteractionContract,
 ) -> tuple[InteractionState | None, str, str | None]:
     if event == "enter":
+        if (
+            state.dispatch == 0
+            and contract.power_confirm_guard_enabled
+            and (
+                not state.base_connected
+                or not state.power_data_available
+            )
+        ):
+            if not contract.power_confirm_guard_calls_stock_clock:
+                return None, "unresolved-power-confirm-guard", None
+            return (
+                _state_with(
+                    state,
+                    dispatch=3,
+                    base_connected=False,
+                    power_data_available=False,
+                ),
+                "power-confirm-guard-to-clock",
+                "0xa0193862",
+            )
         context = f"stock-owned:{state.visible_page}:confirm"
         return (
-            InteractionState(
+            _state_with(
+                state,
                 dispatch=state.dispatch,
                 original_owned_context=context,
             ),
@@ -185,19 +247,27 @@ def _stock_transition(
             None,
         )
 
-    target = _stock_neighbor(state.dispatch, event, configuration)
+    target = _stock_neighbor(state, event, configuration)
     if target != 7:
-        return InteractionState(target), "stock-rotate", None
+        return _state_with(state, dispatch=target), "stock-rotate", None
 
     if event == "left" and configuration.agents_enabled:
         if not contract.power_left_enters_agents:
             return None, "unresolved-power-left-agents-entry", None
-        return InteractionState(7, agents_state=1), "show-agents", None
+        return _state_with(
+            state,
+            dispatch=7,
+            agents_state=1,
+        ), "show-agents", None
 
     if configuration.pet_enabled:
-        return InteractionState(7), "stock-rotate", None
+        return _state_with(state, dispatch=7), "stock-rotate", None
     if configuration.agents_enabled and contract.stock_entry_filter_enabled:
-        return InteractionState(7, agents_state=1), "show-agents", None
+        return _state_with(
+            state,
+            dispatch=7,
+            agents_state=1,
+        ), "show-agents", None
     return None, "unresolved-shared-dispatch-entry", None
 
 
@@ -261,20 +331,25 @@ def simulate_event(
     continuation = _continuation_for_branch(branch)
 
     if route.action == "show-agents" and route.target_state is not None:
-        after = InteractionState(7, agents_state=route.target_state)
+        after = _state_with(
+            state,
+            dispatch=7,
+            agents_state=route.target_state,
+        )
     elif route.action == "restore-pet":
-        after = InteractionState(7)
+        after = _state_with(state, dispatch=7)
     elif route.action == "switch-stock" and route.target_dispatch is not None:
-        after = InteractionState(route.target_dispatch)
+        after = _state_with(state, dispatch=route.target_dispatch)
     elif route.action in (
         "stock-resume",
         "restore-then-stock",
         "close-then-stock-resume",
     ):
-        restored = InteractionState(7)
+        restored = _state_with(state, dispatch=7)
         if event == "enter":
-            after = InteractionState(
-                7,
+            after = _state_with(
+                state,
+                dispatch=7,
                 original_owned_context="stock-owned:pet:confirm",
             )
         else:
@@ -299,7 +374,10 @@ def simulate_event(
                     "没有证明继续执行后的可见页面"
                 ),
             )
-        after = InteractionState(contract.overview_right_target_dispatch)
+        after = _state_with(
+            state,
+            dispatch=contract.overview_right_target_dispatch,
+        )
     else:
         return TraceStep(
             sequence=sequence,
@@ -400,7 +478,13 @@ def run_interaction_simulation(
             )
         )
     for gate_name, gate_value in (
-        ("功率确认隔离", contract.power_confirm_isolated),
+        (
+            "功率确认隔离或连接保护",
+            (
+                contract.power_confirm_isolated
+                or contract.power_confirm_guard_enabled
+            ),
+        ),
         ("页面注册原字节", contract.page_registration_unchanged),
         (
             "一级总键值回调注册地址",
@@ -415,6 +499,17 @@ def run_interaction_simulation(
                     message=f"成品合同没有证明{gate_name}保持不变",
                 )
             )
+    if (
+        contract.power_confirm_guard_enabled
+        and not contract.power_confirm_guard_calls_stock_clock
+    ):
+        failures.append(
+            SimulationFailure(
+                code="POWER_CONFIRM_GUARD_INCOMPLETE",
+                scenario="binary-contract",
+                message="功率确认连接保护没有证明复用原厂离线切页入口",
+            )
+        )
 
     configurations = (
         tuple(
@@ -466,6 +561,47 @@ def run_interaction_simulation(
                     )
                 )
 
+    if contract.power_confirm_guard_enabled:
+        detached_configuration = PageConfiguration()
+        for direction in ROTATION_EVENTS:
+            start = InteractionState(
+                3,
+                base_connected=False,
+                power_data_available=False,
+            )
+            length = len(
+                detached_configuration.stock_dispatches(
+                    power_available=False,
+                )
+            ) + 2
+            steps = simulate_sequence(
+                start,
+                (direction,) * length,
+                detached_configuration,
+                contract,
+                route_resolver,
+            )
+            scenario = f"detached-primary-cycle:{direction}"
+            scenario_count += 1
+            trace_step_count += len(steps)
+            selected_traces[scenario] = [
+                step.to_dict() for step in steps
+            ]
+            for step in steps:
+                _append_unresolved_failure(failures, scenario, step)
+            if any(
+                step.after is not None
+                and step.after.visible_page == "power"
+                for step in steps
+            ):
+                failures.append(
+                    SimulationFailure(
+                        code="DETACHED_POWER_REACHABLE",
+                        scenario=scenario,
+                        message="基座离线时一级循环仍到达功率页",
+                    )
+                )
+
     detail_scenarios = {
         "overview-enter-return": (
             InteractionState(7, 1),
@@ -480,12 +616,33 @@ def run_interaction_simulation(
             ("left", "left", "left"),
         ),
         "overview-right-exit": (InteractionState(7, 1), ("right",)),
-        "power-confirm": (InteractionState(0), ("enter",)),
+        "power-confirm-connected": (InteractionState(0), ("enter",)),
         "fast-reversal": (
             InteractionState(3),
             ("right", "left", "right", "left"),
         ),
     }
+    if contract.power_confirm_guard_enabled:
+        detail_scenarios.update(
+            {
+                "power-confirm-detached-stale": (
+                    InteractionState(
+                        0,
+                        base_connected=False,
+                        power_data_available=False,
+                    ),
+                    ("enter",),
+                ),
+                "power-confirm-data-missing": (
+                    InteractionState(
+                        0,
+                        base_connected=True,
+                        power_data_available=False,
+                    ),
+                    ("enter",),
+                ),
+            }
+        )
     default_configuration = PageConfiguration()
     for scenario, (initial, events) in detail_scenarios.items():
         steps = simulate_sequence(
@@ -529,11 +686,45 @@ def run_interaction_simulation(
                 )
             )
 
+    if contract.power_confirm_guard_enabled:
+        for scenario in (
+            "power-confirm-detached-stale",
+            "power-confirm-data-missing",
+        ):
+            steps = selected_traces[scenario]
+            actual = (
+                steps[-1]["after"]["visible_page"]
+                if steps and steps[-1]["after"] is not None
+                else None
+            )
+            action = steps[-1]["action"] if steps else None
+            if actual != "clock" or action != "power-confirm-guard-to-clock":
+                failures.append(
+                    SimulationFailure(
+                        code="POWER_CONFIRM_GUARD_MISMATCH",
+                        scenario=scenario,
+                        message="失效功率页确认没有安全回到时钟",
+                    )
+                )
+
     exhaustive_sequences = 0
     exhaustive_starts = tuple(
         InteractionState(dispatch)
         for dispatch in (0, 3, 4, 5, 6, 7)
     ) + tuple(InteractionState(7, state) for state in range(1, 5))
+    if contract.power_confirm_guard_enabled:
+        exhaustive_starts += (
+            InteractionState(
+                0,
+                base_connected=False,
+                power_data_available=False,
+            ),
+            InteractionState(
+                0,
+                base_connected=True,
+                power_data_available=False,
+            ),
+        )
     for length in range(1, exhaustive_depth + 1):
         for events in product(EVENTS, repeat=length):
             for initial in exhaustive_starts:
@@ -600,11 +791,18 @@ def run_interaction_simulation(
             "events": list(EVENTS),
             "stock_dispatches": STOCK_PAGE_NAMES,
             "agents_states": AGENTS_PAGE_NAMES,
+            "runtime_states": [
+                "base_connected",
+                "power_data_available",
+            ],
             "configuration_cases": len(configurations),
             "exhaustive_depth": exhaustive_depth,
         },
         "capability_boundary": {
             "continuous_page_event_model": True,
+            "base_lifecycle_event_model": (
+                contract.power_confirm_guard_enabled
+            ),
             "instruction_level_execution": False,
             "board_hardware_model": False,
             "physical_acceptance_replaced": False,
@@ -631,6 +829,7 @@ def contract_from_manifest(
     if manifest_type not in (
         "agents-local-ui-stock-resume-firmware",
         "agents-local-ui-stock-safe-firmware",
+        "agents-local-ui-base-safe-firmware",
     ):
         raise InteractionSimulationError("构建清单类型不是当前局部界面固件")
     validation = document.get("validation")
@@ -645,9 +844,17 @@ def contract_from_manifest(
         for item in raw_hooks
         if isinstance(item, Mapping) and isinstance(item.get("label"), str)
     )
-    stock_safe = manifest_type == "agents-local-ui-stock-safe-firmware"
+    stock_safe = manifest_type in (
+        "agents-local-ui-stock-safe-firmware",
+        "agents-local-ui-base-safe-firmware",
+    )
+    base_safe = manifest_type == "agents-local-ui-base-safe-firmware"
     return InteractionContract(
-        name="FW-AGENTS-009" if stock_safe else "FW-AGENTS-008",
+        name=(
+            "FW-AGENTS-010"
+            if base_safe
+            else "FW-AGENTS-009" if stock_safe else "FW-AGENTS-008"
+        ),
         local_hook_labels=labels,
         overview_right_target_dispatch=0 if stock_safe else None,
         power_left_enters_agents=(
@@ -666,6 +873,12 @@ def contract_from_manifest(
             validation.get("global_key_callback_registration_unchanged")
         ),
         fixed_shared_pages_enabled=stock_safe,
+        power_confirm_guard_enabled=bool(
+            validation.get("stock_power_confirm_entry_guarded")
+        ),
+        power_confirm_guard_calls_stock_clock=bool(
+            callchain.get("power_confirm_guard_calls_stock_clock")
+        ),
         source_manifest_sha256=source_manifest_sha256,
     )
 

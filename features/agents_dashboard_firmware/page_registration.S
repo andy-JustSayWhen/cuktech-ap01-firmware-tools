@@ -497,6 +497,44 @@ ap01_agents_primary_page_filter_and_switch:
 
     .size ap01_agents_primary_page_filter_and_switch, .-ap01_agents_primary_page_filter_and_switch
 
+    .ifdef POWER_CONFIRM_GUARD
+    .align 2
+    .global ap01_agents_stock_power_confirm_guard
+    .type ap01_agents_stock_power_confirm_guard, @function
+
+/* Entered only after the stock key callback selected confirm + dispatch 0.
+ * Preserve the stock branch for a live base and live total-info pointer.
+ * A stale power page reuses the stock offline page switch before the common
+ * stock key epilogue. */
+ap01_agents_stock_power_confirm_guard:
+    bnez s4, .Lpower_guard_epilogue
+
+    li t0, 0x62fc4cd8
+    lw t1, 0(t0)
+    beqz t1, .Lpower_guard_offline
+
+    li t0, 0x62fcaa00
+    lw t1, 0(t0)
+    beqz t1, .Lpower_guard_offline
+    tail stock_power_confirm_resume
+
+.Lpower_guard_offline:
+    addi sp, sp, -16
+    sw ra, 12(sp)
+    li a0, 0
+    call stock_set_dev_port_num
+    mv a0, s1
+    li a1, 3
+    call stock_theme_change_home_page
+    lw ra, 12(sp)
+    addi sp, sp, 16
+
+.Lpower_guard_epilogue:
+    tail stock_key_epilogue
+
+    .size ap01_agents_stock_power_confirm_guard, .-ap01_agents_stock_power_confirm_guard
+    .endif
+
     .align 2
     .global ap01_agents_detail_active
     .type ap01_agents_detail_active, @function

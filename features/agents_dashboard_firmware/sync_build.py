@@ -107,6 +107,9 @@ LOCAL_UI_STOCK_RESUME_OUTPUT_FILENAME = (
 LOCAL_UI_STOCK_SAFE_OUTPUT_FILENAME = (
     "ap01-1.0.2_0031-agents-local-ui-stock-safe.bin"
 )
+LOCAL_UI_BASE_SAFE_OUTPUT_FILENAME = (
+    "ap01-1.0.2_0031-agents-base-safe.bin"
+)
 OPT_INTEGRATION_OUTPUT_FILENAME = (
     "ap01-1.0.2_0031-opt-integration-candidate.bin"
 )
@@ -161,6 +164,14 @@ LOCAL_UI_SHARED_PAGE_FILTER_HOOK = (
     "ap01_agents_primary_page_filter_and_switch",
     0xA00BC096,
     "共享序号切页过滤",
+)
+LOCAL_UI_POWER_CONFIRM_GUARD_HOOK = (
+    0x0BD8C6,
+    bytes.fromhex("e3160a90"),
+    0x01C0DC,
+    "ap01_agents_stock_power_confirm_guard",
+    0xA00BC8CA,
+    "功率确认连接保护",
 )
 STOCK_LOCAL_TRAMPOLINE_ORIGINAL = b"\x00" * 8
 STOCK_KEY_CALLBACK_RANGE = (0x0BCFEE, 0x0BEB00)
@@ -248,6 +259,12 @@ LOCAL_UI_REQUIRED_CALLEES = (
     0xA00BE388,
     0xA00BE3CA,
     0xA00CF8D8,
+)
+LOCAL_UI_POWER_GUARD_REQUIRED_CALLEES = (
+    0xA00B16A4,
+    0xA0193862,
+    0xA00BC8CA,
+    0xA00BC1D2,
 )
 LOCAL_UI_FORBIDDEN_CALLEES = (
     0xA00BB5DA,
@@ -829,6 +846,7 @@ def _validate_stock_local_branches_disassembly(
     *,
     integration_mode: bool = False,
     shared_page_filter: bool = False,
+    power_confirm_guard: bool = False,
     local_ui_only: bool = False,
 ) -> dict[str, object]:
     evidence = _validate_stock_pet_reuse_disassembly(
@@ -991,6 +1009,58 @@ def _validate_stock_local_branches_disassembly(
                 "<ap01_agents_restore_pet>",
             ),
         }
+    if power_confirm_guard:
+        power_guard = _symbol_block(
+            disassembly,
+            "ap01_agents_stock_power_confirm_guard",
+            "ap01_agents_detail_active",
+        )
+        required_guard_markers = (
+            "# a00b16a4 <stock_set_dev_port_num>",
+            "# a0193862 <stock_theme_change_home_page>",
+            "# a00bc8ca <stock_power_confirm_resume>",
+            "# a00bc1d2 <stock_key_epilogue>",
+        )
+        missing_guard = [
+            marker for marker in required_guard_markers
+            if marker not in power_guard
+        ]
+        if missing_guard:
+            raise AgentsDashboardFirmwareError(
+                f"功率确认连接保护缺少原厂调用：{missing_guard[0]}"
+            )
+        if any(power_guard.count(marker) != 1 for marker in required_guard_markers):
+            raise AgentsDashboardFirmwareError(
+                "功率确认连接保护的原厂调用或继续地址不是一一对应"
+            )
+        for state_marker in (
+            "62fc4cd8",
+            "62fcaa00",
+            "bne\tx20,x0",
+            "x11,3",
+        ):
+            if state_marker not in power_guard:
+                raise AgentsDashboardFirmwareError(
+                    f"功率确认连接保护缺少状态断言：{state_marker}"
+                )
+        evidence["power_confirm_guard_callchain"] = {
+            "set_port_offline": _instruction_address(
+                power_guard,
+                "# a00b16a4 <stock_set_dev_port_num>",
+            ),
+            "switch_to_clock": _instruction_address(
+                power_guard,
+                "# a0193862 <stock_theme_change_home_page>",
+            ),
+            "stock_power_resume": _instruction_address(
+                power_guard,
+                "# a00bc8ca <stock_power_confirm_resume>",
+            ),
+            "stock_key_epilogue": _instruction_address(
+                power_guard,
+                "# a00bc1d2 <stock_key_epilogue>",
+            ),
+        }
     evidence["local_branch_resume_targets"] = {
         "pet_left": _instruction_address(
             local_branches,
@@ -1020,6 +1090,7 @@ def _patch_stock_local_branches(
     *,
     integration_mode: bool = False,
     shared_page_filter: bool = False,
+    power_confirm_guard: bool = False,
 ) -> list[ByteRange]:
     allowed: list[ByteRange] = []
     hooks = STOCK_LOCAL_BRANCH_HOOKS
@@ -1027,6 +1098,8 @@ def _patch_stock_local_branches(
         hooks = (*hooks, OPT_PAGE_FILTER_HOOK)
     elif shared_page_filter:
         hooks = (*hooks, LOCAL_UI_SHARED_PAGE_FILTER_HOOK)
+    if power_confirm_guard:
+        hooks = (*hooks, LOCAL_UI_POWER_CONFIRM_GUARD_HOOK)
     for (
         hook_offset,
         hook_original,
@@ -1068,6 +1141,7 @@ def _assert_stock_local_branch_isolation(
     *,
     integration_mode: bool = False,
     shared_page_filter: bool = False,
+    power_confirm_guard: bool = False,
     additional_allowed: tuple[ByteRange, ...] = (),
 ) -> None:
     for offset, expected in (
@@ -1085,6 +1159,8 @@ def _assert_stock_local_branch_isolation(
         hooks = (*hooks, OPT_PAGE_FILTER_HOOK)
     elif shared_page_filter:
         hooks = (*hooks, LOCAL_UI_SHARED_PAGE_FILTER_HOOK)
+    if power_confirm_guard:
+        hooks = (*hooks, LOCAL_UI_POWER_CONFIRM_GUARD_HOOK)
     allowed_offsets = {
         offset
         for hook_offset, hook_original, *_rest in hooks
@@ -1099,7 +1175,10 @@ def _assert_stock_local_branch_isolation(
                 f"原厂键值回调非局部分支字节发生变化：0x{offset:06x}"
             )
     power_start, power_end = STOCK_POWER_CONFIRM_RANGE
-    if candidate[power_start:power_end] != stage[power_start:power_end]:
+    if (
+        not power_confirm_guard
+        and candidate[power_start:power_end] != stage[power_start:power_end]
+    ):
         raise AgentsDashboardFirmwareError("原厂功率确认路径发生变化")
 
 
@@ -1251,6 +1330,7 @@ def build_sync_payload(
     reuse_stock_pet: bool = False,
     integration_mode: bool = False,
     shared_page_filter: bool = False,
+    power_confirm_guard: bool = False,
     local_ui_only: bool = False,
 ) -> SyncPayloadResult:
     stage_selected, stage = _read_stage(stage_path)
@@ -1323,6 +1403,8 @@ def build_sync_payload(
         assembler_arguments.extend(["--defsym", "STOCK_PET_REUSE=1"])
     if integration_mode:
         assembler_arguments.extend(["--defsym", "OPT_INTEGRATION=1"])
+    if power_confirm_guard:
+        assembler_arguments.extend(["--defsym", "POWER_CONFIRM_GUARD=1"])
     assembler_arguments.extend(["-o", page_object, SOURCE])
     _run(assembler_arguments)
     _run(
@@ -1418,6 +1500,8 @@ def build_sync_payload(
     )
     if local_ui_only:
         required_callees = LOCAL_UI_REQUIRED_CALLEES
+        if power_confirm_guard:
+            required_callees += LOCAL_UI_POWER_GUARD_REQUIRED_CALLEES
     else:
         required_callees = (
             STOCK_PET_REQUIRED_CALLEES
@@ -1436,6 +1520,7 @@ def build_sync_payload(
             disassembly,
             integration_mode=integration_mode,
             shared_page_filter=shared_page_filter,
+            power_confirm_guard=power_confirm_guard,
             local_ui_only=local_ui_only,
         )
         if local_ui_only:
@@ -1507,6 +1592,7 @@ def build_sync_firmware(
     reuse_stock_pet: bool = False,
     local_ui_only: bool = False,
     shared_page_filter: bool = False,
+    power_confirm_guard: bool = False,
     interaction_name: str = "FW-AGENTS-008",
 ) -> SyncFirmwareResult:
     if tool_revision.get("scoped_code_dirty") is not False:
@@ -1518,8 +1604,18 @@ def build_sync_firmware(
             f"同步实验成品文件名必须是 {expected_output_name}"
         )
     allowed_local_variants = {
-        (LOCAL_UI_STOCK_RESUME_OUTPUT_FILENAME, False, "FW-AGENTS-008"),
-        (LOCAL_UI_STOCK_SAFE_OUTPUT_FILENAME, True, "FW-AGENTS-009"),
+        (
+            LOCAL_UI_STOCK_RESUME_OUTPUT_FILENAME,
+            False,
+            False,
+            "FW-AGENTS-008",
+        ),
+        (
+            LOCAL_UI_BASE_SAFE_OUTPUT_FILENAME,
+            True,
+            True,
+            "FW-AGENTS-010",
+        ),
     }
     if (
         not reuse_stock_pet
@@ -1527,6 +1623,7 @@ def build_sync_firmware(
         or (
             expected_output_name,
             shared_page_filter,
+            power_confirm_guard,
             interaction_name,
         ) not in allowed_local_variants
     ):
@@ -1548,6 +1645,7 @@ def build_sync_firmware(
         reuse_stock_pet=reuse_stock_pet,
         integration_mode=integration_mode,
         shared_page_filter=shared_page_filter,
+        power_confirm_guard=power_confirm_guard,
         local_ui_only=local_ui_only,
     )
     if payload_result.maximum_static_stack > 320:
@@ -1605,6 +1703,7 @@ def build_sync_firmware(
             payload_result.symbols,
             integration_mode=integration_mode,
             shared_page_filter=shared_page_filter,
+            power_confirm_guard=power_confirm_guard,
         )
     )
     mutator_ranges: list[ByteRange] = []
@@ -1620,6 +1719,7 @@ def build_sync_firmware(
         bytes(candidate),
         integration_mode=integration_mode,
         shared_page_filter=shared_page_filter,
+        power_confirm_guard=power_confirm_guard,
         additional_allowed=tuple(mutator_ranges),
     )
 
@@ -1631,6 +1731,8 @@ def build_sync_firmware(
     active_hooks = STOCK_LOCAL_BRANCH_HOOKS
     if shared_page_filter:
         active_hooks = (*active_hooks, LOCAL_UI_SHARED_PAGE_FILTER_HOOK)
+    if power_confirm_guard:
+        active_hooks = (*active_hooks, LOCAL_UI_POWER_CONFIRM_GUARD_HOOK)
     local_hook_labels = tuple(item[-1] for item in active_hooks)
     overview_right_route = route_stock_local_branch("pet-right", 1)
     interaction_simulation = run_interaction_simulation(
@@ -1646,7 +1748,9 @@ def build_sync_firmware(
             stock_entry_filter_enabled=(
                 integration_mode or shared_page_filter
             ),
-            power_confirm_isolated=True,
+            power_confirm_isolated=not power_confirm_guard,
+            power_confirm_guard_enabled=power_confirm_guard,
+            power_confirm_guard_calls_stock_clock=power_confirm_guard,
             page_registration_unchanged=True,
             global_key_callback_registration_unchanged=True,
             fixed_shared_pages_enabled=shared_page_filter,
@@ -1684,13 +1788,13 @@ def build_sync_firmware(
     manifest: dict[str, object] = {
         "schema_version": 1,
         "manifest_type": (
-            "agents-local-ui-stock-safe-firmware"
-            if shared_page_filter
+            "agents-local-ui-base-safe-firmware"
+            if power_confirm_guard
             else "agents-local-ui-stock-resume-firmware"
         ),
         "status": (
             "approved-for-one-test-installation"
-            if shared_page_filter
+            if power_confirm_guard
             else "built-not-approved-for-installation"
         ),
         "built_at_beijing": datetime.now(ZoneInfo("Asia/Shanghai")).isoformat(
@@ -1742,7 +1846,11 @@ def build_sync_firmware(
             "只挂接原厂已筛选的三个萌宠局部分支",
             "AGENTS 概览作为萌宠与功率之间的逻辑一级页",
             "周报、今日和近 30 天作为三个二级页",
-            "原厂功率确认和两个全局回调保持原字节",
+            (
+                "功率确认只增加连接与数据有效性局部保护"
+                if power_confirm_guard
+                else "原厂功率确认和两个全局回调保持原字节"
+            ),
             "原厂后台网络回调、调用、定时和请求区保持原字节",
             "AGENTS 概览右旋恢复萌宠后交还原厂右旋继续地址",
             "AGENTS 状态使用萌宠状态新增尾部",
@@ -1772,7 +1880,9 @@ def build_sync_firmware(
             "global_key_callback_registration_unchanged": True,
             "global_ui_timer_callback_registration_unchanged": True,
             "stock_key_callback_unchanged_except_local_targets": True,
-            "stock_power_confirm_path_unchanged": True,
+            "stock_power_confirm_path_unchanged": not power_confirm_guard,
+            "stock_power_confirm_entry_guarded": power_confirm_guard,
+            "power_confirm_guard_calls_stock_clock": power_confirm_guard,
             "stock_transport_paths_unchanged": True,
             "overview_right_stock_resume_only": True,
             "local_branch_hooks": [
@@ -1827,12 +1937,13 @@ def build_sync_firmware(
             ),
             "global_key_callback_registration_unchanged": True,
             "global_ui_timer_callback_registration_unchanged": True,
-            "stock_power_confirm_path_unchanged": True,
+            "stock_power_confirm_path_unchanged": not power_confirm_guard,
+            "stock_power_confirm_entry_guarded": power_confirm_guard,
             "stock_transport_paths_unchanged": True,
             "transport_symbols_absent": True,
             "device_credentials_absent": True,
             "independent_tail_recovery_verified": True,
-            "installation_allowed": shared_page_filter,
+            "installation_allowed": power_confirm_guard,
         },
     }
     output_written = False
@@ -1978,6 +2089,19 @@ def build_local_ui_stock_safe_firmware(
     *,
     tool_revision: dict[str, object],
 ) -> SyncFirmwareResult:
+    raise AgentsDashboardFirmwareError(
+        "FW-AGENTS-009 已因缺少基座生命周期保护停用"
+    )
+
+
+def build_local_ui_base_safe_firmware(
+    stage_path: Path,
+    output_path: Path,
+    manifest_path: Path,
+    build_directory: Path,
+    *,
+    tool_revision: dict[str, object],
+) -> SyncFirmwareResult:
     return build_sync_firmware(
         stage_path,
         output_path,
@@ -1985,17 +2109,20 @@ def build_local_ui_stock_safe_firmware(
         build_directory,
         None,
         tool_revision=tool_revision,
-        expected_output_name=LOCAL_UI_STOCK_SAFE_OUTPUT_FILENAME,
+        expected_output_name=LOCAL_UI_BASE_SAFE_OUTPUT_FILENAME,
         implemented_scope_extra=(
             "AGENTS 概览离开时只关闭独立状态尾",
             "原厂萌宠右旋继续地址负责既有动图收尾和目标选择",
             "功率专用分支完成后才在统一切页点进入 AGENTS",
             "返回共享序号时按原方向恢复萌宠或显示 AGENTS",
             "非共享序号的原厂切页参数保持不变",
+            "功率确认先核对原厂设备端口数和功率汇总数据指针",
+            "失效功率页复用原厂离线切页入口回到时钟",
             "载荷不链接后台下载、网络包装和界面同步定时入口",
         ),
         reuse_stock_pet=True,
         local_ui_only=True,
         shared_page_filter=True,
-        interaction_name="FW-AGENTS-009",
+        power_confirm_guard=True,
+        interaction_name="FW-AGENTS-010",
     )

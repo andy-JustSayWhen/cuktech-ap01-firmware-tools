@@ -42,6 +42,8 @@ from features.agents_dashboard_firmware.sync_build import (
     LOADER_TRAMPOLINE_ORIGINAL,
     LOCAL_UI_FORBIDDEN_CALLEES,
     LOCAL_UI_FORBIDDEN_SYMBOLS,
+    LOCAL_UI_BASE_SAFE_OUTPUT_FILENAME,
+    LOCAL_UI_POWER_CONFIRM_GUARD_HOOK,
     LOCAL_UI_POWER_SAFE_OUTPUT_FILENAME,
     LOCAL_UI_SHARED_PAGE_FILTER_HOOK,
     LOCAL_UI_STOCK_SAFE_OUTPUT_FILENAME,
@@ -71,6 +73,7 @@ from features.agents_dashboard_firmware.sync_build import (
     build_stock_callchain_firmware,
     build_stock_enter_gate_firmware,
     build_local_ui_power_safe_firmware,
+    build_local_ui_base_safe_firmware,
     build_local_ui_stock_safe_firmware,
     build_local_ui_stock_resume_firmware,
     build_low_stack_local_branches_firmware,
@@ -534,7 +537,7 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
             self.assertFalse(output.exists())
             self.assertFalse(manifest.exists())
 
-    def test_stock_safe_builder_passes_simulation_and_preserves_power(self) -> None:
+    def test_base_safe_builder_guards_power_and_passes_simulation(self) -> None:
         if (
             not shutil.which("riscv64-elf-as")
             or not shutil.which("riscv64-elf-gcc")
@@ -542,9 +545,9 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
             self.skipTest("本机没有阶段固件或固定编译工具")
         with tempfile.TemporaryDirectory() as selected:
             root = Path(selected)
-            output = root / LOCAL_UI_STOCK_SAFE_OUTPUT_FILENAME
+            output = root / LOCAL_UI_BASE_SAFE_OUTPUT_FILENAME
             manifest = root / "manifest.json"
-            result = build_local_ui_stock_safe_firmware(
+            result = build_local_ui_base_safe_firmware(
                 self.stage,
                 output,
                 manifest,
@@ -560,13 +563,19 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
 
         self.assertEqual(
             document["manifest_type"],
-            "agents-local-ui-stock-safe-firmware",
+            "agents-local-ui-base-safe-firmware",
         )
         self.assertEqual(result.sha256, hashlib.sha256(output_bytes).hexdigest())
         self.assertTrue(document["interaction_simulation"]["summary"]["passed"])
         self.assertEqual(
             document["interaction_simulation"]["scope"]["configuration_cases"],
             4,
+        )
+        self.assertEqual(
+            document["interaction_simulation"]["summary"][
+                "exhaustive_sequence_count"
+            ],
+            4356,
         )
         self.assertTrue(
             document["validation"]["page_filter_switch_call_verified"]
@@ -585,10 +594,47 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
             "shared_page_filter_callchain",
             document["callchain_gates"]["disassembly"],
         )
+        self.assertIn(
+            "power_confirm_guard_callchain",
+            document["callchain_gates"]["disassembly"],
+        )
         power_start, power_end = STOCK_POWER_CONFIRM_RANGE
+        guard_offset, guard_original, guard_trampoline, guard_symbol, *_ = (
+            LOCAL_UI_POWER_CONFIRM_GUARD_HOOK
+        )
         self.assertEqual(
-            output_bytes[power_start:power_end],
-            stage_bytes[power_start:power_end],
+            output_bytes[guard_offset : guard_offset + len(guard_original)],
+            _encode_jal(
+                XIP_DELTA + guard_offset,
+                XIP_DELTA + guard_trampoline,
+            ),
+        )
+        self.assertEqual(
+            output_bytes[guard_offset + len(guard_original) : power_end],
+            stage_bytes[guard_offset + len(guard_original) : power_end],
+        )
+        self.assertEqual(
+            output_bytes[guard_trampoline : guard_trampoline + 8],
+            _absolute_tail_jump(
+                int(
+                    document["callchain_gates"]["local_branch_hooks"][4][
+                        "payload_address"
+                    ],
+                    16,
+                )
+            ),
+        )
+        self.assertEqual(
+            document["callchain_gates"]["local_branch_hooks"][4][
+                "payload_symbol"
+            ],
+            guard_symbol,
+        )
+        self.assertFalse(
+            document["validation"]["stock_power_confirm_path_unchanged"]
+        )
+        self.assertTrue(
+            document["validation"]["stock_power_confirm_entry_guarded"]
         )
         filter_offset, filter_original, filter_trampoline, symbol, *_ = (
             LOCAL_UI_SHARED_PAGE_FILTER_HOOK
@@ -628,6 +674,21 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
                 build_local_ui_power_safe_firmware(
                     self.stage,
                     root / LOCAL_UI_POWER_SAFE_OUTPUT_FILENAME,
+                    root / "manifest.json",
+                    root / "firmware",
+                    tool_revision={"commit": "test", "scoped_code_dirty": False},
+                )
+
+    def test_rejected_stock_safe_builder_is_blocked(self) -> None:
+        with tempfile.TemporaryDirectory() as selected:
+            root = Path(selected)
+            with self.assertRaisesRegex(
+                AgentsDashboardFirmwareError,
+                "FW-AGENTS-009 已因缺少基座生命周期保护停用",
+            ):
+                build_local_ui_stock_safe_firmware(
+                    self.stage,
+                    root / LOCAL_UI_STOCK_SAFE_OUTPUT_FILENAME,
                     root / "manifest.json",
                     root / "firmware",
                     tool_revision={"commit": "test", "scoped_code_dirty": False},
