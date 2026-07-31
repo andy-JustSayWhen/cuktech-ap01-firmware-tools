@@ -32,6 +32,7 @@ from features.agents_dashboard_firmware.build import (
     _encode_jal,
 )
 from features.agents_dashboard_firmware.sync_build import (
+    AgentsDashboardFirmwareError,
     INSTRUCTION_EXPECTED,
     FAILURE_BACKOFF_STORE,
     HTTP_PERFORM_CALL,
@@ -41,6 +42,7 @@ from features.agents_dashboard_firmware.sync_build import (
     LOCAL_UI_FORBIDDEN_CALLEES,
     LOCAL_UI_FORBIDDEN_SYMBOLS,
     LOCAL_UI_POWER_SAFE_OUTPUT_FILENAME,
+    LOCAL_UI_STOCK_RESUME_OUTPUT_FILENAME,
     LOW_STACK_LOCAL_BRANCHES_OUTPUT_FILENAME,
     OPT_REWRITE_OUTPUT_FILENAME,
     PET_STATE_SIZE_EXTENDED,
@@ -66,6 +68,7 @@ from features.agents_dashboard_firmware.sync_build import (
     build_stock_callchain_firmware,
     build_stock_enter_gate_firmware,
     build_local_ui_power_safe_firmware,
+    build_local_ui_stock_resume_firmware,
     build_low_stack_local_branches_firmware,
     build_sync_firmware,
     build_sync_payload,
@@ -177,7 +180,7 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
                     tool_revision={"commit": "test", "scoped_code_dirty": False},
                 )
 
-    def test_local_ui_power_safe_payload_is_bounded_and_isolated(self) -> None:
+    def test_local_ui_stock_resume_payload_is_bounded_and_isolated(self) -> None:
         if (
             not shutil.which("riscv64-elf-as")
             or not shutil.which("riscv64-elf-gcc")
@@ -204,9 +207,9 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
                 capture_output=True,
                 text=True,
             ).stdout
-            output = root / LOCAL_UI_POWER_SAFE_OUTPUT_FILENAME
+            output = root / LOCAL_UI_STOCK_RESUME_OUTPUT_FILENAME
             manifest = root / "manifest.json"
-            result = build_local_ui_power_safe_firmware(
+            result = build_local_ui_stock_resume_firmware(
                 self.stage,
                 output,
                 manifest,
@@ -229,7 +232,7 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
         self.assertIn('"installation_allowed": false', manifest_text)
         self.assertEqual(
             manifest_document["manifest_type"],
-            "agents-local-ui-power-safe-firmware",
+            "agents-local-ui-stock-resume-firmware",
         )
         self.assertFalse(manifest_document["transport"]["enabled"])
         self.assertFalse(manifest_document["credentials_embedded"])
@@ -247,7 +250,8 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
                 "disabled_page_cases": 2,
                 "invalid_tail_cases": 5,
                 "valid_tail_cases": 5,
-                "switch_failure_recovery_cases": 2,
+                "switch_failure_recovery_cases": 1,
+                "overview_right_stock_resume_cases": 1,
                 "gif_failure_recovery_cases": 2,
                 "lifecycle_recovery_cases": 2,
             },
@@ -292,6 +296,10 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
             "local_branch_resume_targets",
             callchain_gates["disassembly"],
         )
+        self.assertTrue(
+            callchain_gates["disassembly"]["overview_right_stock_resume_only"]
+        )
+        self.assertTrue(callchain_gates["overview_right_stock_resume_only"])
         self.assertTrue(
             callchain_gates["disassembly"]["transport_symbols_absent"]
         )
@@ -453,7 +461,6 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
             "<ap01_agents_state_read>",
             "<ap01_agents_show_page>",
             "<ap01_agents_restore_pet>",
-            "<stock_switch_page>",
             "<stock_pet_left_resume>",
             "<stock_pet_right_resume>",
             "<stock_pet_enter_resume>",
@@ -461,6 +468,7 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
         ):
             self.assertIn(marker, local_branches)
         self.assertNotIn("<stock_key_event>", local_branches)
+        self.assertNotIn("<stock_switch_page>", local_branches)
         self.assertNotIn("<ap01_agents_key_event>:", disassembly)
         self.assertNotIn("<ap01_agents_stock_power_left_entry>:", disassembly)
         state_write = disassembly.split(
@@ -477,6 +485,21 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
         self.assertIn("16(a0)", find_state)
         self.assertIn("4(t0)", find_state)
 
+    def test_rejected_local_ui_power_safe_builder_is_blocked(self) -> None:
+        with tempfile.TemporaryDirectory() as selected:
+            root = Path(selected)
+            with self.assertRaisesRegex(
+                AgentsDashboardFirmwareError,
+                "功率路径隔离版已因功率页确认卡住停用",
+            ):
+                build_local_ui_power_safe_firmware(
+                    self.stage,
+                    root / LOCAL_UI_POWER_SAFE_OUTPUT_FILENAME,
+                    root / "manifest.json",
+                    root / "firmware",
+                    tool_revision={"commit": "test", "scoped_code_dirty": False},
+                )
+
     def test_stock_local_branches_cover_all_states(self) -> None:
         report = validate_stock_local_branch_routes()
         self.assertEqual(report["local_branch_state_cases"], 15)
@@ -490,6 +513,11 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
             route_stock_local_branch("pet-right", 0).target_state,
             1,
         )
+        overview_right = route_stock_local_branch("pet-right", 1)
+        self.assertEqual(overview_right.action, "restore-then-stock-resume")
+        self.assertEqual(overview_right.target_state, 0)
+        self.assertIsNone(overview_right.target_dispatch)
+        self.assertIsNone(overview_right.switch_mode)
         self.assertEqual(
             route_stock_local_branch("pet-enter", 1).target_state,
             2,
@@ -528,7 +556,7 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
             manifest = root / "manifest.json"
             with self.assertRaisesRegex(
                 RuntimeError,
-                "只允许生成功率路径隔离的局部界面版",
+                "只允许生成交还原厂右旋分支的局部界面版",
             ):
                 build_sync_firmware(
                     self.stage,

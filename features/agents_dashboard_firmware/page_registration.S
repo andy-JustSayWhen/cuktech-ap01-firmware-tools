@@ -220,17 +220,8 @@ ap01_agents_stock_pet_enter_entry:
     mv a0, s2
     call ap01_agents_restore_pet
     beqz a0, .Llocal_fallback
-    mv a0, s1
-    li a1, 0
-    li a2, 1
-    .ifdef OPT_INTEGRATION
-    call ap01_primary_page_filter_and_switch
-    .else
-    call stock_switch_page
-    .endif
-    mv a0, s1
-    call stock_get_dispatch_index
-    beqz a0, .Llocal_consumed
+    /* Restore the exact stock arguments and let the original pet-right branch
+     * perform its own GIF-state handling and navigation. */
     j .Llocal_fallback
 
 .Llocal_enter_agents:

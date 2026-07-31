@@ -101,6 +101,9 @@ LOW_STACK_LOCAL_BRANCHES_OUTPUT_FILENAME = (
 LOCAL_UI_POWER_SAFE_OUTPUT_FILENAME = (
     "ap01-1.0.2_0031-agents-local-ui-power-safe.bin"
 )
+LOCAL_UI_STOCK_RESUME_OUTPUT_FILENAME = (
+    "ap01-1.0.2_0031-agents-local-ui-stock-resume.bin"
+)
 OPT_INTEGRATION_OUTPUT_FILENAME = (
     "ap01-1.0.2_0031-opt-integration-candidate.bin"
 )
@@ -233,7 +236,6 @@ STOCK_PET_REQUIRED_CALLEES = (
 LOCAL_UI_REQUIRED_CALLEES = (
     0xA00BE388,
     0xA00BE3CA,
-    0xA00BFA4E,
     0xA00CF8D8,
 )
 LOCAL_UI_FORBIDDEN_CALLEES = (
@@ -379,10 +381,8 @@ def route_stock_local_branch(
             target_state=1,
         )
     return StockLocalBranchRoute(
-        "switch-stock",
-        target_dispatch=0,
+        "restore-then-stock-resume",
         target_state=0,
-        switch_mode=1,
     )
 
 
@@ -409,6 +409,12 @@ def validate_stock_local_branch_routes() -> dict[str, int]:
         raise AgentsDashboardFirmwareError("原厂萌宠左键未保持原继续路径")
     if matrix[("pet-right", 0)].target_state != 1:
         raise AgentsDashboardFirmwareError("萌宠右键没有进入 AGENTS 概览")
+    if (
+        matrix[("pet-right", 1)].action != "restore-then-stock-resume"
+        or matrix[("pet-right", 1)].target_dispatch is not None
+        or matrix[("pet-right", 1)].switch_mode is not None
+    ):
+        raise AgentsDashboardFirmwareError("AGENTS 概览右键没有交还原厂右旋分支")
     if matrix[("pet-enter", 0)].action != "stock-resume":
         raise AgentsDashboardFirmwareError("原厂萌宠确认未保持原继续路径")
     if route_stock_local_branch(
@@ -444,7 +450,8 @@ def validate_stock_local_branch_routes() -> dict[str, int]:
         "disabled_page_cases": 2,
         "invalid_tail_cases": len(recovery_words),
         "valid_tail_cases": 5,
-        "switch_failure_recovery_cases": 2,
+        "switch_failure_recovery_cases": 1,
+        "overview_right_stock_resume_cases": 1,
         "gif_failure_recovery_cases": 2,
         "lifecycle_recovery_cases": 2,
     }
@@ -825,12 +832,13 @@ def _validate_stock_local_branches_disassembly(
         "<ap01_agents_state_read>",
         "<ap01_agents_show_page>",
         "<ap01_agents_restore_pet>",
-        "# a00bfa4e <stock_switch_page>",
         "# a00bc464 <stock_pet_left_resume>",
         "# a00bc716 <stock_pet_right_resume>",
         "# a00bda68 <stock_pet_enter_resume>",
         "# a00bc1d2 <stock_key_epilogue>",
     )
+    if integration_mode:
+        required_markers += ("# a00bfa4e <stock_switch_page>",)
     missing = [marker for marker in required_markers if marker not in local_branches]
     if missing:
         raise AgentsDashboardFirmwareError(
@@ -849,6 +857,10 @@ def _validate_stock_local_branches_disassembly(
         )
     ):
         raise AgentsDashboardFirmwareError("局部分支恢复与消费出口不是一一对应")
+    if not integration_mode and "# a00bfa4e <stock_switch_page>" in local_branches:
+        raise AgentsDashboardFirmwareError(
+            "AGENTS 概览右旋仍直接调用切页函数，没有交还原厂分支"
+        )
     for symbol in (
         "ap01_agents_stock_pet_left_entry",
         "ap01_agents_stock_pet_right_entry",
@@ -926,6 +938,7 @@ def _validate_stock_local_branches_disassembly(
             "# a00bc1d2 <stock_key_epilogue>",
         ),
     }
+    evidence["overview_right_stock_resume_only"] = not integration_mode
     return evidence
 
 
@@ -1425,10 +1438,10 @@ def build_sync_firmware(
     if (
         not reuse_stock_pet
         or not local_ui_only
-        or expected_output_name != LOCAL_UI_POWER_SAFE_OUTPUT_FILENAME
+        or expected_output_name != LOCAL_UI_STOCK_RESUME_OUTPUT_FILENAME
     ):
         raise AgentsDashboardFirmwareError(
-            "旧 AGENTS 固件路径已停用，只允许生成功率路径隔离的局部界面版"
+            "旧 AGENTS 固件路径已停用，只允许生成交还原厂右旋分支的局部界面版"
         )
     if not integration_mode and (
         extra_objects or required_extra_symbols or candidate_mutators
@@ -1539,7 +1552,7 @@ def build_sync_firmware(
     )
     manifest: dict[str, object] = {
         "schema_version": 1,
-        "manifest_type": "agents-local-ui-power-safe-firmware",
+        "manifest_type": "agents-local-ui-stock-resume-firmware",
         "status": "built-not-approved-for-installation",
         "built_at_beijing": datetime.now(ZoneInfo("Asia/Shanghai")).isoformat(
             timespec="seconds"
@@ -1592,7 +1605,7 @@ def build_sync_firmware(
             "周报、今日和近 30 天作为三个二级页",
             "原厂功率确认和两个全局回调保持原字节",
             "原厂后台网络回调、调用、定时和请求区保持原字节",
-            "真实页面使用原厂实际切页入口",
+            "AGENTS 概览右旋恢复萌宠后交还原厂右旋继续地址",
             "AGENTS 状态使用萌宠状态新增尾部",
             *implemented_scope_extra,
         ],
@@ -1622,6 +1635,7 @@ def build_sync_firmware(
             "stock_key_callback_unchanged_except_local_targets": True,
             "stock_power_confirm_path_unchanged": True,
             "stock_transport_paths_unchanged": True,
+            "overview_right_stock_resume_only": True,
             "local_branch_hooks": [
                 {
                     "label": label,
@@ -1784,6 +1798,19 @@ def build_local_ui_power_safe_firmware(
     *,
     tool_revision: dict[str, object],
 ) -> SyncFirmwareResult:
+    raise AgentsDashboardFirmwareError(
+        "功率路径隔离版已因功率页确认卡住停用"
+    )
+
+
+def build_local_ui_stock_resume_firmware(
+    stage_path: Path,
+    output_path: Path,
+    manifest_path: Path,
+    build_directory: Path,
+    *,
+    tool_revision: dict[str, object],
+) -> SyncFirmwareResult:
     return build_sync_firmware(
         stage_path,
         output_path,
@@ -1791,12 +1818,13 @@ def build_local_ui_power_safe_firmware(
         build_directory,
         None,
         tool_revision=tool_revision,
-        expected_output_name=LOCAL_UI_POWER_SAFE_OUTPUT_FILENAME,
+        expected_output_name=LOCAL_UI_STOCK_RESUME_OUTPUT_FILENAME,
         implemented_scope_extra=(
             "萌宠左旋、右旋和确认三个局部分支接入",
             "未消费事件从三个原厂继续地址恢复",
             "消费事件从原厂公共退出地址返回",
             "异常尾部先恢复原厂萌宠再继续处理",
+            "AGENTS 概览右旋不直接调用切页函数",
             "载荷不链接后台下载、网络包装和界面同步定时入口",
         ),
         reuse_stock_pet=True,

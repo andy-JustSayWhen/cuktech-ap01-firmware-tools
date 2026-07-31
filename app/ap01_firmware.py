@@ -23,7 +23,7 @@ from features.agents_dashboard_firmware import (
     AgentsDashboardFirmwareError,
     CONFIRM_COMPAT_OUTPUT_FILENAME,
     DETAIL_COMPAT_OUTPUT_FILENAME,
-    LOCAL_UI_POWER_SAFE_OUTPUT_FILENAME,
+    LOCAL_UI_STOCK_RESUME_OUTPUT_FILENAME,
     PET_OVERLAY_OUTPUT_FILENAME,
     STOCK_CALLCHAIN_OUTPUT_FILENAME,
     STOCK_DISPATCH_OUTPUT_FILENAME,
@@ -33,7 +33,7 @@ from features.agents_dashboard_firmware import (
     build_page_registration_payload,
     build_stock_callchain_firmware,
     build_stock_enter_gate_firmware,
-    build_local_ui_power_safe_firmware,
+    build_local_ui_stock_resume_firmware,
     build_sync_firmware,
 )
 from features.offline_firmware_build import (
@@ -301,8 +301,8 @@ def _parser() -> argparse.ArgumentParser:
     )
 
     stock_local_branches_command = commands.add_parser(
-        "agents-local-ui-power-safe-build",
-        help="生成不修改后台网络和功率路径的 AGENTS 局部界面固件",
+        "agents-local-ui-stock-resume-build",
+        help="生成恢复后交还原厂右旋分支的 AGENTS 局部界面固件",
     )
     stock_local_branches_command.add_argument(
         "--input", type=Path, required=True
@@ -823,8 +823,8 @@ def main(argv: list[str] | None = None) -> int:
             )
             return 0
 
-        if args.command == "agents-local-ui-power-safe-build":
-            result = build_local_ui_power_safe_firmware(
+        if args.command == "agents-local-ui-stock-resume-build":
+            result = build_local_ui_stock_resume_firmware(
                 args.input,
                 args.output,
                 args.manifest,
@@ -834,9 +834,9 @@ def main(argv: list[str] | None = None) -> int:
             print(
                 json.dumps(
                     {
-                        "result": "AGENTS 功率路径隔离的局部界面固件制作完成",
+                        "result": "AGENTS 交还原厂右旋分支的局部界面固件制作完成",
                         "output": str(result.output),
-                        "expected_name": LOCAL_UI_POWER_SAFE_OUTPUT_FILENAME,
+                        "expected_name": LOCAL_UI_STOCK_RESUME_OUTPUT_FILENAME,
                         "manifest": str(result.manifest),
                         "output_sha256": result.sha256,
                         "output_md5": result.md5,
@@ -853,7 +853,7 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "opt-build":
             raise AgentsDashboardFirmwareError(
                 "完整重写候选已因卡开机动画停用；"
-                "请使用 agents-local-ui-power-safe-build"
+                "请使用 agents-local-ui-stock-resume-build"
             )
 
         if args.command == "settings-hook-observation-build":
