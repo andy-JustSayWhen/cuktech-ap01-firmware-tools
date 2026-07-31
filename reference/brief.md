@@ -146,3 +146,8 @@ brief提供的几个附件图片，只是数据参考图。只用于Codex更好�
 
 为降低AP01刷机变砖，固件制作规范和刷机安全规范必须遵守reference/firmware-safety.md（AI自己创建和维护，不得编造，不得夸大）。上述文档是design的上游文档之一，直接决定如何写代码的时design，不是上游文档。参考项目此前有写过部分内容，你参考是否有用：
 `/Users/mac/Desktop/cuktech-screen-controller/agent-docs/firmware-safety.md`。
+
+## 5. 刷机执行授权
+
+用户发起“制作并刷入”流程后，刷前交互模拟通过即自动继续上传、完整回读和正式安装，不再向
+用户请求二次确认；模拟失败或设备、成品、上传回读等客观门禁变化时停止刷机。

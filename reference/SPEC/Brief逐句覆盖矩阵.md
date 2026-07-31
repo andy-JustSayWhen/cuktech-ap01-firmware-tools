@@ -4,7 +4,7 @@
 
 本矩阵只证明 [`brief.md`](../brief.md) 中每个语义单元在 SPEC 中有落点，不重新定义需求。
 当前绑定的 Brief 文件 SHA-256 为
-`d8443fd40d094445cead2dda3cce8d6f0c99677269893836ddf891f876dcb19f`。
+`888e352dd9217d46b99974fc09a0b19cda7d5c482ec8b1795c0a7167458c37cd`。
 
 定位符规则：
 
@@ -148,6 +148,12 @@
 | `BF-089` / `L146-S1` | `SPEC-GOV-005`、`SPEC-GOV-006` |
 | `BF-090` / `L146-S2` | `SPEC-DOC-002`、`SPEC-GOV-008` |
 | `BF-091` / `L146-L147-S3` | `SPEC-GOV-007` |
+
+## 10. 刷机执行授权
+
+| Brief 单元 | SPEC 落点 |
+| --- | --- |
+| `BF-092` / `L152-L153-S1` | `SPEC-FLASH-002`、`SPEC-FLASH-009` |
 
 ## 10. 覆盖结论
 

@@ -11,7 +11,7 @@
 
 | SPEC 条款 | DESIGN 落点 | 代码或维护落点 | 验证方法 | 当前状态 |
 | --- | --- | --- | --- | --- |
-| `SPEC-DOC-001` 至 `SPEC-DOC-004` | [`design.md`](../design.md) 第 1、3 节；[`项目交付与 WebUI 刷机工具 DESIGN`](项目交付与WebUI刷机工具.md) 第 2 节 | 后续文档核对任务 | Brief 指纹、91 个语义单元、SPEC 条款集合和引用完整性核对 | 拟定；Brief 到 SPEC 已有静态覆盖结果，自动任务未实现 |
+| `SPEC-DOC-001` 至 `SPEC-DOC-004` | [`design.md`](../design.md) 第 1、3 节；[`项目交付与 WebUI 刷机工具 DESIGN`](项目交付与WebUI刷机工具.md) 第 2 节 | 后续文档核对任务 | Brief 指纹、92 个语义单元、SPEC 条款集合和引用完整性核对 | 拟定；Brief 到 SPEC 已有静态覆盖结果，自动任务未实现 |
 | `SPEC-PRODUCT-001` 至 `SPEC-PRODUCT-006` | [`项目交付与 WebUI 刷机工具 DESIGN`](项目交付与WebUI刷机工具.md) 第 3、4、9 节 | `features/web_firmware_flash/`、`app/ap01_web.py`、发布包目录 | macOS 与 Windows 使用同一套 Chrome 流程；发布包敏感内容检查 | 拟定 |
 | `SPEC-VERSION-001` 至 `SPEC-VERSION-003` | [`design.md`](../design.md) 第 2、3 节；[`项目交付与 WebUI 刷机工具 DESIGN`](项目交付与WebUI刷机工具.md) 第 2 节 | 后续文档核对任务 | 分别模拟 Brief、事实、依赖、操作和视觉变化，核对更新顺序 | 拟定 |
 
@@ -26,7 +26,7 @@
 | `SPEC-FIRMWARE-004` 至 `SPEC-FIRMWARE-005` | [`优化固件 DESIGN`](AP01-1.0.2_0031-opt.bin.md) 第 0、4.1、6.2、11、14 节 | `features/settings_menu_wrap/`、`core/rotary_encoder/` | 四个批准修改区间、文件尾记录、旋钮首尾与抖动真机验收 | 已验证的历史阶段成品；当前提交重建待只读副本能力完成 |
 | `SPEC-FIRMWARE-006` 至 `SPEC-FIRMWARE-008` | [`优化固件 DESIGN`](AP01-1.0.2_0031-opt.bin.md) 第 4、10、11 节 | 完整固件构建组合、构建清单和冻结产物 | 确定性重建、修改区间外逐字节一致、禁止区无差异、完整指纹 | 阻塞 |
 | `SPEC-FLASH-001` 至 `SPEC-FLASH-004` | [`项目交付与 WebUI 刷机工具 DESIGN`](项目交付与WebUI刷机工具.md) 第 4 至 6 节 | `features/web_firmware_flash/` 的页面、准备检查、设备识别和固件核对 | 双平台 Chrome 页面、敏感字段过滤、三种固件身份和门禁展示 | 拟定 |
-| `SPEC-FLASH-005` 至 `SPEC-FLASH-008` | [`项目交付与 WebUI 刷机工具 DESIGN`](项目交付与WebUI刷机工具.md) 第 6 至 9 节 | `features/web_firmware_flash/` 的操作记录、上传下发适配和结果页 | 六类执行状态、断网与重入、重启上线、功能验收、发布包隔离 | 拟定 |
+| `SPEC-FLASH-005` 至 `SPEC-FLASH-009` | [`项目交付与 WebUI 刷机工具 DESIGN`](项目交付与WebUI刷机工具.md) 第 6 至 9 节；[`优化固件 DESIGN`](AP01-1.0.2_0031-opt.bin.md) 第 4.3 节 | `features/web_firmware_flash/` 的自动推进策略、操作记录、上传下发适配和结果页 | 模拟通过后自动上传回读与单次安装、断网与重入、重启上线、功能验收、发布包隔离 | 自动推进策略拟定；实际云端安装适配未实现 |
 
 ## 4. 一级页面开关
 
@@ -77,7 +77,7 @@
 - 治理：8 条；
 - 总体验收：6 条；
 - 版本维护：3 条；
-- 合计：100 条，全部具有 DESIGN、代码或维护落点、验证方法和当前状态。
+- 合计：101 条，全部具有 DESIGN、代码或维护落点、验证方法和当前状态。
 
 供静态核对逐项比对的条款集合如下；本段只列编号，不新增落点：
 
@@ -91,7 +91,8 @@
   `SPEC-FIRMWARE-004`、`SPEC-FIRMWARE-005`、`SPEC-FIRMWARE-006`、
   `SPEC-FIRMWARE-007`、`SPEC-FIRMWARE-008`；
 - `SPEC-FLASH-001`、`SPEC-FLASH-002`、`SPEC-FLASH-003`、`SPEC-FLASH-004`、
-  `SPEC-FLASH-005`、`SPEC-FLASH-006`、`SPEC-FLASH-007`、`SPEC-FLASH-008`；
+  `SPEC-FLASH-005`、`SPEC-FLASH-006`、`SPEC-FLASH-007`、`SPEC-FLASH-008`、
+  `SPEC-FLASH-009`；
 - `SPEC-PAGE-001`、`SPEC-PAGE-002`、`SPEC-PAGE-003`、`SPEC-PAGE-004`、
   `SPEC-PAGE-005`、`SPEC-PAGE-006`、`SPEC-PAGE-007`；
 - `SPEC-DASHBOARD-001`、`SPEC-DASHBOARD-002`、`SPEC-DASHBOARD-003`、
