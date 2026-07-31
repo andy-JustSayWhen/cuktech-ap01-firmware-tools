@@ -830,6 +830,7 @@ def contract_from_manifest(
         "agents-local-ui-stock-resume-firmware",
         "agents-local-ui-stock-safe-firmware",
         "agents-local-ui-base-safe-firmware",
+        "agents-live-data-base-safe-firmware",
     ):
         raise InteractionSimulationError("构建清单类型不是当前局部界面固件")
     validation = document.get("validation")
@@ -847,12 +848,18 @@ def contract_from_manifest(
     stock_safe = manifest_type in (
         "agents-local-ui-stock-safe-firmware",
         "agents-local-ui-base-safe-firmware",
+        "agents-live-data-base-safe-firmware",
     )
-    base_safe = manifest_type == "agents-local-ui-base-safe-firmware"
+    base_safe = manifest_type in (
+        "agents-local-ui-base-safe-firmware",
+        "agents-live-data-base-safe-firmware",
+    )
+    live_data = manifest_type == "agents-live-data-base-safe-firmware"
     return InteractionContract(
         name=(
-            "FW-AGENTS-010"
-            if base_safe
+            "FW-AGENTS-011"
+            if live_data
+            else "FW-AGENTS-010" if base_safe
             else "FW-AGENTS-009" if stock_safe else "FW-AGENTS-008"
         ),
         local_hook_labels=labels,
