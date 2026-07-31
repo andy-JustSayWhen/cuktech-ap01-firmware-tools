@@ -39,7 +39,7 @@
 
 | SPEC 条款 | DESIGN 落点 | 代码或维护落点 | 验证方法 | 当前状态 |
 | --- | --- | --- | --- | --- |
-| `SPEC-DASHBOARD-001` 至 `SPEC-DASHBOARD-005` | [`优化固件 DESIGN`](AP01-1.0.2_0031-opt.bin.md) 第 7 至 10 节 | `features/agents_dashboard_firmware/`、`features/agents_dashboard/` | 四页完整包、五分钟刷新、格式选择、断网和最后成功结果 | 自动实现已存在；完整真机验收未通过 |
+| `SPEC-DASHBOARD-001` 至 `SPEC-DASHBOARD-005` | [`优化固件 DESIGN`](AP01-1.0.2_0031-opt.bin.md) 第 7 至 10.21 节 | `features/agents_dashboard_firmware/`、`features/agents_dashboard/` | 四页完整包、五分钟刷新、断网保留、当前基座与功率保护回归 | `FW-AGENTS-011` 方案已先行写入；待代码、确定性构建、自动安装和真实数据真机验收 |
 | `SPEC-DASHBOARD-006` 至 `SPEC-DASHBOARD-009` | [`优化固件 DESIGN`](AP01-1.0.2_0031-opt.bin.md) 第 7.4、8、9 节 | `features/agents_dashboard/bridge.py`、跨平台常驻包装、设备端顺序请求 | 四类主机、系统重启、顺序切换、字段级缺失 | macOS 已有部分运行证据；其余平台和设备端切换待验证 |
 | `SPEC-DASHBOARD-010` 至 `SPEC-DASHBOARD-014` | [`优化固件 DESIGN`](AP01-1.0.2_0031-opt.bin.md) 第 0、7.2、7.5、7.6 节 | `reference/image/DESIGN/AP01-AGENTS看板/`、`features/agents_dashboard/renderer.py`、`features/agents_dashboard_firmware/assets/` | 效果图评审、底图与动态文字分离、冻结等待页格式和指纹、成品图和附件边界核对 | 视觉成品已有评审记录，冻结等待页离线验证通过；真机画质待验证 |
 | `SPEC-DASHBOARD-015` 至 `SPEC-DASHBOARD-018` | [`优化固件 DESIGN`](AP01-1.0.2_0031-opt.bin.md) 第 7.3、7.5、7.6 节 | `features/agents_dashboard/formatting.py`、`renderer.py` | 单位边界、五位主体数字、无小数和比例方向自动测试 | 自动测试已实现；真机显示待验证 |
