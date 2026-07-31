@@ -7,7 +7,6 @@ import subprocess
 import tempfile
 import unittest
 import zlib
-from dataclasses import dataclass
 from pathlib import Path
 from unittest import mock
 
@@ -40,6 +39,7 @@ from features.agents_dashboard_firmware.sync_build import (
     LOADER_SOURCE,
     LOADER_TRAMPOLINE_OFFSET,
     LOADER_TRAMPOLINE_ORIGINAL,
+    LIVE_DATA_BASE_SAFE_OUTPUT_FILENAME,
     LOCAL_UI_FORBIDDEN_CALLEES,
     LOCAL_UI_FORBIDDEN_SYMBOLS,
     LOCAL_UI_BASE_SAFE_OUTPUT_FILENAME,
@@ -77,6 +77,7 @@ from features.agents_dashboard_firmware.sync_build import (
     build_local_ui_stock_safe_firmware,
     build_local_ui_stock_resume_firmware,
     build_low_stack_local_branches_firmware,
+    build_live_data_base_safe_firmware,
     build_sync_firmware,
     build_sync_payload,
     decode_agents_state,
@@ -88,13 +89,6 @@ from features.agents_dashboard_firmware.sync_build import (
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 STAGE = REPO_ROOT / "artifacts/firmware/opt-setting.bin"
-
-
-@dataclass(frozen=True)
-class TestCredentials:
-    device_id: str
-    access_token: str
-    secret_key: bytes
 
 
 class AgentsDashboardFirmwareTests(unittest.TestCase):
@@ -193,17 +187,11 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
             or not shutil.which("riscv64-elf-gcc")
         ):
             self.skipTest("本机没有阶段固件或固定编译工具")
-        credentials = TestCredentials(
-            device_id="1234abcd",
-            access_token="0123456789abcdef",
-            secret_key=bytes(range(32)),
-        )
         with tempfile.TemporaryDirectory() as selected:
             root = Path(selected)
             payload = build_sync_payload(
                 self.stage,
                 root / "payload",
-                None,
                 tool_revision={"commit": "test", "scoped_code_dirty": False},
                 reuse_stock_pet=True,
                 local_ui_only=True,
@@ -247,15 +235,12 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
         self.assertEqual(result.payload_size, payload.size)
         self.assertEqual(len(output_bytes), self.stage.stat().st_size)
         self.assertTrue(output_bytes.startswith(b"BFNP"))
-        self.assertNotIn(credentials.access_token, manifest_text)
-        self.assertNotIn(credentials.secret_key.hex(), manifest_text)
         self.assertIn('"installation_allowed": false', manifest_text)
         self.assertEqual(
             manifest_document["manifest_type"],
             "agents-local-ui-stock-resume-firmware",
         )
         self.assertFalse(manifest_document["transport"]["enabled"])
-        self.assertFalse(manifest_document["credentials_embedded"])
         self.assertFalse(manifest_document["device_specific"])
         self.assertTrue(
             manifest_document["interaction_simulation"]["summary"]["passed"]
@@ -338,10 +323,6 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
         for address in LOCAL_UI_FORBIDDEN_CALLEES:
             self.assertNotIn(f"# {address:08x} <", lowered_disassembly)
         self.assertNotIn(b"/tmp/", payload_bytes)
-        self.assertNotIn(
-            credentials.device_id.encode(), payload_bytes
-        )
-        self.assertNotIn(credentials.secret_key, payload_bytes)
         stage_bytes = self.stage.read_bytes()
         self.assertEqual(
             stage_bytes[
@@ -739,25 +720,19 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
         )
 
     def test_failed_full_integration_candidate_is_blocked(self) -> None:
-        credentials = TestCredentials(
-            device_id="1234abcd",
-            access_token="0123456789abcdef",
-            secret_key=bytes(range(32)),
-        )
         with tempfile.TemporaryDirectory() as selected:
             root = Path(selected)
             output = root / OPT_REWRITE_OUTPUT_FILENAME
             manifest = root / "manifest.json"
             with self.assertRaisesRegex(
                 RuntimeError,
-                "不属于已记录的局部界面方案",
+                "不属于已记录的局部分支方案",
             ):
                 build_sync_firmware(
                     self.stage,
                     output,
                     manifest,
                     root / "firmware",
-                    credentials,
                     url_base="http://192.168.31.174:18765/a",
                     refresh_seconds=300,
                     tool_revision={
@@ -783,11 +758,6 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
             self.assertIsNone(decode_agents_state(encoded))
 
     def test_retired_stock_reuse_name_cannot_build(self) -> None:
-        credentials = TestCredentials(
-            device_id="1234abcd",
-            access_token="0123456789abcdef",
-            secret_key=bytes(range(32)),
-        )
         with tempfile.TemporaryDirectory() as selected:
             root = Path(selected)
             with self.assertRaisesRegex(
@@ -799,7 +769,6 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
                     root / LOW_STACK_LOCAL_BRANCHES_OUTPUT_FILENAME,
                     root / "retired-manifest.json",
                     root / "retired-build",
-                    credentials,
                     url_base="http://192.168.31.139:8765/a",
                     refresh_seconds=300,
                     tool_revision={
@@ -810,14 +779,13 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
             retired = "ap01-1.0.2_0031-agents-stock-dispatch-observation.bin"
             with self.assertRaisesRegex(
                 RuntimeError,
-                "不属于已记录的局部界面方案",
+                "不属于已记录的局部分支方案",
             ):
                 build_sync_firmware(
                     self.stage,
                     root / retired,
                     root / "manifest.json",
                     root / "build",
-                    credentials,
                     url_base="http://192.168.31.139:8765/a",
                     refresh_seconds=300,
                     tool_revision={
@@ -839,7 +807,6 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
                     root / STOCK_CALLCHAIN_OUTPUT_FILENAME,
                     root / "manifest.json",
                     root / "build",
-                    credentials,
                     url_base="http://192.168.31.139:8765/a",
                     refresh_seconds=300,
                     tool_revision={
@@ -859,7 +826,6 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
                     root / STOCK_ENTER_GATE_OUTPUT_FILENAME,
                     root / "manifest.json",
                     root / "build",
-                    credentials,
                     url_base="http://192.168.31.139:8765/a",
                     refresh_seconds=300,
                     tool_revision={
@@ -869,18 +835,61 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
                 )
 
     def test_request_formats_fit_without_positional_printf(self) -> None:
-        credentials = TestCredentials(
-            device_id="1234abcd",
-            access_token="0123456789abcdef",
-            secret_key=bytes(range(32)),
-        )
-        location, city = _request_formats(credentials)
+        location, city = _request_formats()
         self.assertLessEqual(len(location) + 1, 44)
         self.assertLessEqual(len(city) + 1, 48)
         self.assertNotIn(b"$", location)
         self.assertNotIn(b"$", city)
-        self.assertIn(b"d=abcd", location)
-        self.assertIn(b"t=456789abcdef", location)
+        self.assertEqual(location, b"%s%.0s%.0s")
+        self.assertEqual(city, b"%s%.0s%.0s%.0s")
+        self.assertNotIn(b"?", location + city)
+
+    def test_live_data_base_safe_firmware_passes_all_build_gates(self) -> None:
+        if (
+            not shutil.which("riscv64-elf-as")
+            or not shutil.which("riscv64-elf-gcc")
+        ):
+            self.skipTest("本机没有阶段固件或固定编译工具")
+        with tempfile.TemporaryDirectory() as selected:
+            root = Path(selected)
+            output = root / LIVE_DATA_BASE_SAFE_OUTPUT_FILENAME
+            manifest = root / "manifest.json"
+            result = build_live_data_base_safe_firmware(
+                self.stage,
+                output,
+                manifest,
+                root / "payload",
+                url_base="http://192.168.31.174:18765/a",
+                refresh_seconds=300,
+                tool_revision={
+                    "commit": "test",
+                    "scoped_code_dirty": False,
+                },
+            )
+            document = json.loads(manifest.read_text(encoding="utf-8"))
+            payload = (root / "payload/agents-sync.bin").read_bytes()
+
+        self.assertEqual(
+            document["manifest_type"],
+            "agents-live-data-base-safe-firmware",
+        )
+        self.assertEqual(result.output.name, LIVE_DATA_BASE_SAFE_OUTPUT_FILENAME)
+        self.assertTrue(document["transport"]["enabled"])
+        self.assertEqual(
+            document["transport"]["url_base"],
+            "http://192.168.31.174:18765/a",
+        )
+        self.assertEqual(document["transport"]["refresh_seconds"], 300)
+        self.assertFalse(
+            document["transport"]["shared_device_configuration_used"]
+        )
+        self.assertTrue(document["validation"]["transport_symbols_present"])
+        self.assertTrue(
+            document["validation"]["stock_power_confirm_entry_guarded"]
+        )
+        self.assertTrue(document["validation"]["installation_allowed"])
+        self.assertTrue(document["interaction_simulation"]["summary"]["passed"])
+        self.assertTrue(document["callchain_gates"]["stock_transport_scoped_patch"])
 
     def test_freestanding_crc32_matches_python(self) -> None:
         compiler = shutil.which("cc")
@@ -932,17 +941,11 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
         compiler = shutil.which("cc")
         if not compiler:
             self.skipTest("本机没有主机 C 编译器")
-        credentials = TestCredentials(
-            device_id="1234abcd",
-            access_token="0123456789abcdef",
-            secret_key=bytes(range(32)),
-        )
         page = b"GIF89a\x40\x01\xf0\x00\x00\x00\x3b"
         package = encode_package(
             (page, page, page, page),
             generation=17,
             generated_at=1_700_000_000,
-            credentials=credentials,
         )
         with tempfile.TemporaryDirectory() as selected:
             root = Path(selected)

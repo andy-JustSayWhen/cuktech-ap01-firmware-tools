@@ -15,15 +15,12 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from core.firmware_image import FirmwareValidationError, prepare_read_only_copy
-from features.agents_dashboard.result_package import (
-    ResultPackageError,
-    load_credentials,
-)
 from features.agents_dashboard_firmware import (
     AgentsDashboardFirmwareError,
     CONFIRM_COMPAT_OUTPUT_FILENAME,
     DETAIL_COMPAT_OUTPUT_FILENAME,
     LOCAL_UI_BASE_SAFE_OUTPUT_FILENAME,
+    LIVE_DATA_BASE_SAFE_OUTPUT_FILENAME,
     LOCAL_UI_STOCK_RESUME_OUTPUT_FILENAME,
     LOCAL_UI_STOCK_SAFE_OUTPUT_FILENAME,
     PET_OVERLAY_OUTPUT_FILENAME,
@@ -38,6 +35,7 @@ from features.agents_dashboard_firmware import (
     build_stock_enter_gate_firmware,
     build_local_ui_stock_resume_firmware,
     build_local_ui_base_safe_firmware,
+    build_live_data_base_safe_firmware,
     build_local_ui_stock_safe_firmware,
     build_sync_firmware,
     simulate_current_manifest,
@@ -191,7 +189,6 @@ def _parser() -> argparse.ArgumentParser:
     sync_command.add_argument("--output", type=Path, required=True)
     sync_command.add_argument("--manifest", type=Path, required=True)
     sync_command.add_argument("--build-dir", type=Path, required=True)
-    sync_command.add_argument("--config", type=Path, required=True)
     sync_command.add_argument("--url-base", required=True)
     sync_command.add_argument("--refresh-seconds", type=int, default=300)
 
@@ -203,7 +200,6 @@ def _parser() -> argparse.ArgumentParser:
     detail_compat_command.add_argument("--output", type=Path, required=True)
     detail_compat_command.add_argument("--manifest", type=Path, required=True)
     detail_compat_command.add_argument("--build-dir", type=Path, required=True)
-    detail_compat_command.add_argument("--config", type=Path, required=True)
     detail_compat_command.add_argument("--url-base", required=True)
     detail_compat_command.add_argument(
         "--refresh-seconds",
@@ -219,7 +215,6 @@ def _parser() -> argparse.ArgumentParser:
     confirm_compat_command.add_argument("--output", type=Path, required=True)
     confirm_compat_command.add_argument("--manifest", type=Path, required=True)
     confirm_compat_command.add_argument("--build-dir", type=Path, required=True)
-    confirm_compat_command.add_argument("--config", type=Path, required=True)
     confirm_compat_command.add_argument("--url-base", required=True)
     confirm_compat_command.add_argument(
         "--refresh-seconds",
@@ -235,7 +230,6 @@ def _parser() -> argparse.ArgumentParser:
     pet_overlay_command.add_argument("--output", type=Path, required=True)
     pet_overlay_command.add_argument("--manifest", type=Path, required=True)
     pet_overlay_command.add_argument("--build-dir", type=Path, required=True)
-    pet_overlay_command.add_argument("--config", type=Path, required=True)
     pet_overlay_command.add_argument("--url-base", required=True)
     pet_overlay_command.add_argument(
         "--refresh-seconds",
@@ -251,7 +245,6 @@ def _parser() -> argparse.ArgumentParser:
     stock_pet_reuse_command.add_argument("--output", type=Path, required=True)
     stock_pet_reuse_command.add_argument("--manifest", type=Path, required=True)
     stock_pet_reuse_command.add_argument("--build-dir", type=Path, required=True)
-    stock_pet_reuse_command.add_argument("--config", type=Path, required=True)
     stock_pet_reuse_command.add_argument("--url-base", required=True)
     stock_pet_reuse_command.add_argument(
         "--refresh-seconds",
@@ -267,7 +260,6 @@ def _parser() -> argparse.ArgumentParser:
     stock_dispatch_command.add_argument("--output", type=Path, required=True)
     stock_dispatch_command.add_argument("--manifest", type=Path, required=True)
     stock_dispatch_command.add_argument("--build-dir", type=Path, required=True)
-    stock_dispatch_command.add_argument("--config", type=Path, required=True)
     stock_dispatch_command.add_argument("--url-base", required=True)
     stock_dispatch_command.add_argument(
         "--refresh-seconds",
@@ -283,7 +275,6 @@ def _parser() -> argparse.ArgumentParser:
     stock_callchain_command.add_argument("--output", type=Path, required=True)
     stock_callchain_command.add_argument("--manifest", type=Path, required=True)
     stock_callchain_command.add_argument("--build-dir", type=Path, required=True)
-    stock_callchain_command.add_argument("--config", type=Path, required=True)
     stock_callchain_command.add_argument("--url-base", required=True)
     stock_callchain_command.add_argument(
         "--refresh-seconds",
@@ -299,7 +290,6 @@ def _parser() -> argparse.ArgumentParser:
     stock_enter_gate_command.add_argument("--output", type=Path, required=True)
     stock_enter_gate_command.add_argument("--manifest", type=Path, required=True)
     stock_enter_gate_command.add_argument("--build-dir", type=Path, required=True)
-    stock_enter_gate_command.add_argument("--config", type=Path, required=True)
     stock_enter_gate_command.add_argument("--url-base", required=True)
     stock_enter_gate_command.add_argument(
         "--refresh-seconds",
@@ -342,6 +332,17 @@ def _parser() -> argparse.ArgumentParser:
     base_safe_command.add_argument("--manifest", type=Path, required=True)
     base_safe_command.add_argument("--build-dir", type=Path, required=True)
 
+    live_data_command = commands.add_parser(
+        "agents-live-data-base-safe-build",
+        help="生成保留基座保护并恢复真实数据的 AGENTS 固件",
+    )
+    live_data_command.add_argument("--input", type=Path, required=True)
+    live_data_command.add_argument("--output", type=Path, required=True)
+    live_data_command.add_argument("--manifest", type=Path, required=True)
+    live_data_command.add_argument("--build-dir", type=Path, required=True)
+    live_data_command.add_argument("--url-base", required=True)
+    live_data_command.add_argument("--refresh-seconds", type=int, default=300)
+
     interaction_simulation_command = commands.add_parser(
         "agents-interaction-simulate",
         help="对刷前构建清单执行连续页面事件模拟",
@@ -364,7 +365,6 @@ def _parser() -> argparse.ArgumentParser:
     optimized_build_command.add_argument("--output", type=Path, required=True)
     optimized_build_command.add_argument("--manifest", type=Path, required=True)
     optimized_build_command.add_argument("--build-dir", type=Path, required=True)
-    optimized_build_command.add_argument("--config", type=Path, required=True)
     optimized_build_command.add_argument("--url-base", required=True)
     optimized_build_command.add_argument(
         "--refresh-seconds",
@@ -594,13 +594,11 @@ def main(argv: list[str] | None = None) -> int:
             return 0
 
         if args.command == "agents-sync-build":
-            credentials = load_credentials(args.config)
             result = build_sync_firmware(
                 args.input,
                 args.output,
                 args.manifest,
                 args.build_dir,
-                credentials,
                 url_base=args.url_base,
                 refresh_seconds=args.refresh_seconds,
                 tool_revision=revision,
@@ -624,13 +622,11 @@ def main(argv: list[str] | None = None) -> int:
             return 0
 
         if args.command == "agents-detail-compat-build":
-            credentials = load_credentials(args.config)
             result = build_sync_firmware(
                 args.input,
                 args.output,
                 args.manifest,
                 args.build_dir,
-                credentials,
                 url_base=args.url_base,
                 refresh_seconds=args.refresh_seconds,
                 tool_revision=revision,
@@ -656,13 +652,11 @@ def main(argv: list[str] | None = None) -> int:
             return 0
 
         if args.command == "agents-confirm-compat-build":
-            credentials = load_credentials(args.config)
             result = build_sync_firmware(
                 args.input,
                 args.output,
                 args.manifest,
                 args.build_dir,
-                credentials,
                 url_base=args.url_base,
                 refresh_seconds=args.refresh_seconds,
                 tool_revision=revision,
@@ -691,13 +685,11 @@ def main(argv: list[str] | None = None) -> int:
             return 0
 
         if args.command == "agents-pet-overlay-build":
-            credentials = load_credentials(args.config)
             result = build_sync_firmware(
                 args.input,
                 args.output,
                 args.manifest,
                 args.build_dir,
-                credentials,
                 url_base=args.url_base,
                 refresh_seconds=args.refresh_seconds,
                 tool_revision=revision,
@@ -727,13 +719,11 @@ def main(argv: list[str] | None = None) -> int:
             return 0
 
         if args.command == "agents-stock-pet-reuse-build":
-            credentials = load_credentials(args.config)
             result = build_sync_firmware(
                 args.input,
                 args.output,
                 args.manifest,
                 args.build_dir,
-                credentials,
                 url_base=args.url_base,
                 refresh_seconds=args.refresh_seconds,
                 tool_revision=revision,
@@ -764,13 +754,11 @@ def main(argv: list[str] | None = None) -> int:
             return 0
 
         if args.command == "agents-stock-dispatch-build":
-            credentials = load_credentials(args.config)
             result = build_sync_firmware(
                 args.input,
                 args.output,
                 args.manifest,
                 args.build_dir,
-                credentials,
                 url_base=args.url_base,
                 refresh_seconds=args.refresh_seconds,
                 tool_revision=revision,
@@ -801,13 +789,11 @@ def main(argv: list[str] | None = None) -> int:
             return 0
 
         if args.command == "agents-stock-callchain-build":
-            credentials = load_credentials(args.config)
             result = build_stock_callchain_firmware(
                 args.input,
                 args.output,
                 args.manifest,
                 args.build_dir,
-                credentials,
                 url_base=args.url_base,
                 refresh_seconds=args.refresh_seconds,
                 tool_revision=revision,
@@ -832,13 +818,11 @@ def main(argv: list[str] | None = None) -> int:
             return 0
 
         if args.command == "agents-stock-enter-gate-build":
-            credentials = load_credentials(args.config)
             result = build_stock_enter_gate_firmware(
                 args.input,
                 args.output,
                 args.manifest,
                 args.build_dir,
-                credentials,
                 url_base=args.url_base,
                 refresh_seconds=args.refresh_seconds,
                 tool_revision=revision,
@@ -930,6 +914,35 @@ def main(argv: list[str] | None = None) -> int:
                         "result": "AGENTS 基座生命周期保护固件制作完成",
                         "output": str(result.output),
                         "expected_name": LOCAL_UI_BASE_SAFE_OUTPUT_FILENAME,
+                        "manifest": str(result.manifest),
+                        "output_sha256": result.sha256,
+                        "output_md5": result.md5,
+                        "payload_size": result.payload_size,
+                        "payload_remaining": result.payload_remaining,
+                        "installation_allowed": True,
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                )
+            )
+            return 0
+
+        if args.command == "agents-live-data-base-safe-build":
+            result = build_live_data_base_safe_firmware(
+                args.input,
+                args.output,
+                args.manifest,
+                args.build_dir,
+                url_base=args.url_base,
+                refresh_seconds=args.refresh_seconds,
+                tool_revision=revision,
+            )
+            print(
+                json.dumps(
+                    {
+                        "result": "AGENTS 真实数据与基座保护固件制作完成",
+                        "output": str(result.output),
+                        "expected_name": LIVE_DATA_BASE_SAFE_OUTPUT_FILENAME,
                         "manifest": str(result.manifest),
                         "output_sha256": result.sha256,
                         "output_md5": result.md5,
@@ -1044,7 +1057,6 @@ def main(argv: list[str] | None = None) -> int:
         OptimizedFirmwareBuildError,
         PrimaryPageNavigationError,
         PrimaryPageSettingsBuildError,
-        ResultPackageError,
         SettingsHookObservationError,
         SettingsMenuWrapError,
         OSError,

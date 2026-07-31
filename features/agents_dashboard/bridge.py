@@ -11,24 +11,19 @@ import subprocess
 import sys
 import threading
 import time
-from collections import deque
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import parse_qs, urlsplit
+from urllib.parse import urlsplit
 
 from .result_package import (
-    DeviceCredentials,
     ResultPackageError,
     decode_package,
-    load_credentials,
-    load_or_create_credentials,
     publish_current_result,
 )
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_CONFIG = PROJECT_ROOT / "env" / "agents-dashboard-device.json"
 DEFAULT_CACHE = PROJECT_ROOT / "env" / "agents-dashboard-cache"
 DEFAULT_OUTPUT = PROJECT_ROOT / "artifacts" / "agents-dashboard"
 DEFAULT_FONTS = PROJECT_ROOT / "env" / "fonts"
@@ -72,14 +67,12 @@ def lan_ip() -> str:
 class BridgeState:
     def __init__(
         self,
-        credentials: DeviceCredentials,
         output: Path,
         fonts: Path,
         *,
         codex_home: Path | None = None,
         cache_directory: Path | None = None,
     ) -> None:
-        self.credentials = credentials
         self.output = output
         self.fonts = fonts
         self.codex_home = codex_home
@@ -91,8 +84,6 @@ class BridgeState:
         self.error: str | None = None
         self.data_sources: dict[str, bool] = {}
         self.refreshing = False
-        self._nonces: deque[str] = deque(maxlen=128)
-        self._nonce_set: set[str] = set()
 
     @staticmethod
     def _safe_error(error: Exception) -> str:
@@ -107,7 +98,7 @@ class BridgeState:
     def has_valid_result(self) -> bool:
         package_path = self.output / "agents-dashboard.apag"
         try:
-            decode_package(package_path.read_bytes(), self.credentials)
+            decode_package(package_path.read_bytes())
         except (OSError, ResultPackageError):
             return False
         return True
@@ -121,7 +112,6 @@ class BridgeState:
             manifest = publish_current_result(
                 self.output,
                 self.fonts,
-                self.credentials,
                 codex_home=self.codex_home,
                 cache_directory=self.cache_directory,
             )
@@ -146,27 +136,6 @@ class BridgeState:
             with self.lock:
                 self.refreshing = False
 
-    def authorize(self, query: dict[str, list[str]]) -> bool:
-        device = query.get("d", [""])[0].lower()
-        token = query.get("t", [""])[0].lower()
-        nonce = query.get("n", [""])[0]
-        if (
-            device != self.credentials.device_id[-4:]
-            or token != self.credentials.access_token[-12:]
-            or not nonce.isdigit()
-            or len(nonce) > 20
-        ):
-            return False
-        key = f"{device}:{nonce}"
-        with self.lock:
-            if key in self._nonce_set:
-                return False
-            if len(self._nonces) == self._nonces.maxlen:
-                self._nonce_set.discard(self._nonces[0])
-            self._nonces.append(key)
-            self._nonce_set.add(key)
-        return True
-
     def health(self) -> bytes:
         result_available = self.has_valid_result()
         with self.lock:
@@ -189,7 +158,7 @@ class BridgeState:
 
 def make_handler(state: BridgeState):
     class Handler(BaseHTTPRequestHandler):
-        server_version = "AP01AgentsBridge/1.0"
+        server_version = "AP01AgentsBridge/1.1"
 
         def do_GET(self) -> None:  # noqa: N802
             split = urlsplit(self.path)
@@ -198,9 +167,6 @@ def make_handler(state: BridgeState):
                 return
             if split.path != "/a":
                 self.send_error(HTTPStatus.NOT_FOUND)
-                return
-            if not state.authorize(parse_qs(split.query, keep_blank_values=True)):
-                self.send_error(HTTPStatus.FORBIDDEN)
                 return
             package_path = state.output / "agents-dashboard.apag"
             try:
@@ -248,29 +214,14 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--bind", default="0.0.0.0")
     parser.add_argument("--port", type=int, default=8765)
     parser.add_argument("--interval", type=int, default=300)
-    parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG)
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
     parser.add_argument("--font-directory", type=Path, default=DEFAULT_FONTS)
     parser.add_argument("--codex-home", type=Path)
     parser.add_argument("--cache-directory", type=Path, default=DEFAULT_CACHE)
-    parser.add_argument(
-        "--initialize-config",
-        action="store_true",
-        help="只初始化或复用设备专属配置，随后退出",
-    )
     arguments = parser.parse_args(argv)
     if not 10 <= arguments.interval <= 7200:
         parser.error("刷新周期必须在 10～7200 秒之间")
-    try:
-        if arguments.initialize_config:
-            credentials = load_or_create_credentials(arguments.config)
-            print(f"设备专属配置已就绪：{arguments.config.expanduser().resolve()}")
-            return 0
-        credentials = load_credentials(arguments.config)
-    except ResultPackageError as error:
-        parser.error(str(error))
     state = BridgeState(
-        credentials,
         arguments.output,
         arguments.font_directory,
         codex_home=arguments.codex_home,

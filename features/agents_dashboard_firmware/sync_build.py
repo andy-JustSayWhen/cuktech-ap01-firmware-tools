@@ -12,7 +12,7 @@ import subprocess
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Callable, Protocol
+from typing import Callable
 from zoneinfo import ZoneInfo
 
 from core.firmware_image import (
@@ -60,12 +60,6 @@ from .build import (
 from .fallback_assets import FallbackAssetError, build_fallback_assets
 
 
-class DeviceCredentialsLike(Protocol):
-    device_id: str
-    access_token: str
-    secret_key: bytes
-
-
 MODULE_DIR = Path(__file__).resolve().parent
 LOADER_SOURCE = MODULE_DIR / "result_loader.c"
 LOCAL_UI_LOADER_SOURCE = MODULE_DIR / "local_ui_loader.c"
@@ -109,6 +103,9 @@ LOCAL_UI_STOCK_SAFE_OUTPUT_FILENAME = (
 )
 LOCAL_UI_BASE_SAFE_OUTPUT_FILENAME = (
     "ap01-1.0.2_0031-agents-base-safe.bin"
+)
+LIVE_DATA_BASE_SAFE_OUTPUT_FILENAME = (
+    "ap01-1.0.2_0031-agents-live-data-base-safe.bin"
 )
 OPT_INTEGRATION_OUTPUT_FILENAME = (
     "ap01-1.0.2_0031-opt-integration-candidate.bin"
@@ -223,8 +220,7 @@ REQUIRED_SYMBOLS = (
     "ap01_agents_webclient_wrapper",
     "ap01_agents_apply_current",
     "ap01_agents_ui_timer_wrapper",
-    "agents_device_id",
-    "agents_secret_key",
+    "ap01_agents_loader_end_marker",
 )
 LOCAL_UI_REQUIRED_SYMBOLS = (
     "ap01_agents_page_register",
@@ -278,8 +274,6 @@ LOCAL_UI_FORBIDDEN_SYMBOLS = (
     "ap01_agents_sink",
     "ap01_agents_webclient_wrapper",
     "ap01_agents_ui_timer_wrapper",
-    "agents_device_id",
-    "agents_secret_key",
 )
 STOCK_PET_FORBIDDEN_CALLEES = (
     0xA00C1EC6,
@@ -505,23 +499,6 @@ def _gcc_version(tool: Path) -> str:
     return first
 
 
-def _config_assembly(path: Path, credentials: DeviceCredentialsLike) -> None:
-    device = credentials.device_id.encode("ascii").ljust(16, b"\0")
-    lines = [
-        '    .section .rodata, "a", @progbits',
-        "    .balign 4",
-        "    .global agents_device_id",
-        "agents_device_id:",
-        "    .byte " + ",".join(f"0x{value:02x}" for value in device),
-        "    .global agents_secret_key",
-        "agents_secret_key:",
-        "    .byte "
-        + ",".join(f"0x{value:02x}" for value in credentials.secret_key),
-        "",
-    ]
-    path.write_text("\n".join(lines), encoding="utf-8", newline="\n")
-
-
 def _replace_fixed_region(
     firmware: bytearray,
     offset: int,
@@ -557,17 +534,11 @@ def _replace(
     return ByteRange(offset, end)
 
 
-def _request_formats(credentials: DeviceCredentialsLike) -> tuple[bytes, bytes]:
-    compact_device = credentials.device_id[-4:]
-    compact_token = credentials.access_token[-12:]
-    location = (
-        f"%s%.0s%.0s?d={compact_device}&t={compact_token}&n=%lld"
-    ).encode("ascii")
-    city = (
-        f"%s%.0s%.0s%.0s?d={compact_device}&t={compact_token}&n=%lld"
-    ).encode("ascii")
+def _request_formats() -> tuple[bytes, bytes]:
+    location = b"%s%.0s%.0s"
+    city = b"%s%.0s%.0s%.0s"
     if len(location) + 1 > 44 or len(city) + 1 > 48:
-        raise AgentsDashboardFirmwareError("设备授权请求格式超过原厂固定区域")
+        raise AgentsDashboardFirmwareError("天气请求格式超过原厂固定区域")
     return location, city
 
 
@@ -647,7 +618,7 @@ def _validate_pet_overlay_disassembly(disassembly: str) -> None:
     timer_wrapper = _symbol_block(
         disassembly,
         "ap01_agents_ui_timer_wrapper",
-        "agents_device_id",
+        "ap01_agents_loader_end_marker",
     )
     if (
         "x11,7" not in timer_wrapper
@@ -814,7 +785,7 @@ def _validate_stock_pet_reuse_disassembly(
     timer_wrapper = _symbol_block(
         disassembly,
         "ap01_agents_ui_timer_wrapper",
-        "agents_device_id",
+        "ap01_agents_loader_end_marker",
     )
     stock_timer = timer_wrapper.find("# a00bb5da")
     dispatch = timer_wrapper.find("# a00be388")
@@ -1212,7 +1183,6 @@ def _assert_stock_transport_unchanged(stage: bytes, candidate: bytes) -> None:
 def _patch_stock_transport(
     candidate: bytearray,
     symbols: dict[str, int],
-    credentials: DeviceCredentialsLike,
     *,
     url_base: str,
     refresh_seconds: int,
@@ -1300,7 +1270,7 @@ def _patch_stock_transport(
             )
         )
 
-    location_format, city_format = _request_formats(credentials)
+    location_format, city_format = _request_formats()
     replacements = (url_bytes, location_format, url_bytes, city_format)
     for (offset, capacity, expected, label), replacement in zip(
         URL_REGIONS,
@@ -1322,7 +1292,6 @@ def _patch_stock_transport(
 def build_sync_payload(
     stage_path: Path,
     build_directory: Path,
-    credentials: DeviceCredentialsLike | None,
     *,
     tool_revision: dict[str, object],
     extra_objects: tuple[Path, ...] = (),
@@ -1372,19 +1341,12 @@ def build_sync_payload(
     )
     assets_source = selected / "fallback-assets.S"
     assets_object = selected / "fallback-assets.o"
-    config_source = selected / "device-config.S"
-    config_object = selected / "device-config.o"
     elf = selected / "agents-sync.elf"
     binary = selected / "agents-sync.bin"
     map_path = selected / "agents-sync.map"
     disassembly_path = selected / "agents-sync.disassembly.txt"
     readelf_path = selected / "agents-sync.readelf.txt"
     _write_asset_assembly(assets_source, assets)
-    if not local_ui_only:
-        if credentials is None:
-            raise AgentsDashboardFirmwareError("后台同步载荷缺少设备授权数据")
-        _config_assembly(config_source, credentials)
-
     resolved_extra_objects: list[Path] = []
     for item in extra_objects:
         resolved = item.expanduser().resolve(strict=True)
@@ -1446,19 +1408,6 @@ def build_sync_payload(
             assets_source,
         ]
     )
-    linked_config_objects: list[Path] = []
-    if not local_ui_only:
-        _run(
-            [
-                assembler,
-                "-march=rv32imac",
-                "-mabi=ilp32",
-                "-o",
-                config_object,
-                config_source,
-            ]
-        )
-        linked_config_objects.append(config_object)
     _run(
         [
             linker,
@@ -1472,7 +1421,6 @@ def build_sync_payload(
             elf,
             page_object,
             loader_object,
-            *linked_config_objects,
             *resolved_extra_objects,
             assets_object,
         ]
@@ -1577,7 +1525,6 @@ def build_sync_firmware(
     output_path: Path,
     manifest_path: Path,
     build_directory: Path,
-    credentials: DeviceCredentialsLike | None,
     *,
     tool_revision: dict[str, object],
     url_base: str = "",
@@ -1603,9 +1550,11 @@ def build_sync_firmware(
         raise AgentsDashboardFirmwareError(
             f"同步实验成品文件名必须是 {expected_output_name}"
         )
-    allowed_local_variants = {
+    live_data_enabled = expected_output_name == LIVE_DATA_BASE_SAFE_OUTPUT_FILENAME
+    allowed_variants = {
         (
             LOCAL_UI_STOCK_RESUME_OUTPUT_FILENAME,
+            True,
             False,
             False,
             "FW-AGENTS-008",
@@ -1614,22 +1563,41 @@ def build_sync_firmware(
             LOCAL_UI_BASE_SAFE_OUTPUT_FILENAME,
             True,
             True,
+            True,
             "FW-AGENTS-010",
+        ),
+        (
+            LIVE_DATA_BASE_SAFE_OUTPUT_FILENAME,
+            False,
+            True,
+            True,
+            "FW-AGENTS-011",
         ),
     }
     if (
         not reuse_stock_pet
-        or not local_ui_only
         or (
             expected_output_name,
+            local_ui_only,
             shared_page_filter,
             power_confirm_guard,
             interaction_name,
-        ) not in allowed_local_variants
+        ) not in allowed_variants
     ):
         raise AgentsDashboardFirmwareError(
-            "AGENTS 固件参数不属于已记录的局部界面方案"
+            "AGENTS 固件参数不属于已记录的局部分支方案"
         )
+    if live_data_enabled:
+        try:
+            url_bytes = url_base.encode("ascii")
+        except UnicodeEncodeError as error:
+            raise AgentsDashboardFirmwareError("局域网取包地址必须是 ASCII") from error
+        if not url_base.startswith("http://") or len(url_bytes) + 1 > 40:
+            raise AgentsDashboardFirmwareError(
+                "局域网取包地址必须使用 HTTP 且不超过 39 字节"
+            )
+        if not 10 <= refresh_seconds <= 7200:
+            raise AgentsDashboardFirmwareError("刷新周期必须在 10～7200 秒之间")
     if not integration_mode and (
         extra_objects or required_extra_symbols or candidate_mutators
     ):
@@ -1638,7 +1606,6 @@ def build_sync_firmware(
     payload_result = build_sync_payload(
         stage_selected,
         build_directory,
-        credentials,
         tool_revision=tool_revision,
         extra_objects=extra_objects,
         required_extra_symbols=required_extra_symbols,
@@ -1712,7 +1679,16 @@ def build_sync_firmware(
         mutator_ranges.extend(changed)
         allowed.extend(changed)
 
-    _assert_stock_transport_unchanged(stage, bytes(candidate))
+    if live_data_enabled:
+        transport_ranges = _patch_stock_transport(
+            candidate,
+            payload_result.symbols,
+            url_base=url_base,
+            refresh_seconds=refresh_seconds,
+        )
+        allowed.extend(transport_ranges)
+    else:
+        _assert_stock_transport_unchanged(stage, bytes(candidate))
 
     _assert_stock_local_branch_isolation(
         stage,
@@ -1770,7 +1746,8 @@ def build_sync_firmware(
         raise AgentsDashboardFirmwareError("同步载荷写入前后完全相同")
     candidate[PAYLOAD_START : PAYLOAD_START + len(payload)] = payload
     allowed.append(ByteRange(PAYLOAD_START, PAYLOAD_START + len(payload)))
-    _assert_stock_transport_unchanged(stage, bytes(candidate))
+    if not live_data_enabled:
+        _assert_stock_transport_unchanged(stage, bytes(candidate))
 
     recovery_crc = refresh_recovery_crc(candidate, AP01_1_0_2_0031)
     allowed.append(
@@ -1788,9 +1765,13 @@ def build_sync_firmware(
     manifest: dict[str, object] = {
         "schema_version": 1,
         "manifest_type": (
-            "agents-local-ui-base-safe-firmware"
-            if power_confirm_guard
-            else "agents-local-ui-stock-resume-firmware"
+            "agents-live-data-base-safe-firmware"
+            if live_data_enabled
+            else (
+                "agents-local-ui-base-safe-firmware"
+                if power_confirm_guard
+                else "agents-local-ui-stock-resume-firmware"
+            )
         ),
         "status": (
             "approved-for-one-test-installation"
@@ -1813,15 +1794,16 @@ def build_sync_firmware(
             **report.to_dict(),
         },
         "device_specific": False,
-        "credentials_embedded": False,
-        "credentials_disclosed": False,
         "transport": {
-            "enabled": False,
-            "stock_loader_trampoline_unchanged": True,
-            "stock_download_callback_unchanged": True,
-            "stock_network_call_unchanged": True,
-            "stock_timers_unchanged": True,
-            "stock_request_regions_unchanged": True,
+            "enabled": live_data_enabled,
+            "url_base": url_base if live_data_enabled else None,
+            "refresh_seconds": refresh_seconds if live_data_enabled else None,
+            "stock_loader_trampoline_unchanged": not live_data_enabled,
+            "stock_download_callback_unchanged": not live_data_enabled,
+            "stock_network_call_unchanged": not live_data_enabled,
+            "stock_timers_unchanged": not live_data_enabled,
+            "stock_request_regions_unchanged": not live_data_enabled,
+            "shared_device_configuration_used": False,
         },
         "payload": {
             "file_offset": f"0x{PAYLOAD_START:06x}",
@@ -1832,9 +1814,8 @@ def build_sync_firmware(
             "remaining": PAYLOAD_CAPACITY - payload_result.size,
             "relocations": 0,
             "maximum_static_stack": payload_result.maximum_static_stack,
-            "local_ui_only": True,
-            "transport_symbols_linked": False,
-            "device_credentials_linked": False,
+            "local_ui_only": local_ui_only,
+            "transport_symbols_linked": live_data_enabled,
             "stock_pet_object_reused": True,
             "stock_pet_state_bytes_before": 16,
             "stock_pet_state_bytes_after": 20,
@@ -1851,14 +1832,17 @@ def build_sync_firmware(
                 if power_confirm_guard
                 else "原厂功率确认和两个全局回调保持原字节"
             ),
-            "原厂后台网络回调、调用、定时和请求区保持原字节",
+            (
+                "原厂天气后台任务复用为四页完整包取包"
+                if live_data_enabled
+                else "原厂后台网络回调、调用、定时和请求区保持原字节"
+            ),
             "AGENTS 概览右旋恢复萌宠后交还原厂右旋继续地址",
             "AGENTS 状态使用萌宠状态新增尾部",
             *implemented_scope_extra,
         ],
         "pending_scope": [
-            "四页在线取数与后台刷新",
-            "请求侧设备代号与访问标识校验",
+            *([] if live_data_enabled else ["四页在线取数与后台刷新"]),
             "重启后保留最后成功页面",
             "页面开关关闭时停用刷新",
             "NAS 与云服务器故障切换",
@@ -1883,7 +1867,8 @@ def build_sync_firmware(
             "stock_power_confirm_path_unchanged": not power_confirm_guard,
             "stock_power_confirm_entry_guarded": power_confirm_guard,
             "power_confirm_guard_calls_stock_clock": power_confirm_guard,
-            "stock_transport_paths_unchanged": True,
+            "stock_transport_paths_unchanged": not live_data_enabled,
+            "stock_transport_scoped_patch": live_data_enabled,
             "overview_right_stock_resume_only": True,
             "local_branch_hooks": [
                 {
@@ -1939,9 +1924,10 @@ def build_sync_firmware(
             "global_ui_timer_callback_registration_unchanged": True,
             "stock_power_confirm_path_unchanged": not power_confirm_guard,
             "stock_power_confirm_entry_guarded": power_confirm_guard,
-            "stock_transport_paths_unchanged": True,
-            "transport_symbols_absent": True,
-            "device_credentials_absent": True,
+            "stock_transport_paths_unchanged": not live_data_enabled,
+            "transport_symbols_absent": not live_data_enabled,
+            "transport_symbols_present": live_data_enabled,
+            "shared_device_configuration_absent": True,
             "independent_tail_recovery_verified": True,
             "installation_allowed": power_confirm_guard,
         },
@@ -1980,7 +1966,6 @@ def build_stock_callchain_firmware(
     output_path: Path,
     manifest_path: Path,
     build_directory: Path,
-    credentials: DeviceCredentialsLike,
     *,
     url_base: str,
     refresh_seconds: int,
@@ -1996,7 +1981,6 @@ def build_stock_enter_gate_firmware(
     output_path: Path,
     manifest_path: Path,
     build_directory: Path,
-    credentials: DeviceCredentialsLike,
     *,
     url_base: str,
     refresh_seconds: int,
@@ -2012,7 +1996,6 @@ def build_stock_local_branches_firmware(
     output_path: Path,
     manifest_path: Path,
     build_directory: Path,
-    credentials: DeviceCredentialsLike,
     *,
     url_base: str,
     refresh_seconds: int,
@@ -2028,7 +2011,6 @@ def build_low_stack_local_branches_firmware(
     output_path: Path,
     manifest_path: Path,
     build_directory: Path,
-    credentials: DeviceCredentialsLike,
     *,
     url_base: str,
     refresh_seconds: int,
@@ -2065,7 +2047,6 @@ def build_local_ui_stock_resume_firmware(
         output_path,
         manifest_path,
         build_directory,
-        None,
         tool_revision=tool_revision,
         expected_output_name=LOCAL_UI_STOCK_RESUME_OUTPUT_FILENAME,
         implemented_scope_extra=(
@@ -2107,7 +2088,6 @@ def build_local_ui_base_safe_firmware(
         output_path,
         manifest_path,
         build_directory,
-        None,
         tool_revision=tool_revision,
         expected_output_name=LOCAL_UI_BASE_SAFE_OUTPUT_FILENAME,
         implemented_scope_extra=(
@@ -2125,4 +2105,38 @@ def build_local_ui_base_safe_firmware(
         shared_page_filter=True,
         power_confirm_guard=True,
         interaction_name="FW-AGENTS-010",
+    )
+
+
+def build_live_data_base_safe_firmware(
+    stage_path: Path,
+    output_path: Path,
+    manifest_path: Path,
+    build_directory: Path,
+    *,
+    url_base: str,
+    refresh_seconds: int,
+    tool_revision: dict[str, object],
+) -> SyncFirmwareResult:
+    return build_sync_firmware(
+        stage_path,
+        output_path,
+        manifest_path,
+        build_directory,
+        tool_revision=tool_revision,
+        url_base=url_base,
+        refresh_seconds=refresh_seconds,
+        expected_output_name=LIVE_DATA_BASE_SAFE_OUTPUT_FILENAME,
+        implemented_scope_extra=(
+            "64 字节四页包流式接收与逐页损坏检查",
+            "三组内存临时槽原子提交",
+            "固定局域网地址五分钟后台取包",
+            "进入概览与切换详情时只应用已提交页面",
+            "不链接任何设备共享配置",
+        ),
+        reuse_stock_pet=True,
+        local_ui_only=False,
+        shared_page_filter=True,
+        power_confirm_guard=True,
+        interaction_name="FW-AGENTS-011",
     )

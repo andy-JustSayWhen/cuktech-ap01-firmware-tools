@@ -651,3 +651,7 @@ ATTR_ENTRY void ap01_agents_ui_timer_wrapper(void *timer)
       (void)ap01_agents_restore_pet(state);
     }
 }
+
+ATTR_ENTRY void ap01_agents_loader_end_marker(void)
+{
+}

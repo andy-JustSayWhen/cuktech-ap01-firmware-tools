@@ -5,7 +5,6 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-import secrets
 import struct
 import tempfile
 import time
@@ -45,105 +44,10 @@ class ResultPackageError(RuntimeError):
 
 
 @dataclass(frozen=True)
-class DeviceCredentials:
-    device_id: str
-    access_token: str
-    secret_key: bytes
-
-    @classmethod
-    def generate(cls) -> "DeviceCredentials":
-        return cls(
-            device_id=secrets.token_hex(4),
-            access_token=secrets.token_hex(8),
-            secret_key=secrets.token_bytes(32),
-        )
-
-    @classmethod
-    def from_dict(cls, document: dict[str, object]) -> "DeviceCredentials":
-        device_id = document.get("device_id")
-        access_token = document.get("access_token")
-        secret_hex = document.get("secret_key")
-        if (
-            document.get("schema_version") != 1
-            or not isinstance(device_id, str)
-            or len(device_id) != 8
-            or not isinstance(access_token, str)
-            or len(access_token) != 16
-            or not isinstance(secret_hex, str)
-            or len(secret_hex) != 64
-        ):
-            raise ResultPackageError("设备专属配置字段不完整")
-        try:
-            int(device_id, 16)
-            int(access_token, 16)
-            secret_key = bytes.fromhex(secret_hex)
-        except ValueError as error:
-            raise ResultPackageError("设备专属配置必须使用十六进制") from error
-        return cls(device_id.lower(), access_token.lower(), secret_key)
-
-    def to_dict(self) -> dict[str, object]:
-        return {
-            "schema_version": 1,
-            "device_id": self.device_id,
-            "access_token": self.access_token,
-            "secret_key": self.secret_key.hex(),
-        }
-
-
-@dataclass(frozen=True)
 class DecodedPackage:
     generation: int
     generated_at: int
     pages: tuple[bytes, ...]
-
-
-def load_or_create_credentials(path: Path) -> DeviceCredentials:
-    selected = path.expanduser().resolve()
-    if selected.exists():
-        return load_credentials(selected)
-
-    selected.parent.mkdir(parents=True, exist_ok=True)
-    credentials = DeviceCredentials.generate()
-    descriptor, temporary_name = tempfile.mkstemp(
-        prefix=f".{selected.name}.", suffix=".tmp", dir=selected.parent
-    )
-    temporary = Path(temporary_name)
-    try:
-        os.fchmod(descriptor, 0o600)
-        with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
-            json.dump(
-                credentials.to_dict(),
-                stream,
-                ensure_ascii=False,
-                separators=(",", ":"),
-            )
-            stream.write("\n")
-            stream.flush()
-            os.fsync(stream.fileno())
-        os.replace(temporary, selected)
-        selected.chmod(0o600)
-    finally:
-        temporary.unlink(missing_ok=True)
-    return credentials
-
-
-def load_credentials(path: Path) -> DeviceCredentials:
-    selected = path.expanduser().resolve()
-    if not selected.is_file():
-        raise ResultPackageError(
-            "设备专属配置不存在；请迁移原配置或先显式初始化"
-        )
-    try:
-        if os.name != "nt" and selected.stat().st_mode & 0o077:
-            raise ResultPackageError("设备专属配置权限必须为 600")
-        document = json.loads(selected.read_text(encoding="utf-8"))
-    except ResultPackageError:
-        raise
-    except (OSError, UnicodeError, json.JSONDecodeError) as error:
-        raise ResultPackageError("无法读取设备专属配置") from error
-    if not isinstance(document, dict):
-        raise ResultPackageError("设备专属配置格式错误")
-    return DeviceCredentials.from_dict(document)
 
 
 def validate_gif(path: Path) -> bytes:
@@ -199,9 +103,7 @@ def encode_package(
     *,
     generation: int,
     generated_at: int,
-    credentials: DeviceCredentials,
 ) -> bytes:
-    _ = credentials
     selected = tuple(pages)
     if len(selected) != PAGE_COUNT:
         raise ResultPackageError("完整结果必须恰好包含四页")
@@ -245,8 +147,7 @@ def encode_package(
     return bytes(header) + body
 
 
-def decode_package(payload: bytes, credentials: DeviceCredentials) -> DecodedPackage:
-    _ = credentials
+def decode_package(payload: bytes) -> DecodedPackage:
     if len(payload) < HEADER_SIZE or len(payload) > PACKAGE_MAX_BYTES:
         raise ResultPackageError("完整结果包长度无效")
     try:
@@ -312,7 +213,6 @@ def next_generation(existing_package: Path) -> int:
 def publish_current_result(
     output_directory: Path,
     font_directory: Path,
-    credentials: DeviceCredentials,
     *,
     codex_home: Path | None = None,
     cache_directory: Path | None = None,
@@ -337,9 +237,8 @@ def publish_current_result(
             pages,
             generation=generation,
             generated_at=generated_at,
-            credentials=credentials,
         )
-        decode_package(package, credentials)
+        decode_package(package)
         temporary_package = temporary / package_path.name
         temporary_package.write_bytes(package)
         with temporary_package.open("rb") as stream:
