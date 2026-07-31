@@ -571,6 +571,11 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
         self.assertTrue(
             document["validation"]["page_filter_switch_call_verified"]
         )
+        self.assertTrue(document["validation"]["installation_allowed"])
+        self.assertEqual(
+            document["status"],
+            "approved-for-one-test-installation",
+        )
         self.assertTrue(
             document["callchain_gates"]["disassembly"][
                 "overview_right_closes_state_without_gif_reset"

@@ -1688,7 +1688,11 @@ def build_sync_firmware(
             if shared_page_filter
             else "agents-local-ui-stock-resume-firmware"
         ),
-        "status": "built-not-approved-for-installation",
+        "status": (
+            "approved-for-one-test-installation"
+            if shared_page_filter
+            else "built-not-approved-for-installation"
+        ),
         "built_at_beijing": datetime.now(ZoneInfo("Asia/Shanghai")).isoformat(
             timespec="seconds"
         ),
@@ -1828,7 +1832,7 @@ def build_sync_firmware(
             "transport_symbols_absent": True,
             "device_credentials_absent": True,
             "independent_tail_recovery_verified": True,
-            "installation_allowed": False,
+            "installation_allowed": shared_page_filter,
         },
     }
     output_written = False

@@ -897,7 +897,7 @@ def main(argv: list[str] | None = None) -> int:
                         "output_md5": result.md5,
                         "payload_size": result.payload_size,
                         "payload_remaining": result.payload_remaining,
-                        "installation_allowed": False,
+                        "installation_allowed": True,
                     },
                     ensure_ascii=False,
                     indent=2,
