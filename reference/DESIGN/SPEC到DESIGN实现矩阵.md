@@ -45,7 +45,7 @@
 | `SPEC-DASHBOARD-015` 至 `SPEC-DASHBOARD-018` | [`优化固件 DESIGN`](AP01-1.0.2_0031-opt.bin.md) 第 7.3、7.5、7.6 节 | `features/agents_dashboard/formatting.py`、`renderer.py` | 单位边界、五位主体数字、无小数和比例方向自动测试 | 自动测试已实现；真机显示待验证 |
 | `SPEC-DASHBOARD-019` 至 `SPEC-DASHBOARD-025` | [`优化固件 DESIGN`](AP01-1.0.2_0031-opt.bin.md) 第 7.2 至 7.6 节 | `features/agents_dashboard/models.py`、`renderer.py` | 四页逐字段、组图标、文字颜色和无虚假圆环的图像核对 | 自动产物已有；真机逐页验收待完成 |
 | `SPEC-DASHBOARD-026` 至 `SPEC-DASHBOARD-028` | [`优化固件 DESIGN`](AP01-1.0.2_0031-opt.bin.md) 第 7.4、8 节 | `features/agents_dashboard/collector.py`、`pricing.py`、`result_package.py` | 官方来源字段、字段白名单、缓存和成品敏感内容检查 | 本机数据链已实现；发布环境检查待完成 |
-| `SPEC-DASHBOARD-029` 至 `SPEC-DASHBOARD-033` | [`优化固件 DESIGN`](AP01-1.0.2_0031-opt.bin.md) 第 6.1、7.1、10.6 至 10.17、14 节 | `features/agents_dashboard_firmware/` 的原厂萌宠三个局部分支 | 概览进入详情、三详情循环、返回、一级左右导航、功率确认与全部原厂页面回归 | `FW-AGENTS-007` 已否定；`FW-AGENTS-008` 离线通过但首次安装未完成，尚无真机证据 |
+| `SPEC-DASHBOARD-029` 至 `SPEC-DASHBOARD-033` | [`优化固件 DESIGN`](AP01-1.0.2_0031-opt.bin.md) 第 6.1、7.1、10.6 至 10.18、14 节 | `features/agents_dashboard_firmware/` 的原厂萌宠三个局部分支与 `interaction_simulator.py` | 刷前连续事件模拟、概览进入详情、三详情循环、返回、一级左右导航、功率确认与全部原厂页面回归 | `FW-AGENTS-007`、`FW-AGENTS-008` 已否定；`FW-SIM-001` 实现中，模拟通过仍不能替代真机验收 |
 
 ## 6. 系统设置旋钮
 
@@ -61,7 +61,7 @@
 | `SPEC-GOV-001` 至 `SPEC-GOV-004` | [`项目交付与 WebUI 刷机工具 DESIGN`](项目交付与WebUI刷机工具.md) 第 2、4 节 | `reference/requirements.md`、复制后的功能专属资产、发布检查 | 依赖唯一性、参考来源记录、无绝对路径运行依赖和模块归属检查 | 现有固件部分已执行；WebUI 复用拟定 |
 | `SPEC-GOV-005` 至 `SPEC-GOV-008` | [`design.md`](../design.md) 第 2、3 节；[`优化固件 DESIGN`](AP01-1.0.2_0031-opt.bin.md) 第 1、4、11、12 节 | `knowledge/AP01-官方固件分析/`、固件规范、安全兼容入口、文档核对任务 | 原厂逻辑调查、固件分析路径引用、复用边界、先 DESIGN 后代码和纠偏顺序检查 | 原厂复用先行流程已写入；自动核对拟定 |
 | `SPEC-ACCEPT-001` 至 `SPEC-ACCEPT-002` | 本矩阵；[`项目交付与 WebUI 刷机工具 DESIGN`](项目交付与WebUI刷机工具.md) 第 10 节 | 后续验收汇总任务 | 全条款落点、证据范围和阶段成品边界检查 | 落点已建立；总体验收未通过 |
-| `SPEC-ACCEPT-003` 至 `SPEC-ACCEPT-004` | [`优化固件 DESIGN`](AP01-1.0.2_0031-opt.bin.md) 第 11、14 节 | 固件与服务端模块测试、真机验收案例 | 四页、故障切换、旋钮全路径；页面开关六类场景 | 阻塞 |
+| `SPEC-ACCEPT-003` 至 `SPEC-ACCEPT-004` | [`优化固件 DESIGN`](AP01-1.0.2_0031-opt.bin.md) 第 10.18、11、14 节 | 固件与服务端模块测试、刷前连续事件模拟、真机验收案例 | 四页、故障切换、旋钮全路径；页面开关六类场景 | 阻塞；刷前模拟不能替代物理设备验收 |
 | `SPEC-ACCEPT-005` 至 `SPEC-ACCEPT-006` | [`项目交付与 WebUI 刷机工具 DESIGN`](项目交付与WebUI刷机工具.md) 第 9、10 节 | 双平台发布包、刷机记录、回刷记录和发布门禁 | 双平台完整流程、真实刷机、敏感检查、原厂回归与证据适用范围 | 阻塞 |
 
 ## 8. 覆盖结论
