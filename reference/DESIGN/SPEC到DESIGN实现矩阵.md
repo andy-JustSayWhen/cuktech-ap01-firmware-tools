@@ -26,7 +26,7 @@
 | `SPEC-FIRMWARE-004` 至 `SPEC-FIRMWARE-005` | [`优化固件 DESIGN`](AP01-1.0.2_0031-opt.bin.md) 第 0、4.1、6.2、11、14 节 | `features/settings_menu_wrap/`、`core/rotary_encoder/` | 四个批准修改区间、文件尾记录、旋钮首尾与抖动真机验收 | 已验证的历史阶段成品；当前提交重建待只读副本能力完成 |
 | `SPEC-FIRMWARE-006` 至 `SPEC-FIRMWARE-008` | [`优化固件 DESIGN`](AP01-1.0.2_0031-opt.bin.md) 第 4、10、11 节 | 完整固件构建组合、构建清单和冻结产物 | 确定性重建、修改区间外逐字节一致、禁止区无差异、完整指纹 | 阻塞 |
 | `SPEC-FLASH-001` 至 `SPEC-FLASH-004` | [`项目交付与 WebUI 刷机工具 DESIGN`](项目交付与WebUI刷机工具.md) 第 4 至 6 节 | `features/web_firmware_flash/` 的页面、准备检查、设备识别和固件核对 | 双平台 Chrome 页面、敏感字段过滤、三种固件身份和门禁展示 | 拟定 |
-| `SPEC-FLASH-005` 至 `SPEC-FLASH-009` | [`项目交付与 WebUI 刷机工具 DESIGN`](项目交付与WebUI刷机工具.md) 第 6 至 9 节；[`优化固件 DESIGN`](AP01-1.0.2_0031-opt.bin.md) 第 4.3 节 | `features/web_firmware_flash/` 的自动推进策略、操作记录、上传下发适配和结果页 | 模拟通过后自动上传回读与单次安装、断网与重入、重启上线、功能验收、发布包隔离 | 自动推进策略拟定；实际云端安装适配未实现 |
+| `SPEC-FLASH-005` 至 `SPEC-FLASH-009` | [`项目交付与 WebUI 刷机工具 DESIGN`](项目交付与WebUI刷机工具.md) 第 6 至 9 节；[`优化固件 DESIGN`](AP01-1.0.2_0031-opt.bin.md) 第 4.3 节 | `features/web_firmware_flash/install_policy.py`、后续操作记录、上传下发适配和结果页 | 模拟通过后自动上传回读与单次安装、断网与重入、重启上线、功能验收、发布包隔离 | 自动推进策略与 6 项测试已实现；实际云端安装适配未实现 |
 
 ## 4. 一级页面开关
 
