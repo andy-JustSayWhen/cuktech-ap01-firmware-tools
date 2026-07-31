@@ -74,6 +74,7 @@ class InteractionContract:
     power_confirm_isolated: bool
     page_registration_unchanged: bool
     global_key_callback_registration_unchanged: bool
+    fixed_shared_pages_enabled: bool = False
     source_manifest_sha256: str | None = None
 
     @classmethod
@@ -265,7 +266,11 @@ def simulate_event(
         after = InteractionState(7)
     elif route.action == "switch-stock" and route.target_dispatch is not None:
         after = InteractionState(route.target_dispatch)
-    elif route.action in ("stock-resume", "restore-then-stock"):
+    elif route.action in (
+        "stock-resume",
+        "restore-then-stock",
+        "close-then-stock-resume",
+    ):
         restored = InteractionState(7)
         if event == "enter":
             after = InteractionState(
@@ -411,9 +416,16 @@ def run_interaction_simulation(
                 )
             )
 
-    configurations = tuple(
-        PageConfiguration(c1, c2, pet, agents)
-        for c1, c2, pet, agents in product((False, True), repeat=4)
+    configurations = (
+        tuple(
+            PageConfiguration(c1, c2, True, True)
+            for c1, c2 in product((False, True), repeat=2)
+        )
+        if contract.fixed_shared_pages_enabled
+        else tuple(
+            PageConfiguration(c1, c2, pet, agents)
+            for c1, c2, pet, agents in product((False, True), repeat=4)
+        )
     )
     for configuration in configurations:
         config_name = _configuration_name(configuration)
@@ -615,7 +627,11 @@ def contract_from_manifest(
     *,
     source_manifest_sha256: str | None = None,
 ) -> InteractionContract:
-    if document.get("manifest_type") != "agents-local-ui-stock-resume-firmware":
+    manifest_type = document.get("manifest_type")
+    if manifest_type not in (
+        "agents-local-ui-stock-resume-firmware",
+        "agents-local-ui-stock-safe-firmware",
+    ):
         raise InteractionSimulationError("构建清单类型不是当前局部界面固件")
     validation = document.get("validation")
     callchain = document.get("callchain_gates")
@@ -629,11 +645,14 @@ def contract_from_manifest(
         for item in raw_hooks
         if isinstance(item, Mapping) and isinstance(item.get("label"), str)
     )
+    stock_safe = manifest_type == "agents-local-ui-stock-safe-firmware"
     return InteractionContract(
-        name="FW-AGENTS-008",
+        name="FW-AGENTS-009" if stock_safe else "FW-AGENTS-008",
         local_hook_labels=labels,
-        overview_right_target_dispatch=None,
-        power_left_enters_agents=any(label == "功率左旋" for label in labels),
+        overview_right_target_dispatch=0 if stock_safe else None,
+        power_left_enters_agents=(
+            stock_safe or any(label == "功率左旋" for label in labels)
+        ),
         stock_entry_filter_enabled=bool(
             validation.get("page_filter_switch_call_verified")
         ),
@@ -646,6 +665,7 @@ def contract_from_manifest(
         global_key_callback_registration_unchanged=bool(
             validation.get("global_key_callback_registration_unchanged")
         ),
+        fixed_shared_pages_enabled=stock_safe,
         source_manifest_sha256=source_manifest_sha256,
     )
 

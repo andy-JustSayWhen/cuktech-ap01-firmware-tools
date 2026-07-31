@@ -24,6 +24,7 @@ from features.agents_dashboard_firmware import (
     CONFIRM_COMPAT_OUTPUT_FILENAME,
     DETAIL_COMPAT_OUTPUT_FILENAME,
     LOCAL_UI_STOCK_RESUME_OUTPUT_FILENAME,
+    LOCAL_UI_STOCK_SAFE_OUTPUT_FILENAME,
     PET_OVERLAY_OUTPUT_FILENAME,
     STOCK_CALLCHAIN_OUTPUT_FILENAME,
     STOCK_DISPATCH_OUTPUT_FILENAME,
@@ -35,6 +36,7 @@ from features.agents_dashboard_firmware import (
     build_stock_callchain_firmware,
     build_stock_enter_gate_firmware,
     build_local_ui_stock_resume_firmware,
+    build_local_ui_stock_safe_firmware,
     build_sync_firmware,
     simulate_current_manifest,
     write_simulation_report,
@@ -319,6 +321,15 @@ def _parser() -> argparse.ArgumentParser:
     stock_local_branches_command.add_argument(
         "--build-dir", type=Path, required=True
     )
+
+    stock_safe_command = commands.add_parser(
+        "agents-local-ui-stock-safe-build",
+        help="生成保留原厂页面收尾顺序的 AGENTS 双向局部界面固件",
+    )
+    stock_safe_command.add_argument("--input", type=Path, required=True)
+    stock_safe_command.add_argument("--output", type=Path, required=True)
+    stock_safe_command.add_argument("--manifest", type=Path, required=True)
+    stock_safe_command.add_argument("--build-dir", type=Path, required=True)
 
     interaction_simulation_command = commands.add_parser(
         "agents-interaction-simulate",
@@ -854,6 +865,33 @@ def main(argv: list[str] | None = None) -> int:
                         "result": "AGENTS 交还原厂右旋分支的局部界面固件制作完成",
                         "output": str(result.output),
                         "expected_name": LOCAL_UI_STOCK_RESUME_OUTPUT_FILENAME,
+                        "manifest": str(result.manifest),
+                        "output_sha256": result.sha256,
+                        "output_md5": result.md5,
+                        "payload_size": result.payload_size,
+                        "payload_remaining": result.payload_remaining,
+                        "installation_allowed": False,
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                )
+            )
+            return 0
+
+        if args.command == "agents-local-ui-stock-safe-build":
+            result = build_local_ui_stock_safe_firmware(
+                args.input,
+                args.output,
+                args.manifest,
+                args.build_dir,
+                tool_revision=revision,
+            )
+            print(
+                json.dumps(
+                    {
+                        "result": "AGENTS 原厂收尾顺序双向局部界面固件制作完成",
+                        "output": str(result.output),
+                        "expected_name": LOCAL_UI_STOCK_SAFE_OUTPUT_FILENAME,
                         "manifest": str(result.manifest),
                         "output_sha256": result.sha256,
                         "output_md5": result.md5,

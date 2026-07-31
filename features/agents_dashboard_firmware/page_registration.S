@@ -218,10 +218,10 @@ ap01_agents_stock_pet_enter_entry:
     li t0, AGENTS_STATE_OVERVIEW
     bne a0, t0, .Llocal_detail_right
     mv a0, s2
-    call ap01_agents_restore_pet
+    call ap01_agents_close_for_stock_resume
     beqz a0, .Llocal_fallback
-    /* Restore the exact stock arguments and let the original pet-right branch
-     * perform its own GIF-state handling and navigation. */
+    /* Keep the currently displayed GIF intact.  The stock pet-right branch
+     * owns its teardown and target selection from 0xa00bc716 onward. */
     j .Llocal_fallback
 
 .Llocal_enter_agents:
@@ -407,6 +407,95 @@ ap01_agents_restore_pet:
     ret
 
     .size ap01_agents_restore_pet, .-ap01_agents_restore_pet
+
+    .align 2
+    .global ap01_agents_close_for_stock_resume
+    .type ap01_agents_close_for_stock_resume, @function
+
+/* Close only the independent tail; stock owns the displayed GIF teardown. */
+ap01_agents_close_for_stock_resume:
+    addi sp, sp, -16
+    sw ra, 12(sp)
+    beqz a0, .Lsync_close_no
+    li a1, AGENTS_STATE_CLOSED
+    call ap01_agents_state_write
+    li a0, 1
+    j .Lsync_close_done
+
+.Lsync_close_no:
+    li a0, 0
+
+.Lsync_close_done:
+    lw ra, 12(sp)
+    addi sp, sp, 16
+    ret
+
+    .size ap01_agents_close_for_stock_resume, .-ap01_agents_close_for_stock_resume
+
+    .align 2
+    .global ap01_agents_primary_page_filter_and_switch
+    .type ap01_agents_primary_page_filter_and_switch, @function
+
+/* a0 = stock container, a1 = stock target, a2 = stock direction.
+ * All page-specific stock cleanup has already run before this entry. */
+ap01_agents_primary_page_filter_and_switch:
+    addi sp, sp, -32
+    sw ra, 28(sp)
+    sw s0, 24(sp)
+    sw s1, 20(sp)
+    sw s2, 16(sp)
+    sw s3, 12(sp)
+    mv s0, a0
+    mv s1, a1
+    mv s2, a2
+    li s3, 0
+
+    li t0, 7
+    bne s1, t0, .Lsync_filter_switch
+    li t0, 2
+    beq s2, t0, .Lsync_filter_show_agents
+    li t0, 1
+    bne s2, t0, .Lsync_filter_switch
+
+    mv a0, s0
+    call ap01_agents_find_pet_state
+    beqz a0, .Lsync_filter_switch
+    call ap01_agents_restore_pet
+    j .Lsync_filter_switch
+
+.Lsync_filter_show_agents:
+    mv a0, s0
+    call ap01_agents_find_pet_state
+    beqz a0, .Lsync_filter_switch
+    li a1, AGENTS_STATE_OVERVIEW
+    call ap01_agents_show_page
+    beqz a0, .Lsync_filter_switch
+    li s3, 1
+
+.Lsync_filter_switch:
+    mv a0, s0
+    mv a1, s1
+    mv a2, s2
+    call stock_switch_page
+    beqz s3, .Lsync_filter_done
+    mv a0, s0
+    call stock_get_dispatch_index
+    beq a0, s1, .Lsync_filter_done
+    mv a0, s0
+    call ap01_agents_find_pet_state
+    beqz a0, .Lsync_filter_done
+    call ap01_agents_restore_pet
+
+.Lsync_filter_done:
+    lw ra, 28(sp)
+    lw s0, 24(sp)
+    lw s1, 20(sp)
+    lw s2, 16(sp)
+    lw s3, 12(sp)
+    addi sp, sp, 32
+    ret
+
+    .size ap01_agents_primary_page_filter_and_switch, .-ap01_agents_primary_page_filter_and_switch
 
     .align 2
     .global ap01_agents_detail_active

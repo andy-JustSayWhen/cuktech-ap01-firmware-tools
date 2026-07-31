@@ -104,6 +104,9 @@ LOCAL_UI_POWER_SAFE_OUTPUT_FILENAME = (
 LOCAL_UI_STOCK_RESUME_OUTPUT_FILENAME = (
     "ap01-1.0.2_0031-agents-local-ui-stock-resume.bin"
 )
+LOCAL_UI_STOCK_SAFE_OUTPUT_FILENAME = (
+    "ap01-1.0.2_0031-agents-local-ui-stock-safe.bin"
+)
 OPT_INTEGRATION_OUTPUT_FILENAME = (
     "ap01-1.0.2_0031-opt-integration-candidate.bin"
 )
@@ -150,6 +153,14 @@ OPT_PAGE_FILTER_HOOK = (
     "ap01_primary_page_filter_and_switch",
     0xA00BC096,
     "一级切页过滤",
+)
+LOCAL_UI_SHARED_PAGE_FILTER_HOOK = (
+    0x0BD092,
+    bytes.fromhex("ef30d01b"),
+    0x01C0D4,
+    "ap01_agents_primary_page_filter_and_switch",
+    0xA00BC096,
+    "共享序号切页过滤",
 )
 STOCK_LOCAL_TRAMPOLINE_ORIGINAL = b"\x00" * 8
 STOCK_KEY_CALLBACK_RANGE = (0x0BCFEE, 0x0BEB00)
@@ -273,6 +284,8 @@ STOCK_PET_REQUIRED_SYMBOLS = (
     "ap01_agents_show_failed",
     "ap01_agents_show_page",
     "ap01_agents_restore_pet",
+    "ap01_agents_close_for_stock_resume",
+    "ap01_agents_primary_page_filter_and_switch",
     "ap01_agents_detail_active",
     "ap01_agents_stock_pet_left_entry",
     "ap01_agents_stock_pet_right_entry",
@@ -381,7 +394,7 @@ def route_stock_local_branch(
             target_state=1,
         )
     return StockLocalBranchRoute(
-        "restore-then-stock-resume",
+        "close-then-stock-resume",
         target_state=0,
     )
 
@@ -410,7 +423,7 @@ def validate_stock_local_branch_routes() -> dict[str, int]:
     if matrix[("pet-right", 0)].target_state != 1:
         raise AgentsDashboardFirmwareError("萌宠右键没有进入 AGENTS 概览")
     if (
-        matrix[("pet-right", 1)].action != "restore-then-stock-resume"
+        matrix[("pet-right", 1)].action != "close-then-stock-resume"
         or matrix[("pet-right", 1)].target_dispatch is not None
         or matrix[("pet-right", 1)].switch_mode is not None
     ):
@@ -706,7 +719,7 @@ def _validate_stock_pet_reuse_disassembly(
     restore_pet = _symbol_block(
         disassembly,
         "ap01_agents_restore_pet",
-        "ap01_agents_detail_active",
+        "ap01_agents_close_for_stock_resume",
     )
     show_failed = _symbol_block(
         disassembly,
@@ -815,6 +828,7 @@ def _validate_stock_local_branches_disassembly(
     disassembly: str,
     *,
     integration_mode: bool = False,
+    shared_page_filter: bool = False,
     local_ui_only: bool = False,
 ) -> dict[str, object]:
     evidence = _validate_stock_pet_reuse_disassembly(
@@ -860,6 +874,20 @@ def _validate_stock_local_branches_disassembly(
     if not integration_mode and "# a00bfa4e <stock_switch_page>" in local_branches:
         raise AgentsDashboardFirmwareError(
             "AGENTS 概览右旋仍直接调用切页函数，没有交还原厂分支"
+        )
+    close_for_resume = _symbol_block(
+        disassembly,
+        "ap01_agents_close_for_stock_resume",
+        "ap01_agents_primary_page_filter_and_switch",
+    )
+    if (
+        "<ap01_agents_close_for_stock_resume>" not in local_branches
+        or "<ap01_agents_state_write>" not in close_for_resume
+        or "# a00cf8d8 <lv_gif_set_src>" in close_for_resume
+        or "<ap01_agents_restore_pet>" in close_for_resume
+    ):
+        raise AgentsDashboardFirmwareError(
+            "AGENTS 概览离开路径没有只关闭状态后交还原厂"
         )
     for symbol in (
         "ap01_agents_stock_pet_left_entry",
@@ -920,6 +948,49 @@ def _validate_stock_local_branches_disassembly(
                 last=True,
             ),
         }
+    if shared_page_filter:
+        page_filter = _symbol_block(
+            disassembly,
+            "ap01_agents_primary_page_filter_and_switch",
+            "ap01_agents_detail_active",
+        )
+        required_filter_markers = (
+            "<ap01_agents_find_pet_state>",
+            "<ap01_agents_show_page>",
+            "<ap01_agents_restore_pet>",
+            "# a00bfa4e <stock_switch_page>",
+            "# a00be388 <stock_get_dispatch_index>",
+        )
+        missing_filter = [
+            marker for marker in required_filter_markers
+            if marker not in page_filter
+        ]
+        if missing_filter:
+            raise AgentsDashboardFirmwareError(
+                f"共享序号切页过滤缺少原厂调用：{missing_filter[0]}"
+            )
+        if page_filter.count("# a00bfa4e <stock_switch_page>") != 1:
+            raise AgentsDashboardFirmwareError(
+                "共享序号切页过滤没有唯一调用原厂切页入口"
+            )
+        evidence["shared_page_filter_callchain"] = {
+            "stock_switch": _instruction_address(
+                page_filter,
+                "# a00bfa4e <stock_switch_page>",
+            ),
+            "switch_verification": _instruction_address(
+                page_filter,
+                "# a00be388 <stock_get_dispatch_index>",
+            ),
+            "show_agents": _instruction_address(
+                page_filter,
+                "<ap01_agents_show_page>",
+            ),
+            "restore_pet": _instruction_address(
+                page_filter,
+                "<ap01_agents_restore_pet>",
+            ),
+        }
     evidence["local_branch_resume_targets"] = {
         "pet_left": _instruction_address(
             local_branches,
@@ -939,6 +1010,7 @@ def _validate_stock_local_branches_disassembly(
         ),
     }
     evidence["overview_right_stock_resume_only"] = not integration_mode
+    evidence["overview_right_closes_state_without_gif_reset"] = True
     return evidence
 
 
@@ -947,11 +1019,14 @@ def _patch_stock_local_branches(
     symbols: dict[str, int],
     *,
     integration_mode: bool = False,
+    shared_page_filter: bool = False,
 ) -> list[ByteRange]:
     allowed: list[ByteRange] = []
     hooks = STOCK_LOCAL_BRANCH_HOOKS
     if integration_mode:
         hooks = (*hooks, OPT_PAGE_FILTER_HOOK)
+    elif shared_page_filter:
+        hooks = (*hooks, LOCAL_UI_SHARED_PAGE_FILTER_HOOK)
     for (
         hook_offset,
         hook_original,
@@ -992,6 +1067,7 @@ def _assert_stock_local_branch_isolation(
     candidate: bytes,
     *,
     integration_mode: bool = False,
+    shared_page_filter: bool = False,
     additional_allowed: tuple[ByteRange, ...] = (),
 ) -> None:
     for offset, expected in (
@@ -1007,6 +1083,8 @@ def _assert_stock_local_branch_isolation(
     hooks = STOCK_LOCAL_BRANCH_HOOKS
     if integration_mode:
         hooks = (*hooks, OPT_PAGE_FILTER_HOOK)
+    elif shared_page_filter:
+        hooks = (*hooks, LOCAL_UI_SHARED_PAGE_FILTER_HOOK)
     allowed_offsets = {
         offset
         for hook_offset, hook_original, *_rest in hooks
@@ -1172,6 +1250,7 @@ def build_sync_payload(
     required_extra_symbols: tuple[str, ...] = (),
     reuse_stock_pet: bool = False,
     integration_mode: bool = False,
+    shared_page_filter: bool = False,
     local_ui_only: bool = False,
 ) -> SyncPayloadResult:
     stage_selected, stage = _read_stage(stage_path)
@@ -1356,6 +1435,7 @@ def build_sync_payload(
         callchain_evidence = _validate_stock_local_branches_disassembly(
             disassembly,
             integration_mode=integration_mode,
+            shared_page_filter=shared_page_filter,
             local_ui_only=local_ui_only,
         )
         if local_ui_only:
@@ -1426,6 +1506,8 @@ def build_sync_firmware(
     implemented_scope_extra: tuple[str, ...] = (),
     reuse_stock_pet: bool = False,
     local_ui_only: bool = False,
+    shared_page_filter: bool = False,
+    interaction_name: str = "FW-AGENTS-008",
 ) -> SyncFirmwareResult:
     if tool_revision.get("scoped_code_dirty") is not False:
         raise AgentsDashboardFirmwareError("制作代码尚未提交，不能冻结同步实验成品")
@@ -1435,13 +1517,21 @@ def build_sync_firmware(
         raise AgentsDashboardFirmwareError(
             f"同步实验成品文件名必须是 {expected_output_name}"
         )
+    allowed_local_variants = {
+        (LOCAL_UI_STOCK_RESUME_OUTPUT_FILENAME, False, "FW-AGENTS-008"),
+        (LOCAL_UI_STOCK_SAFE_OUTPUT_FILENAME, True, "FW-AGENTS-009"),
+    }
     if (
         not reuse_stock_pet
         or not local_ui_only
-        or expected_output_name != LOCAL_UI_STOCK_RESUME_OUTPUT_FILENAME
+        or (
+            expected_output_name,
+            shared_page_filter,
+            interaction_name,
+        ) not in allowed_local_variants
     ):
         raise AgentsDashboardFirmwareError(
-            "旧 AGENTS 固件路径已停用，只允许生成交还原厂右旋分支的局部界面版"
+            "AGENTS 固件参数不属于已记录的局部界面方案"
         )
     if not integration_mode and (
         extra_objects or required_extra_symbols or candidate_mutators
@@ -1457,6 +1547,7 @@ def build_sync_firmware(
         required_extra_symbols=required_extra_symbols,
         reuse_stock_pet=reuse_stock_pet,
         integration_mode=integration_mode,
+        shared_page_filter=shared_page_filter,
         local_ui_only=local_ui_only,
     )
     if payload_result.maximum_static_stack > 320:
@@ -1513,6 +1604,7 @@ def build_sync_firmware(
             candidate,
             payload_result.symbols,
             integration_mode=integration_mode,
+            shared_page_filter=shared_page_filter,
         )
     )
     mutator_ranges: list[ByteRange] = []
@@ -1527,6 +1619,7 @@ def build_sync_firmware(
         stage,
         bytes(candidate),
         integration_mode=integration_mode,
+        shared_page_filter=shared_page_filter,
         additional_allowed=tuple(mutator_ranges),
     )
 
@@ -1535,22 +1628,28 @@ def build_sync_firmware(
         run_interaction_simulation,
     )
 
-    local_hook_labels = tuple(item[-1] for item in STOCK_LOCAL_BRANCH_HOOKS)
+    active_hooks = STOCK_LOCAL_BRANCH_HOOKS
+    if shared_page_filter:
+        active_hooks = (*active_hooks, LOCAL_UI_SHARED_PAGE_FILTER_HOOK)
+    local_hook_labels = tuple(item[-1] for item in active_hooks)
     overview_right_route = route_stock_local_branch("pet-right", 1)
     interaction_simulation = run_interaction_simulation(
         InteractionContract(
-            name="FW-AGENTS-008",
+            name=interaction_name,
             local_hook_labels=local_hook_labels,
             overview_right_target_dispatch=(
-                overview_right_route.target_dispatch
+                0
+                if shared_page_filter
+                else overview_right_route.target_dispatch
             ),
-            power_left_enters_agents=any(
-                label == "功率左旋" for label in local_hook_labels
+            power_left_enters_agents=shared_page_filter,
+            stock_entry_filter_enabled=(
+                integration_mode or shared_page_filter
             ),
-            stock_entry_filter_enabled=integration_mode,
             power_confirm_isolated=True,
             page_registration_unchanged=True,
             global_key_callback_registration_unchanged=True,
+            fixed_shared_pages_enabled=shared_page_filter,
         ),
         route_stock_local_branch,
     )
@@ -1584,7 +1683,11 @@ def build_sync_firmware(
     )
     manifest: dict[str, object] = {
         "schema_version": 1,
-        "manifest_type": "agents-local-ui-stock-resume-firmware",
+        "manifest_type": (
+            "agents-local-ui-stock-safe-firmware"
+            if shared_page_filter
+            else "agents-local-ui-stock-resume-firmware"
+        ),
         "status": "built-not-approved-for-installation",
         "built_at_beijing": datetime.now(ZoneInfo("Asia/Shanghai")).isoformat(
             timespec="seconds"
@@ -1694,11 +1797,7 @@ def build_sync_firmware(
                     symbol,
                     resume_address,
                     label,
-                ) in (
-                    (*STOCK_LOCAL_BRANCH_HOOKS, OPT_PAGE_FILTER_HOOK)
-                    if integration_mode
-                    else STOCK_LOCAL_BRANCH_HOOKS
-                )
+                ) in active_hooks
             ],
             "pet_state_original_fields_unchanged": True,
             "pet_state_size_patch": {
@@ -1719,7 +1818,9 @@ def build_sync_firmware(
             "legacy_page_trampoline_unchanged": True,
             "stock_callchain_verified": True,
             "three_local_branch_targets_verified": True,
-            "page_filter_switch_call_verified": integration_mode,
+            "page_filter_switch_call_verified": (
+                integration_mode or shared_page_filter
+            ),
             "global_key_callback_registration_unchanged": True,
             "global_ui_timer_callback_registration_unchanged": True,
             "stock_power_confirm_path_unchanged": True,
@@ -1862,4 +1963,35 @@ def build_local_ui_stock_resume_firmware(
         ),
         reuse_stock_pet=True,
         local_ui_only=True,
+    )
+
+
+def build_local_ui_stock_safe_firmware(
+    stage_path: Path,
+    output_path: Path,
+    manifest_path: Path,
+    build_directory: Path,
+    *,
+    tool_revision: dict[str, object],
+) -> SyncFirmwareResult:
+    return build_sync_firmware(
+        stage_path,
+        output_path,
+        manifest_path,
+        build_directory,
+        None,
+        tool_revision=tool_revision,
+        expected_output_name=LOCAL_UI_STOCK_SAFE_OUTPUT_FILENAME,
+        implemented_scope_extra=(
+            "AGENTS 概览离开时只关闭独立状态尾",
+            "原厂萌宠右旋继续地址负责既有动图收尾和目标选择",
+            "功率专用分支完成后才在统一切页点进入 AGENTS",
+            "返回共享序号时按原方向恢复萌宠或显示 AGENTS",
+            "非共享序号的原厂切页参数保持不变",
+            "载荷不链接后台下载、网络包装和界面同步定时入口",
+        ),
+        reuse_stock_pet=True,
+        local_ui_only=True,
+        shared_page_filter=True,
+        interaction_name="FW-AGENTS-009",
     )

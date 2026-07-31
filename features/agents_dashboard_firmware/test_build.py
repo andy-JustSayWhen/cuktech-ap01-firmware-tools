@@ -43,6 +43,8 @@ from features.agents_dashboard_firmware.sync_build import (
     LOCAL_UI_FORBIDDEN_CALLEES,
     LOCAL_UI_FORBIDDEN_SYMBOLS,
     LOCAL_UI_POWER_SAFE_OUTPUT_FILENAME,
+    LOCAL_UI_SHARED_PAGE_FILTER_HOOK,
+    LOCAL_UI_STOCK_SAFE_OUTPUT_FILENAME,
     LOCAL_UI_STOCK_RESUME_OUTPUT_FILENAME,
     LOW_STACK_LOCAL_BRANCHES_OUTPUT_FILENAME,
     OPT_REWRITE_OUTPUT_FILENAME,
@@ -69,6 +71,7 @@ from features.agents_dashboard_firmware.sync_build import (
     build_stock_callchain_firmware,
     build_stock_enter_gate_firmware,
     build_local_ui_power_safe_firmware,
+    build_local_ui_stock_safe_firmware,
     build_local_ui_stock_resume_firmware,
     build_low_stack_local_branches_firmware,
     build_sync_firmware,
@@ -531,6 +534,85 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
             self.assertFalse(output.exists())
             self.assertFalse(manifest.exists())
 
+    def test_stock_safe_builder_passes_simulation_and_preserves_power(self) -> None:
+        if (
+            not shutil.which("riscv64-elf-as")
+            or not shutil.which("riscv64-elf-gcc")
+        ):
+            self.skipTest("本机没有阶段固件或固定编译工具")
+        with tempfile.TemporaryDirectory() as selected:
+            root = Path(selected)
+            output = root / LOCAL_UI_STOCK_SAFE_OUTPUT_FILENAME
+            manifest = root / "manifest.json"
+            result = build_local_ui_stock_safe_firmware(
+                self.stage,
+                output,
+                manifest,
+                root / "firmware",
+                tool_revision={
+                    "commit": "test",
+                    "scoped_code_dirty": False,
+                },
+            )
+            document = json.loads(manifest.read_text(encoding="utf-8"))
+            output_bytes = output.read_bytes()
+            stage_bytes = self.stage.read_bytes()
+
+        self.assertEqual(
+            document["manifest_type"],
+            "agents-local-ui-stock-safe-firmware",
+        )
+        self.assertEqual(result.sha256, hashlib.sha256(output_bytes).hexdigest())
+        self.assertTrue(document["interaction_simulation"]["summary"]["passed"])
+        self.assertEqual(
+            document["interaction_simulation"]["scope"]["configuration_cases"],
+            4,
+        )
+        self.assertTrue(
+            document["validation"]["page_filter_switch_call_verified"]
+        )
+        self.assertTrue(
+            document["callchain_gates"]["disassembly"][
+                "overview_right_closes_state_without_gif_reset"
+            ]
+        )
+        self.assertIn(
+            "shared_page_filter_callchain",
+            document["callchain_gates"]["disassembly"],
+        )
+        power_start, power_end = STOCK_POWER_CONFIRM_RANGE
+        self.assertEqual(
+            output_bytes[power_start:power_end],
+            stage_bytes[power_start:power_end],
+        )
+        filter_offset, filter_original, filter_trampoline, symbol, *_ = (
+            LOCAL_UI_SHARED_PAGE_FILTER_HOOK
+        )
+        self.assertEqual(
+            output_bytes[filter_offset : filter_offset + len(filter_original)],
+            _encode_jal(
+                XIP_DELTA + filter_offset,
+                XIP_DELTA + filter_trampoline,
+            ),
+        )
+        self.assertEqual(
+            output_bytes[filter_trampoline : filter_trampoline + 8],
+            _absolute_tail_jump(
+                int(
+                    document["callchain_gates"]["local_branch_hooks"][3][
+                        "payload_address"
+                    ],
+                    16,
+                )
+            ),
+        )
+        self.assertEqual(
+            document["callchain_gates"]["local_branch_hooks"][3][
+                "payload_symbol"
+            ],
+            symbol,
+        )
+
     def test_rejected_local_ui_power_safe_builder_is_blocked(self) -> None:
         with tempfile.TemporaryDirectory() as selected:
             root = Path(selected)
@@ -560,7 +642,7 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
             1,
         )
         overview_right = route_stock_local_branch("pet-right", 1)
-        self.assertEqual(overview_right.action, "restore-then-stock-resume")
+        self.assertEqual(overview_right.action, "close-then-stock-resume")
         self.assertEqual(overview_right.target_state, 0)
         self.assertIsNone(overview_right.target_dispatch)
         self.assertIsNone(overview_right.switch_mode)
@@ -602,7 +684,7 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
             manifest = root / "manifest.json"
             with self.assertRaisesRegex(
                 RuntimeError,
-                "只允许生成交还原厂右旋分支的局部界面版",
+                "不属于已记录的局部界面方案",
             ):
                 build_sync_firmware(
                     self.stage,
@@ -662,7 +744,7 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
             retired = "ap01-1.0.2_0031-agents-stock-dispatch-observation.bin"
             with self.assertRaisesRegex(
                 RuntimeError,
-                "旧 AGENTS 固件路径已停用",
+                "不属于已记录的局部界面方案",
             ):
                 build_sync_firmware(
                     self.stage,
