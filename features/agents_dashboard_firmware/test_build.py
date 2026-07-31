@@ -40,6 +40,7 @@ from features.agents_dashboard_firmware.sync_build import (
     LOADER_TRAMPOLINE_OFFSET,
     LOADER_TRAMPOLINE_ORIGINAL,
     LIVE_DATA_BASE_SAFE_OUTPUT_FILENAME,
+    LIVE_DATA_REFERENCE_COMPLETE_OUTPUT_FILENAME,
     LOCAL_UI_FORBIDDEN_CALLEES,
     LOCAL_UI_FORBIDDEN_SYMBOLS,
     LOCAL_UI_BASE_SAFE_OUTPUT_FILENAME,
@@ -78,6 +79,7 @@ from features.agents_dashboard_firmware.sync_build import (
     build_local_ui_stock_resume_firmware,
     build_low_stack_local_branches_firmware,
     build_live_data_base_safe_firmware,
+    build_live_data_reference_complete_firmware,
     build_sync_firmware,
     build_sync_payload,
     decode_agents_state,
@@ -840,11 +842,11 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
         self.assertLessEqual(len(city) + 1, 48)
         self.assertNotIn(b"$", location)
         self.assertNotIn(b"$", city)
-        self.assertEqual(location, b"%s%.0s%.0s")
-        self.assertEqual(city, b"%s%.0s%.0s%.0s")
+        self.assertEqual(location, b"%s")
+        self.assertEqual(city, b"%s")
         self.assertNotIn(b"?", location + city)
 
-    def test_live_data_base_safe_firmware_passes_all_build_gates(self) -> None:
+    def test_live_data_reference_complete_firmware_passes_all_build_gates(self) -> None:
         if (
             not shutil.which("riscv64-elf-as")
             or not shutil.which("riscv64-elf-gcc")
@@ -852,9 +854,9 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
             self.skipTest("本机没有阶段固件或固定编译工具")
         with tempfile.TemporaryDirectory() as selected:
             root = Path(selected)
-            output = root / LIVE_DATA_BASE_SAFE_OUTPUT_FILENAME
+            output = root / LIVE_DATA_REFERENCE_COMPLETE_OUTPUT_FILENAME
             manifest = root / "manifest.json"
-            result = build_live_data_base_safe_firmware(
+            result = build_live_data_reference_complete_firmware(
                 self.stage,
                 output,
                 manifest,
@@ -867,29 +869,75 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
                 },
             )
             document = json.loads(manifest.read_text(encoding="utf-8"))
-            payload = (root / "payload/agents-sync.bin").read_bytes()
+            output_bytes = output.read_bytes()
 
         self.assertEqual(
             document["manifest_type"],
-            "agents-live-data-base-safe-firmware",
+            "agents-live-data-reference-complete-firmware",
         )
-        self.assertEqual(result.output.name, LIVE_DATA_BASE_SAFE_OUTPUT_FILENAME)
+        self.assertEqual(
+            result.output.name,
+            LIVE_DATA_REFERENCE_COMPLETE_OUTPUT_FILENAME,
+        )
         self.assertTrue(document["transport"]["enabled"])
         self.assertEqual(
             document["transport"]["url_base"],
             "http://192.168.31.174:18765/a",
         )
         self.assertEqual(document["transport"]["refresh_seconds"], 300)
+        self.assertEqual(document["transport"]["location_request_format"], "%s")
+        self.assertEqual(document["transport"]["city_request_format"], "%s")
+        self.assertTrue(document["transport"]["ui_timer_wrapper_enabled"])
         self.assertFalse(
             document["transport"]["shared_device_configuration_used"]
         )
         self.assertTrue(document["validation"]["transport_symbols_present"])
+        self.assertFalse(
+            document["validation"][
+                "global_ui_timer_callback_registration_unchanged"
+            ]
+        )
+        self.assertTrue(
+            document["validation"]["global_ui_timer_calls_stock_first"]
+        )
         self.assertTrue(
             document["validation"]["stock_power_confirm_entry_guarded"]
         )
         self.assertTrue(document["validation"]["installation_allowed"])
         self.assertTrue(document["interaction_simulation"]["summary"]["passed"])
         self.assertTrue(document["callchain_gates"]["stock_transport_scoped_patch"])
+        self.assertNotEqual(
+            output_bytes[
+                UI_CALLBACK_LUI : UI_CALLBACK_LUI + len(
+                    INSTRUCTION_EXPECTED[UI_CALLBACK_LUI]
+                )
+            ],
+            INSTRUCTION_EXPECTED[UI_CALLBACK_LUI],
+        )
+        for offset, capacity, _expected, label in URL_REGIONS:
+            value = output_bytes[offset : offset + capacity].split(b"\0", 1)[0]
+            if "格式" in label:
+                self.assertEqual(value, b"%s")
+
+    def test_failed_live_data_base_safe_name_is_blocked(self) -> None:
+        with tempfile.TemporaryDirectory() as selected:
+            root = Path(selected)
+            with self.assertRaisesRegex(
+                RuntimeError,
+                "FW-AGENTS-011 已因安装后无设备取包请求停用",
+            ):
+                build_live_data_base_safe_firmware(
+                    self.stage,
+                    root / LIVE_DATA_BASE_SAFE_OUTPUT_FILENAME,
+                    root / "manifest.json",
+                    root / "payload",
+                    url_base="http://192.168.31.174:18765/a",
+                    refresh_seconds=300,
+                    tool_revision={
+                        "commit": "test",
+                        "scoped_code_dirty": False,
+                    },
+                )
 
     def test_freestanding_crc32_matches_python(self) -> None:
         compiler = shutil.which("cc")

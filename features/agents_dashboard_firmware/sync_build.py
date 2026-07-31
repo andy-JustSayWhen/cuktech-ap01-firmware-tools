@@ -107,6 +107,9 @@ LOCAL_UI_BASE_SAFE_OUTPUT_FILENAME = (
 LIVE_DATA_BASE_SAFE_OUTPUT_FILENAME = (
     "ap01-1.0.2_0031-agents-live-data-base-safe.bin"
 )
+LIVE_DATA_REFERENCE_COMPLETE_OUTPUT_FILENAME = (
+    "ap01-1.0.2_0031-agents-live-data-reference-complete.bin"
+)
 OPT_INTEGRATION_OUTPUT_FILENAME = (
     "ap01-1.0.2_0031-opt-integration-candidate.bin"
 )
@@ -535,8 +538,8 @@ def _replace(
 
 
 def _request_formats() -> tuple[bytes, bytes]:
-    location = b"%s%.0s%.0s"
-    city = b"%s%.0s%.0s%.0s"
+    location = b"%s"
+    city = b"%s"
     if len(location) + 1 > 44 or len(city) + 1 > 48:
         raise AgentsDashboardFirmwareError("天气请求格式超过原厂固定区域")
     return location, city
@@ -1113,14 +1116,21 @@ def _assert_stock_local_branch_isolation(
     integration_mode: bool = False,
     shared_page_filter: bool = False,
     power_confirm_guard: bool = False,
+    ui_timer_wrapper: bool = False,
     additional_allowed: tuple[ByteRange, ...] = (),
 ) -> None:
-    for offset, expected in (
+    callback_regions = [
         (KEY_CALLBACK_HIGH_OFFSET, KEY_CALLBACK_HIGH_ORIGINAL),
         (KEY_CALLBACK_LOW_OFFSET, KEY_CALLBACK_LOW_ORIGINAL),
-        (UI_CALLBACK_LUI, INSTRUCTION_EXPECTED[UI_CALLBACK_LUI]),
-        (UI_CALLBACK_ADDI, INSTRUCTION_EXPECTED[UI_CALLBACK_ADDI]),
-    ):
+    ]
+    if not ui_timer_wrapper:
+        callback_regions.extend(
+            (
+                (UI_CALLBACK_LUI, INSTRUCTION_EXPECTED[UI_CALLBACK_LUI]),
+                (UI_CALLBACK_ADDI, INSTRUCTION_EXPECTED[UI_CALLBACK_ADDI]),
+            )
+        )
+    for offset, expected in callback_regions:
         end = offset + len(expected)
         if stage[offset:end] != expected or candidate[offset:end] != expected:
             raise AgentsDashboardFirmwareError("原厂全局回调地址装入字节发生变化")
@@ -1207,6 +1217,26 @@ def _patch_stock_transport(
             LOADER_TRAMPOLINE_ORIGINAL,
             _absolute_tail_jump(web_wrapper),
             "后台同步跳板",
+        )
+    )
+    ui_wrapper = symbols["ap01_agents_ui_timer_wrapper"]
+    ui_high, ui_low = _absolute_lui_addi(ui_wrapper, register=10)
+    allowed.append(
+        _replace(
+            candidate,
+            UI_CALLBACK_LUI,
+            INSTRUCTION_EXPECTED[UI_CALLBACK_LUI],
+            ui_high,
+            "界面定时包装地址高位",
+        )
+    )
+    allowed.append(
+        _replace(
+            candidate,
+            UI_CALLBACK_ADDI,
+            INSTRUCTION_EXPECTED[UI_CALLBACK_ADDI],
+            ui_low,
+            "界面定时包装地址低位",
         )
     )
     sink = symbols["ap01_agents_sink"]
@@ -1550,7 +1580,9 @@ def build_sync_firmware(
         raise AgentsDashboardFirmwareError(
             f"同步实验成品文件名必须是 {expected_output_name}"
         )
-    live_data_enabled = expected_output_name == LIVE_DATA_BASE_SAFE_OUTPUT_FILENAME
+    live_data_enabled = (
+        expected_output_name == LIVE_DATA_REFERENCE_COMPLETE_OUTPUT_FILENAME
+    )
     allowed_variants = {
         (
             LOCAL_UI_STOCK_RESUME_OUTPUT_FILENAME,
@@ -1567,11 +1599,11 @@ def build_sync_firmware(
             "FW-AGENTS-010",
         ),
         (
-            LIVE_DATA_BASE_SAFE_OUTPUT_FILENAME,
+            LIVE_DATA_REFERENCE_COMPLETE_OUTPUT_FILENAME,
             False,
             True,
             True,
-            "FW-AGENTS-011",
+            "FW-AGENTS-012",
         ),
     }
     if (
@@ -1696,6 +1728,7 @@ def build_sync_firmware(
         integration_mode=integration_mode,
         shared_page_filter=shared_page_filter,
         power_confirm_guard=power_confirm_guard,
+        ui_timer_wrapper=live_data_enabled,
         additional_allowed=tuple(mutator_ranges),
     )
 
@@ -1765,7 +1798,7 @@ def build_sync_firmware(
     manifest: dict[str, object] = {
         "schema_version": 1,
         "manifest_type": (
-            "agents-live-data-base-safe-firmware"
+            "agents-live-data-reference-complete-firmware"
             if live_data_enabled
             else (
                 "agents-local-ui-base-safe-firmware"
@@ -1803,6 +1836,10 @@ def build_sync_firmware(
             "stock_network_call_unchanged": not live_data_enabled,
             "stock_timers_unchanged": not live_data_enabled,
             "stock_request_regions_unchanged": not live_data_enabled,
+            "stock_ui_timer_callback_unchanged": not live_data_enabled,
+            "location_request_format": "%s" if live_data_enabled else None,
+            "city_request_format": "%s" if live_data_enabled else None,
+            "ui_timer_wrapper_enabled": live_data_enabled,
             "shared_device_configuration_used": False,
         },
         "payload": {
@@ -1846,7 +1883,7 @@ def build_sync_firmware(
             "重启后保留最后成功页面",
             "页面开关关闭时停用刷新",
             "NAS 与云服务器故障切换",
-            "停留页面时即时应用后台新数据",
+            *([] if live_data_enabled else ["停留页面时即时应用后台新数据"]),
         ],
         "pending_measurements": [
             "后台任务原有栈余量",
@@ -1862,7 +1899,10 @@ def build_sync_firmware(
             "page_registration_bytes_unchanged": True,
             "legacy_page_trampoline_bytes_unchanged": True,
             "global_key_callback_registration_unchanged": True,
-            "global_ui_timer_callback_registration_unchanged": True,
+            "global_ui_timer_callback_registration_unchanged": (
+                not live_data_enabled
+            ),
+            "global_ui_timer_calls_stock_first": live_data_enabled,
             "stock_key_callback_unchanged_except_local_targets": True,
             "stock_power_confirm_path_unchanged": not power_confirm_guard,
             "stock_power_confirm_entry_guarded": power_confirm_guard,
@@ -1921,7 +1961,10 @@ def build_sync_firmware(
                 integration_mode or shared_page_filter
             ),
             "global_key_callback_registration_unchanged": True,
-            "global_ui_timer_callback_registration_unchanged": True,
+            "global_ui_timer_callback_registration_unchanged": (
+                not live_data_enabled
+            ),
+            "global_ui_timer_calls_stock_first": live_data_enabled,
             "stock_power_confirm_path_unchanged": not power_confirm_guard,
             "stock_power_confirm_entry_guarded": power_confirm_guard,
             "stock_transport_paths_unchanged": not live_data_enabled,
@@ -2118,6 +2161,21 @@ def build_live_data_base_safe_firmware(
     refresh_seconds: int,
     tool_revision: dict[str, object],
 ) -> SyncFirmwareResult:
+    raise AgentsDashboardFirmwareError(
+        "FW-AGENTS-011 已因安装后无设备取包请求停用"
+    )
+
+
+def build_live_data_reference_complete_firmware(
+    stage_path: Path,
+    output_path: Path,
+    manifest_path: Path,
+    build_directory: Path,
+    *,
+    url_base: str,
+    refresh_seconds: int,
+    tool_revision: dict[str, object],
+) -> SyncFirmwareResult:
     return build_sync_firmware(
         stage_path,
         output_path,
@@ -2126,17 +2184,19 @@ def build_live_data_base_safe_firmware(
         tool_revision=tool_revision,
         url_base=url_base,
         refresh_seconds=refresh_seconds,
-        expected_output_name=LIVE_DATA_BASE_SAFE_OUTPUT_FILENAME,
+        expected_output_name=LIVE_DATA_REFERENCE_COMPLETE_OUTPUT_FILENAME,
         implemented_scope_extra=(
             "64 字节四页包流式接收与逐页损坏检查",
             "三组内存临时槽原子提交",
             "固定局域网地址五分钟后台取包",
-            "进入概览与切换详情时只应用已提交页面",
+            "两个原厂天气格式区严格只写百分号 s",
+            "界面定时包装先调用原厂入口再应用已提交页面",
+            "进入概览与切换详情时主动应用已提交页面",
             "不链接任何设备共享配置",
         ),
         reuse_stock_pet=True,
         local_ui_only=False,
         shared_page_filter=True,
         power_confirm_guard=True,
-        interaction_name="FW-AGENTS-011",
+        interaction_name="FW-AGENTS-012",
     )

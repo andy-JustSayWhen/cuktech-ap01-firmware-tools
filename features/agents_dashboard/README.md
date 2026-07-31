@@ -47,11 +47,11 @@ python3 -m features.agents_dashboard.bridge \
 真实数据与基座保护固件只允许从已验收的 `opt-setting.bin` 构建：
 
 ```shell
-python3 app/ap01_firmware.py agents-live-data-base-safe-build \
+python3 app/ap01_firmware.py agents-live-data-reference-complete-build \
   --input artifacts/firmware/opt-setting.bin \
-  --output artifacts/firmware/ap01-1.0.2_0031-agents-live-data-base-safe.bin \
-  --manifest artifacts/build/agents-live-data-base-safe/manifest.json \
-  --build-dir artifacts/build/agents-live-data-base-safe/payload \
+  --output artifacts/firmware/ap01-1.0.2_0031-agents-live-data-reference-complete.bin \
+  --manifest artifacts/build/agents-live-data-reference-complete/manifest.json \
+  --build-dir artifacts/build/agents-live-data-reference-complete/payload \
   --url-base http://本机局域网地址:8765/a
 ```
 

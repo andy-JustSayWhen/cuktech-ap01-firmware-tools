@@ -260,6 +260,37 @@ class InteractionSimulatorTests(unittest.TestCase):
         self.assertTrue(contract.power_confirm_guard_enabled)
         self.assertTrue(report["summary"]["passed"])
 
+    def test_reference_complete_manifest_uses_fw_agents_012_contract(self) -> None:
+        document = {
+            "manifest_type": "agents-live-data-reference-complete-firmware",
+            "validation": {
+                "page_filter_switch_call_verified": True,
+                "stock_power_confirm_path_unchanged": False,
+                "stock_power_confirm_entry_guarded": True,
+                "page_registration_unchanged": True,
+                "global_key_callback_registration_unchanged": True,
+            },
+            "callchain_gates": {
+                "power_confirm_guard_calls_stock_clock": True,
+                "local_branch_hooks": [
+                    {"label": "萌宠左旋"},
+                    {"label": "萌宠右旋"},
+                    {"label": "萌宠确认"},
+                    {"label": "共享序号切页过滤"},
+                    {"label": "功率确认连接保护"},
+                ],
+            },
+        }
+        contract = contract_from_manifest(document)
+        report = run_interaction_simulation(
+            contract,
+            route_stock_local_branch,
+            exhaustive_depth=2,
+        )
+
+        self.assertEqual(contract.name, "FW-AGENTS-012")
+        self.assertTrue(report["summary"]["passed"])
+
     def test_report_writer_refuses_to_overwrite(self) -> None:
         report = run_interaction_simulation(
             InteractionContract.current_stock_resume(),

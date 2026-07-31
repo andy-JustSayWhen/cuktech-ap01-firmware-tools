@@ -20,7 +20,7 @@ from features.agents_dashboard_firmware import (
     CONFIRM_COMPAT_OUTPUT_FILENAME,
     DETAIL_COMPAT_OUTPUT_FILENAME,
     LOCAL_UI_BASE_SAFE_OUTPUT_FILENAME,
-    LIVE_DATA_BASE_SAFE_OUTPUT_FILENAME,
+    LIVE_DATA_REFERENCE_COMPLETE_OUTPUT_FILENAME,
     LOCAL_UI_STOCK_RESUME_OUTPUT_FILENAME,
     LOCAL_UI_STOCK_SAFE_OUTPUT_FILENAME,
     PET_OVERLAY_OUTPUT_FILENAME,
@@ -35,7 +35,7 @@ from features.agents_dashboard_firmware import (
     build_stock_enter_gate_firmware,
     build_local_ui_stock_resume_firmware,
     build_local_ui_base_safe_firmware,
-    build_live_data_base_safe_firmware,
+    build_live_data_reference_complete_firmware,
     build_local_ui_stock_safe_firmware,
     build_sync_firmware,
     simulate_current_manifest,
@@ -333,8 +333,8 @@ def _parser() -> argparse.ArgumentParser:
     base_safe_command.add_argument("--build-dir", type=Path, required=True)
 
     live_data_command = commands.add_parser(
-        "agents-live-data-base-safe-build",
-        help="生成保留基座保护并恢复真实数据的 AGENTS 固件",
+        "agents-live-data-reference-complete-build",
+        help="生成完整复用成功参考路径的 AGENTS 真实数据固件",
     )
     live_data_command.add_argument("--input", type=Path, required=True)
     live_data_command.add_argument("--output", type=Path, required=True)
@@ -927,8 +927,8 @@ def main(argv: list[str] | None = None) -> int:
             )
             return 0
 
-        if args.command == "agents-live-data-base-safe-build":
-            result = build_live_data_base_safe_firmware(
+        if args.command == "agents-live-data-reference-complete-build":
+            result = build_live_data_reference_complete_firmware(
                 args.input,
                 args.output,
                 args.manifest,
@@ -940,9 +940,11 @@ def main(argv: list[str] | None = None) -> int:
             print(
                 json.dumps(
                     {
-                        "result": "AGENTS 真实数据与基座保护固件制作完成",
+                        "result": "AGENTS 完整参考复用真实数据固件制作完成",
                         "output": str(result.output),
-                        "expected_name": LIVE_DATA_BASE_SAFE_OUTPUT_FILENAME,
+                        "expected_name": (
+                            LIVE_DATA_REFERENCE_COMPLETE_OUTPUT_FILENAME
+                        ),
                         "manifest": str(result.manifest),
                         "output_sha256": result.sha256,
                         "output_md5": result.md5,
