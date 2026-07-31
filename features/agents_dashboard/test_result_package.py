@@ -62,12 +62,12 @@ class ResultPackageTests(unittest.TestCase):
         )
         decoded = decode_package(package, self.credentials)
         self.assertEqual(decoded.generation, 7)
-        self.assertEqual(decoded.device_id, "1234abcd")
         self.assertEqual(decoded.pages, self.pages)
         self.assertEqual(package[:4], b"APAG")
+        self.assertEqual(package[4:8], b"\x02\x00\x40\x00")
         self.assertEqual(len(package), HEADER_SIZE + sum(map(len, self.pages)))
 
-    def test_changed_body_fails_authorization(self) -> None:
+    def test_changed_body_fails_page_check(self) -> None:
         package = bytearray(
             encode_package(
                 self.pages,
@@ -77,10 +77,10 @@ class ResultPackageTests(unittest.TestCase):
             )
         )
         package[-2] ^= 1
-        with self.assertRaisesRegex(ResultPackageError, "授权校验失败"):
+        with self.assertRaisesRegex(ResultPackageError, "文件指纹无效"):
             decode_package(bytes(package), self.credentials)
 
-    def test_wrong_device_fails_closed(self) -> None:
+    def test_response_package_is_not_bound_to_device_credentials(self) -> None:
         package = encode_package(
             self.pages,
             generation=9,
@@ -92,8 +92,7 @@ class ResultPackageTests(unittest.TestCase):
             access_token=self.credentials.access_token,
             secret_key=self.credentials.secret_key,
         )
-        with self.assertRaisesRegex(ResultPackageError, "设备代号不匹配"):
-            decode_package(package, other)
+        self.assertEqual(decode_package(package, other).pages, self.pages)
 
     def test_credentials_are_reused_and_private(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

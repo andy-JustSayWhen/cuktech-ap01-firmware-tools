@@ -2,8 +2,7 @@
  * AP01 AGENTS four-page package loader.
  *
  * Transport and three-slot publication follow the verified loader in
- * /Users/mac/Desktop/cuktech-screen-controller. SHA-256 core adapted for the
- * freestanding target from Brad Conte's public-domain crypto-algorithms.
+ * /Users/mac/Desktop/cuktech-screen-controller.
  */
 
 typedef unsigned char u8;
@@ -11,7 +10,7 @@ typedef unsigned short u16;
 typedef unsigned int u32;
 typedef unsigned long long u64;
 
-#if defined(AP01_CRYPTO_SELF_TEST) || defined(AP01_LOADER_SELF_TEST)
+#if defined(AP01_CRC_SELF_TEST) || defined(AP01_LOADER_SELF_TEST)
 #define ATTR_ENTRY __attribute__((noinline, used))
 #else
 #define ATTR_ENTRY __attribute__((section(".text.entry"), noinline, used))
@@ -36,8 +35,7 @@ typedef unsigned long long u64;
 #define ERR_INVAL                         (-22)
 #define ERR_FBIG                          (-27)
 
-#define PACKAGE_HEADER_SIZE               256u
-#define PACKAGE_HMAC_OFFSET               224u
+#define PACKAGE_HEADER_SIZE               64u
 #define PACKAGE_MAX_BYTES                 (384u * 1024u)
 #define PAGE_COUNT                        4u
 #define PAGE_MAX_BYTES                    (96u * 1024u)
@@ -62,18 +60,6 @@ typedef int (*open_fn)(const char *, int, int);
 typedef int (*close_fn)(int);
 typedef int (*io_fn)(int, void *, u32);
 typedef int (*write_fn)(int, const void *, u32);
-
-extern const u8 agents_device_id[16];
-extern const u8 agents_secret_key[32];
-
-struct sha256_context
-{
-  u8 data[64];
-  u32 data_length;
-  u32 bit_length_low;
-  u32 bit_length_high;
-  u32 state[8];
-};
 
 struct agents_meta
 {
@@ -110,12 +96,11 @@ struct download_state
   u8 gif_header[10];
   u8 last_byte;
   u8 header[PACKAGE_HEADER_SIZE];
-  struct sha256_context page_hash;
-  struct sha256_context hmac_inner;
+  u32 page_crc;
 };
 
-typedef char download_state_size_must_be_540[
-    sizeof(struct download_state) == 540u ? 1 : -1];
+typedef char download_state_size_must_be_136[
+    sizeof(struct download_state) == 136u ? 1 : -1];
 
 static const char meta_path[] = "/tmp/.ap01a.meta";
 static const char ack_path[] = "/tmp/.ap01a.ack";
@@ -132,34 +117,6 @@ static const char page21[] = "/tmp/.ap01a21.gif";
 static const char page22[] = "/tmp/.ap01a22.gif";
 static const char page23[] = "/tmp/.ap01a23.gif";
 
-static const u32 sha256_constants[64] = {
-  0x428a2f98u, 0x71374491u, 0xb5c0fbcfu, 0xe9b5dba5u,
-  0x3956c25bu, 0x59f111f1u, 0x923f82a4u, 0xab1c5ed5u,
-  0xd807aa98u, 0x12835b01u, 0x243185beu, 0x550c7dc3u,
-  0x72be5d74u, 0x80deb1feu, 0x9bdc06a7u, 0xc19bf174u,
-  0xe49b69c1u, 0xefbe4786u, 0x0fc19dc6u, 0x240ca1ccu,
-  0x2de92c6fu, 0x4a7484aau, 0x5cb0a9dcu, 0x76f988dau,
-  0x983e5152u, 0xa831c66du, 0xb00327c8u, 0xbf597fc7u,
-  0xc6e00bf3u, 0xd5a79147u, 0x06ca6351u, 0x14292967u,
-  0x27b70a85u, 0x2e1b2138u, 0x4d2c6dfcu, 0x53380d13u,
-  0x650a7354u, 0x766a0abbu, 0x81c2c92eu, 0x92722c85u,
-  0xa2bfe8a1u, 0xa81a664bu, 0xc24b8b70u, 0xc76c51a3u,
-  0xd192e819u, 0xd6990624u, 0xf40e3585u, 0x106aa070u,
-  0x19a4c116u, 0x1e376c08u, 0x2748774cu, 0x34b0bcb5u,
-  0x391c0cb3u, 0x4ed8aa4au, 0x5b9cca4fu, 0x682e6ff3u,
-  0x748f82eeu, 0x78a5636fu, 0x84c87814u, 0x8cc70208u,
-  0x90befffau, 0xa4506cebu, 0xbef9a3f7u, 0xc67178f2u
-};
-
-#define ROTRIGHT(value, bits) \
-  (((value) >> (bits)) | ((value) << (32u - (bits))))
-#define CHOICE(x, y, z) (((x) & (y)) ^ (~(x) & (z)))
-#define MAJORITY(x, y, z) (((x) & (y)) ^ ((x) & (z)) ^ ((y) & (z)))
-#define EP0(x) (ROTRIGHT((x), 2u) ^ ROTRIGHT((x), 13u) ^ ROTRIGHT((x), 22u))
-#define EP1(x) (ROTRIGHT((x), 6u) ^ ROTRIGHT((x), 11u) ^ ROTRIGHT((x), 25u))
-#define SIG0(x) (ROTRIGHT((x), 7u) ^ ROTRIGHT((x), 18u) ^ ((x) >> 3u))
-#define SIG1(x) (ROTRIGHT((x), 17u) ^ ROTRIGHT((x), 19u) ^ ((x) >> 10u))
-
 static ATTR_NOINLINE void memory_zero(void *target, u32 length)
 {
   u8 *bytes = (u8 *)target;
@@ -168,17 +125,6 @@ static ATTR_NOINLINE void memory_zero(void *target, u32 length)
     {
       bytes[index] = 0u;
     }
-}
-
-static int bytes_equal(const u8 *left, const u8 *right, u32 length)
-{
-  u8 difference = 0u;
-  u32 index;
-  for (index = 0u; index < length; ++index)
-    {
-      difference |= left[index] ^ right[index];
-    }
-  return difference == 0u;
 }
 
 static u16 read_u16(const u8 *source)
@@ -357,177 +303,20 @@ static int write_record(const char *path, u32 generation, u32 slot)
   return result;
 }
 
-static void sha256_transform(struct sha256_context *context, const u8 *data)
-{
-  u32 words[64];
-  u32 a, b, c, d, e, f, g, h, first, second;
-  u32 index;
-  for (index = 0u; index < 16u; ++index)
-    {
-      u32 offset = index * 4u;
-      words[index] = ((u32)data[offset] << 24u) |
-                     ((u32)data[offset + 1u] << 16u) |
-                     ((u32)data[offset + 2u] << 8u) |
-                     (u32)data[offset + 3u];
-    }
-  for (; index < 64u; ++index)
-    {
-      words[index] = SIG1(words[index - 2u]) + words[index - 7u] +
-                     SIG0(words[index - 15u]) + words[index - 16u];
-    }
-  a = context->state[0];
-  b = context->state[1];
-  c = context->state[2];
-  d = context->state[3];
-  e = context->state[4];
-  f = context->state[5];
-  g = context->state[6];
-  h = context->state[7];
-  for (index = 0u; index < 64u; ++index)
-    {
-      first = h + EP1(e) + CHOICE(e, f, g) +
-              sha256_constants[index] + words[index];
-      second = EP0(a) + MAJORITY(a, b, c);
-      h = g;
-      g = f;
-      f = e;
-      e = d + first;
-      d = c;
-      c = b;
-      b = a;
-      a = first + second;
-    }
-  context->state[0] += a;
-  context->state[1] += b;
-  context->state[2] += c;
-  context->state[3] += d;
-  context->state[4] += e;
-  context->state[5] += f;
-  context->state[6] += g;
-  context->state[7] += h;
-}
-
-static void sha256_init(struct sha256_context *context)
-{
-  context->data_length = 0u;
-  context->bit_length_low = 0u;
-  context->bit_length_high = 0u;
-  context->state[0] = 0x6a09e667u;
-  context->state[1] = 0xbb67ae85u;
-  context->state[2] = 0x3c6ef372u;
-  context->state[3] = 0xa54ff53au;
-  context->state[4] = 0x510e527fu;
-  context->state[5] = 0x9b05688cu;
-  context->state[6] = 0x1f83d9abu;
-  context->state[7] = 0x5be0cd19u;
-}
-
-static void sha256_update(struct sha256_context *context,
-                          const u8 *data, u32 length)
+static u32 crc32_update(u32 crc, const u8 *data, u32 length)
 {
   u32 index;
   for (index = 0u; index < length; ++index)
     {
-      context->data[context->data_length++] = data[index];
-      if (context->data_length == 64u)
+      u32 bit;
+      crc ^= (u32)data[index];
+      for (bit = 0u; bit < 8u; ++bit)
         {
-          sha256_transform(context, context->data);
-          context->bit_length_low += 512u;
-          if (context->bit_length_low < 512u)
-            {
-              context->bit_length_high += 1u;
-            }
-          context->data_length = 0u;
+          crc = (crc >> 1u) ^ (0xedb88320u & (0u - (crc & 1u)));
         }
     }
+  return crc;
 }
-
-static void sha256_final(struct sha256_context *context, u8 digest[32])
-{
-  u32 index = context->data_length;
-  u32 bit_length_low;
-  u32 bit_length_high;
-  context->data[index++] = 0x80u;
-  if (index > 56u)
-    {
-      while (index < 64u)
-        {
-          context->data[index++] = 0u;
-        }
-      sha256_transform(context, context->data);
-      index = 0u;
-    }
-  while (index < 56u)
-    {
-      context->data[index++] = 0u;
-    }
-  bit_length_low = context->bit_length_low + context->data_length * 8u;
-  bit_length_high = context->bit_length_high;
-  if (bit_length_low < context->bit_length_low)
-    {
-      bit_length_high += 1u;
-    }
-  context->data[56] = (u8)(bit_length_high >> 24u);
-  context->data[57] = (u8)(bit_length_high >> 16u);
-  context->data[58] = (u8)(bit_length_high >> 8u);
-  context->data[59] = (u8)bit_length_high;
-  context->data[60] = (u8)(bit_length_low >> 24u);
-  context->data[61] = (u8)(bit_length_low >> 16u);
-  context->data[62] = (u8)(bit_length_low >> 8u);
-  context->data[63] = (u8)bit_length_low;
-  sha256_transform(context, context->data);
-  for (index = 0u; index < 4u; ++index)
-    {
-      digest[index] = (u8)(context->state[0] >> (24u - index * 8u));
-      digest[index + 4u] = (u8)(context->state[1] >> (24u - index * 8u));
-      digest[index + 8u] = (u8)(context->state[2] >> (24u - index * 8u));
-      digest[index + 12u] = (u8)(context->state[3] >> (24u - index * 8u));
-      digest[index + 16u] = (u8)(context->state[4] >> (24u - index * 8u));
-      digest[index + 20u] = (u8)(context->state[5] >> (24u - index * 8u));
-      digest[index + 24u] = (u8)(context->state[6] >> (24u - index * 8u));
-      digest[index + 28u] = (u8)(context->state[7] >> (24u - index * 8u));
-    }
-}
-
-static void hmac_init(struct sha256_context *inner)
-{
-  u8 pad[64];
-  u32 index;
-  for (index = 0u; index < 64u; ++index)
-    {
-      pad[index] = (index < 32u ? agents_secret_key[index] : 0u) ^ 0x36u;
-    }
-  sha256_init(inner);
-  sha256_update(inner, pad, 64u);
-}
-
-static void hmac_final(struct sha256_context *inner, u8 digest[32])
-{
-  struct sha256_context outer;
-  u8 inner_digest[32];
-  u8 pad[64];
-  u32 index;
-  sha256_final(inner, inner_digest);
-  for (index = 0u; index < 64u; ++index)
-    {
-      pad[index] = (index < 32u ? agents_secret_key[index] : 0u) ^ 0x5cu;
-    }
-  sha256_init(&outer);
-  sha256_update(&outer, pad, 64u);
-  sha256_update(&outer, inner_digest, 32u);
-  sha256_final(&outer, digest);
-}
-
-#ifdef AP01_CRYPTO_SELF_TEST
-int ap01_agents_crypto_self_test(const u8 *data, u32 length, u8 digest[32])
-{
-  struct sha256_context inner;
-  hmac_init(&inner);
-  sha256_update(&inner, data, length);
-  hmac_final(&inner, digest);
-  return 0;
-}
-#endif
 
 static int gif_header_valid(const u8 *header)
 {
@@ -544,20 +333,12 @@ static int validate_package_header(struct download_state *state)
   u32 body_total = 0u;
   if (state->header[0] != (u8)'A' || state->header[1] != (u8)'P' ||
       state->header[2] != (u8)'A' || state->header[3] != (u8)'G' ||
-      read_u16(state->header + 4u) != 1u ||
+      read_u16(state->header + 4u) != 2u ||
       read_u16(state->header + 6u) != PACKAGE_HEADER_SIZE ||
       read_u32(state->header + 24u) != PAGE_COUNT ||
-      read_u32(state->header + 28u) != 0u ||
-      !bytes_equal(state->header + 176u, agents_device_id, 16u))
+      read_u32(state->header + 28u) != 0u)
     {
       return ERR_INVAL;
-    }
-  for (index = 192u; index < PACKAGE_HMAC_OFFSET; ++index)
-    {
-      if (state->header[index] != 0u)
-        {
-          return ERR_INVAL;
-        }
     }
   state->generation = read_u32(state->header + 8u);
   state->expected_total = read_u32(state->header + 12u);
@@ -583,8 +364,6 @@ static int validate_package_header(struct download_state *state)
     {
       return ERR_INVAL;
     }
-  hmac_init(&state->hmac_inner);
-  sha256_update(&state->hmac_inner, state->header, PACKAGE_HMAC_OFFSET);
   return 0;
 }
 
@@ -601,25 +380,22 @@ static int open_current_page(struct download_state *state)
   state->page_written = 0u;
   state->gif_header_length = 0u;
   state->last_byte = 0u;
-  sha256_init(&state->page_hash);
+  state->page_crc = 0xffffffffu;
   return 0;
 }
 
 static int finish_current_page(struct download_state *state)
 {
-  u8 digest[32];
+  u32 actual_crc = state->page_crc ^ 0xffffffffu;
   int close_result = fw_close(state->fd);
   state->fd = -1;
-  sha256_final(&state->page_hash, digest);
   if (close_result < 0 ||
       state->page_written != state->page_length[state->page_index] ||
       state->gif_header_length != 10u ||
       !gif_header_valid(state->gif_header) ||
       state->last_byte != 0x3bu ||
-      !bytes_equal(
-          digest,
-          state->header + 48u + state->page_index * 32u,
-          32u))
+      actual_crc != read_u32(
+          state->header + 48u + state->page_index * 4u))
     {
       return ERR_INVAL;
     }
@@ -655,8 +431,8 @@ static int consume_body(struct download_state *state,
           state->gif_header[state->gif_header_length++] =
               data[offset + header_index++];
         }
-      sha256_update(&state->page_hash, data + offset, amount);
-      sha256_update(&state->hmac_inner, data + offset, amount);
+      state->page_crc = crc32_update(
+          state->page_crc, data + offset, amount);
       if (write_all(state->fd, data + offset, amount) < 0)
         {
           return ERR_IO;
@@ -736,7 +512,6 @@ ATTR_ENTRY int ap01_agents_webclient_wrapper(void *context)
   u32 have_ack;
   int result;
   int close_result = 0;
-  u8 actual_hmac[32];
   if (context == (void *)0)
     {
       return ERR_INVAL;
@@ -772,12 +547,7 @@ ATTR_ENTRY int ap01_agents_webclient_wrapper(void *context)
       state->complete != 0u &&
       state->total == state->expected_total)
     {
-      hmac_final(&state->hmac_inner, actual_hmac);
-      if (!bytes_equal(
-              actual_hmac,
-              state->header + PACKAGE_HMAC_OFFSET,
-              32u) ||
-          write_record(meta_path, state->generation, state->slot) < 0)
+      if (write_record(meta_path, state->generation, state->slot) < 0)
         {
           result = ERR_INVAL;
         }

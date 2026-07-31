@@ -94,6 +94,9 @@ STOCK_ENTER_GATE_OUTPUT_FILENAME = (
 STOCK_LOCAL_BRANCHES_OUTPUT_FILENAME = (
     "ap01-1.0.2_0031-agents-stock-local-branches-observation.bin"
 )
+LOW_STACK_LOCAL_BRANCHES_OUTPUT_FILENAME = (
+    "ap01-1.0.2_0031-agents-low-stack-local-branches-candidate.bin"
+)
 OPT_INTEGRATION_OUTPUT_FILENAME = (
     "ap01-1.0.2_0031-opt-integration-candidate.bin"
 )
@@ -1207,33 +1210,22 @@ def build_sync_firmware(
     if tool_revision.get("scoped_code_dirty") is not False:
         raise AgentsDashboardFirmwareError("制作代码尚未提交，不能冻结同步实验成品")
     output = output_path.expanduser().resolve()
-    integration_mode = expected_output_name == OPT_REWRITE_OUTPUT_FILENAME
+    integration_mode = False
     if output.name != expected_output_name:
         raise AgentsDashboardFirmwareError(
             f"同步实验成品文件名必须是 {expected_output_name}"
         )
     if (
         not reuse_stock_pet
-        or expected_output_name
-        not in (
-            STOCK_LOCAL_BRANCHES_OUTPUT_FILENAME,
-            OPT_REWRITE_OUTPUT_FILENAME,
-        )
+        or expected_output_name != LOW_STACK_LOCAL_BRANCHES_OUTPUT_FILENAME
     ):
         raise AgentsDashboardFirmwareError(
-            "旧 AGENTS 固件路径已停用，只允许生成局部分支观察或完整离线组合候选"
+            "旧 AGENTS 固件路径已停用，只允许生成低栈局部分支候选"
         )
     if not integration_mode and (
         extra_objects or required_extra_symbols or candidate_mutators
     ):
         raise AgentsDashboardFirmwareError("局部分支观察成品不允许组合其他界面改写")
-    if integration_mode and (
-        not extra_objects
-        or "ap01_primary_page_filter_and_switch"
-        not in required_extra_symbols
-        or not candidate_mutators
-    ):
-        raise AgentsDashboardFirmwareError("完整离线组合候选缺少页面开关对象或固定挂接")
     try:
         url_bytes = url_base.encode("ascii")
     except UnicodeEncodeError as error:
@@ -1260,6 +1252,10 @@ def build_sync_firmware(
         reuse_stock_pet=reuse_stock_pet,
         integration_mode=integration_mode,
     )
+    if payload_result.maximum_static_stack > 320:
+        raise AgentsDashboardFirmwareError(
+            "低栈局部分支候选的单函数静态栈超过 320 字节"
+        )
     payload = payload_result.binary.read_bytes()
     optimized = payload_result.optimized_source.read_bytes()
     candidate = bytearray(stage)
@@ -1444,11 +1440,7 @@ def build_sync_firmware(
     )
     manifest: dict[str, object] = {
         "schema_version": 1,
-        "manifest_type": (
-            "opt-rewrite-candidate-firmware"
-            if integration_mode
-            else "agents-stock-local-branches-observation-firmware"
-        ),
+        "manifest_type": "agents-low-stack-local-branches-candidate-firmware",
         "status": "built-not-approved-for-installation",
         "built_at_beijing": datetime.now(ZoneInfo("Asia/Shanghai")).isoformat(
             timespec="seconds"
@@ -1484,7 +1476,7 @@ def build_sync_firmware(
             "remaining": PAYLOAD_CAPACITY - payload_result.size,
             "relocations": 0,
             "maximum_static_stack": payload_result.maximum_static_stack,
-            "download_state_stack_bytes": 540,
+            "download_state_stack_bytes": 136,
             "download_state_heap_bytes": 0,
             "stock_pet_object_reused": True,
             "stock_pet_state_bytes_before": 16,
@@ -1493,8 +1485,9 @@ def build_sync_firmware(
         },
         "implemented_scope": [
             "四页完整包流式接收",
-            "四页文件指纹校验",
-            "设备代号与响应授权校验",
+            "64 字节第二版包头",
+            "四页逐页 CRC-32 损坏校验",
+            "请求侧设备代号与访问标识校验",
             "三组临时槽原子提交",
             "界面线程只切换已提交页面",
             "固定周期后台刷新",
@@ -1659,6 +1652,22 @@ def build_stock_local_branches_firmware(
     refresh_seconds: int,
     tool_revision: dict[str, object],
 ) -> SyncFirmwareResult:
+    raise AgentsDashboardFirmwareError(
+        "旧原厂局部分支观察成品已因物理验收失败停用"
+    )
+
+
+def build_low_stack_local_branches_firmware(
+    stage_path: Path,
+    output_path: Path,
+    manifest_path: Path,
+    build_directory: Path,
+    credentials: DeviceCredentialsLike,
+    *,
+    url_base: str,
+    refresh_seconds: int,
+    tool_revision: dict[str, object],
+) -> SyncFirmwareResult:
     return build_sync_firmware(
         stage_path,
         output_path,
@@ -1668,7 +1677,7 @@ def build_stock_local_branches_firmware(
         url_base=url_base,
         refresh_seconds=refresh_seconds,
         tool_revision=tool_revision,
-        expected_output_name=STOCK_LOCAL_BRANCHES_OUTPUT_FILENAME,
+        expected_output_name=LOW_STACK_LOCAL_BRANCHES_OUTPUT_FILENAME,
         implemented_scope_extra=(
             "萌宠左旋、右旋和确认三个局部分支接入",
             "未消费事件从三个原厂继续地址恢复",

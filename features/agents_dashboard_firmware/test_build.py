@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 import hashlib
-import hmac
 import json
 import shutil
 import subprocess
 import tempfile
 import unittest
+import zlib
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -34,7 +34,7 @@ from features.agents_dashboard_firmware.build import (
 from features.agents_dashboard_firmware.sync_build import (
     INSTRUCTION_EXPECTED,
     LOADER_SOURCE,
-    OPT_PAGE_FILTER_HOOK,
+    LOW_STACK_LOCAL_BRANCHES_OUTPUT_FILENAME,
     OPT_REWRITE_OUTPUT_FILENAME,
     PET_STATE_SIZE_EXTENDED,
     PET_STATE_SIZE_OFFSET,
@@ -43,7 +43,6 @@ from features.agents_dashboard_firmware.sync_build import (
     STOCK_ENTER_GATE_OUTPUT_FILENAME,
     STOCK_KEY_CALLBACK_RANGE,
     STOCK_LOCAL_BRANCH_HOOKS,
-    STOCK_LOCAL_BRANCHES_OUTPUT_FILENAME,
     STOCK_POWER_CONFIRM_RANGE,
     UI_CALLBACK_ADDI,
     UI_CALLBACK_LUI,
@@ -51,22 +50,13 @@ from features.agents_dashboard_firmware.sync_build import (
     _request_formats,
     build_stock_callchain_firmware,
     build_stock_enter_gate_firmware,
-    build_stock_local_branches_firmware,
+    build_low_stack_local_branches_firmware,
     build_sync_firmware,
     build_sync_payload,
     decode_agents_state,
     encode_agents_state,
     route_stock_local_branch,
     validate_stock_local_branch_routes,
-)
-from features.primary_page_settings import (
-    REQUIRED_SYMBOLS as PAGE_SETTINGS_SYMBOLS,
-    apply_page_settings_patches,
-    build_page_settings_objects,
-)
-from features.primary_page_settings.build import (
-    MENU_LIMIT_EIGHT,
-    MENU_LIMIT_OFFSET,
 )
 
 
@@ -197,15 +187,15 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
                 capture_output=True,
                 text=True,
             ).stdout
-            output = root / STOCK_LOCAL_BRANCHES_OUTPUT_FILENAME
+            output = root / LOW_STACK_LOCAL_BRANCHES_OUTPUT_FILENAME
             manifest = root / "manifest.json"
-            result = build_stock_local_branches_firmware(
+            result = build_low_stack_local_branches_firmware(
                 self.stage,
                 output,
                 manifest,
                 root / "firmware",
                 credentials,
-                url_base="http://192.168.31.139:8765/a",
+                url_base="http://192.168.31.174:18765/a",
                 refresh_seconds=300,
                 tool_revision={"commit": "test", "scoped_code_dirty": False},
             )
@@ -215,7 +205,7 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
 
         self.assertLess(payload.size, 60_934)
         self.assertGreater(60_934 - payload.size, 20_000)
-        self.assertLessEqual(payload.maximum_static_stack, 768)
+        self.assertLessEqual(payload.maximum_static_stack, 320)
         self.assertEqual(result.payload_size, payload.size)
         self.assertEqual(len(output_bytes), self.stage.stat().st_size)
         self.assertTrue(output_bytes.startswith(b"BFNP"))
@@ -223,6 +213,7 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
         self.assertNotIn(credentials.secret_key.hex(), manifest_text)
         self.assertIn('"installation_allowed": false', manifest_text)
         self.assertIn('"download_state_heap_bytes": 0', manifest_text)
+        self.assertIn('"download_state_stack_bytes": 136', manifest_text)
         self.assertIn('"stock_pet_object_reused": true', manifest_text)
         self.assertEqual(
             payload.route_validation,
@@ -454,11 +445,7 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
             "stock-resume",
         )
 
-    def test_full_integration_candidate_uses_local_page_filter(self) -> None:
-        assembler = shutil.which("riscv64-elf-as")
-        compiler = shutil.which("riscv64-elf-gcc")
-        if not assembler or not compiler:
-            self.skipTest("本机没有固定编译工具")
+    def test_failed_full_integration_candidate_is_blocked(self) -> None:
         credentials = TestCredentials(
             device_id="1234abcd",
             access_token="0123456789abcdef",
@@ -466,87 +453,28 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
         )
         with tempfile.TemporaryDirectory() as selected:
             root = Path(selected)
-            settings = build_page_settings_objects(
-                root / "page-settings",
-                REPO_ROOT / "env/fonts",
-                assembler=Path(assembler),
-                compiler=Path(compiler),
-            )
             output = root / OPT_REWRITE_OUTPUT_FILENAME
             manifest = root / "manifest.json"
-            result = build_sync_firmware(
-                self.stage,
-                output,
-                manifest,
-                root / "firmware",
-                credentials,
-                url_base="http://192.168.31.139:8765/a",
-                refresh_seconds=300,
-                tool_revision={"commit": "test", "scoped_code_dirty": False},
-                extra_objects=settings.objects,
-                required_extra_symbols=PAGE_SETTINGS_SYMBOLS,
-                candidate_mutators=(apply_page_settings_patches,),
-                expected_output_name=OPT_REWRITE_OUTPUT_FILENAME,
-                implemented_scope_extra=("一级导航跳过关闭页面",),
-                reuse_stock_pet=True,
-            )
-            document = json.loads(manifest.read_text(encoding="utf-8"))
-            output_bytes = output.read_bytes()
-            elf = root / "firmware/agents-sync.elf"
-            disassembly = subprocess.run(
-                ["riscv64-elf-objdump", "-d", elf],
-                check=True,
-                capture_output=True,
-                text=True,
-            ).stdout
-
-        self.assertEqual(
-            document["manifest_type"],
-            "opt-rewrite-candidate-firmware",
-        )
-        self.assertEqual(
-            document["status"],
-            "built-not-approved-for-installation",
-        )
-        self.assertFalse(document["validation"]["installation_allowed"])
-        self.assertTrue(
-            document["validation"]["page_filter_switch_call_verified"]
-        )
-        self.assertEqual(len(document["callchain_gates"]["local_branch_hooks"]), 4)
-        self.assertEqual(result.sha256, document["output"]["sha256"])
-        self.assertEqual(
-            output_bytes[MENU_LIMIT_OFFSET : MENU_LIMIT_OFFSET + 2],
-            MENU_LIMIT_EIGHT,
-        )
-        (
-            hook_offset,
-            hook_original,
-            trampoline_offset,
-            symbol,
-            _resume_address,
-            _label,
-        ) = OPT_PAGE_FILTER_HOOK
-        self.assertEqual(
-            output_bytes[hook_offset : hook_offset + len(hook_original)],
-            _encode_jal(
-                XIP_DELTA + hook_offset,
-                XIP_DELTA + trampoline_offset,
-            ),
-        )
-        self.assertIn(f"<{symbol}>:", disassembly)
-        self.assertIn("<ap01_page_settings_load_mask>", disassembly)
-        self.assertIn("<stock_switch_page>", disassembly)
-        self.assertIn("<stock_get_dispatch_index>", disassembly)
-        self.assertIn("<ap01_agents_restore_pet>", disassembly)
-        self.assertNotIn("<ap01_agents_key_event>:", disassembly)
-        self.assertNotIn("<ap01_primary_page_navigation_event>:", disassembly)
-        for retired_address in (
-            "# a00b0290",
-            "# a00b0570",
-            "# a00b06f4",
-            "# a00bbfee",
-        ):
-            self.assertNotIn(retired_address, disassembly.lower())
+            with self.assertRaisesRegex(
+                RuntimeError,
+                "只允许生成低栈局部分支候选",
+            ):
+                build_sync_firmware(
+                    self.stage,
+                    output,
+                    manifest,
+                    root / "firmware",
+                    credentials,
+                    url_base="http://192.168.31.174:18765/a",
+                    refresh_seconds=300,
+                    tool_revision={
+                        "commit": "test",
+                        "scoped_code_dirty": False,
+                    },
+                    expected_output_name=OPT_REWRITE_OUTPUT_FILENAME,
+                    reuse_stock_pet=True,
+                )
+            self.assertFalse(output.exists())
 
     def test_independent_tail_detects_all_defined_corruption_classes(self) -> None:
         for state in range(5):
@@ -644,26 +572,19 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
         self.assertIn(b"d=abcd", location)
         self.assertIn(b"t=456789abcdef", location)
 
-    def test_freestanding_hmac_matches_python(self) -> None:
+    def test_freestanding_crc32_matches_python(self) -> None:
         compiler = shutil.which("cc")
         if not compiler:
             self.skipTest("本机没有主机 C 编译器")
-        secret = bytes(range(32))
-        expected = hmac.new(secret, b"abc", hashlib.sha256).hexdigest()
+        expected = zlib.crc32(b"abc") & 0xFFFFFFFF
         with tempfile.TemporaryDirectory() as selected:
             root = Path(selected)
             harness = root / "harness.c"
             executable = root / "harness"
-            secret_values = ",".join(str(value) for value in secret)
             harness.write_text(
                 "\n".join(
                     (
-                        "#define AP01_CRYPTO_SELF_TEST 1",
-                        "const unsigned char agents_device_id[16] = {0};",
-                        (
-                            "const unsigned char agents_secret_key[32] = "
-                            f"{{{secret_values}}};"
-                        ),
+                        "#define AP01_CRC_SELF_TEST 1",
                         (
                             "int ap01_agents_restore_pet(void *p) "
                             "{ (void)p; return 1; }"
@@ -671,12 +592,10 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
                         f'#include "{LOADER_SOURCE}"',
                         "#include <stdio.h>",
                         "int main(void) {",
-                        "  unsigned char output[32];",
                         '  const unsigned char input[] = "abc";',
-                        "  unsigned int index;",
-                        "  ap01_agents_crypto_self_test(input, 3, output);",
-                        "  for (index = 0; index < 32; ++index)",
-                        '    printf("%02x", output[index]);',
+                        "  unsigned int value = crc32_update(",
+                        "      0xffffffffu, input, 3u) ^ 0xffffffffu;",
+                        '  printf("%08x", value);',
                         "  return 0;",
                         "}",
                         "",
@@ -684,21 +603,22 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
                 ),
                 encoding="utf-8",
             )
-            subprocess.run(
+            build = subprocess.run(
                 [compiler, "-O2", harness, "-o", executable],
-                check=True,
+                check=False,
                 capture_output=True,
                 text=True,
             )
+            self.assertEqual(build.returncode, 0, build.stderr)
             actual = subprocess.run(
                 [executable],
                 check=True,
                 capture_output=True,
                 text=True,
             ).stdout
-        self.assertEqual(actual, expected)
+        self.assertEqual(actual, f"{expected:08x}")
 
-    def test_streaming_loader_accepts_split_authenticated_package(self) -> None:
+    def test_streaming_loader_accepts_split_checked_package(self) -> None:
         compiler = shutil.which("cc")
         if not compiler:
             self.skipTest("本机没有主机 C 编译器")
@@ -718,22 +638,12 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
             root = Path(selected)
             harness = root / "loader-harness.c"
             executable = root / "loader-harness"
-            secret_values = ",".join(str(value) for value in credentials.secret_key)
-            device_values = ",".join(
-                str(value)
-                for value in credentials.device_id.encode("ascii").ljust(16, b"\0")
-            )
             package_values = ",".join(str(value) for value in package)
             harness.write_text(
                 "\n".join(
                     (
                         "#define AP01_LOADER_SELF_TEST 1",
                         "#include <string.h>",
-                        f"const unsigned char agents_device_id[16] = {{{device_values}}};",
-                        (
-                            "const unsigned char agents_secret_key[32] = "
-                            f"{{{secret_values}}};"
-                        ),
                         (
                             "int ap01_agents_restore_pet(void *p) "
                             "{ (void)p; return 1; }"
@@ -767,7 +677,6 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
                         "  unsigned int offset = 0;",
                         "  unsigned int steps[] = {1, 7, 31, 3, 64, 2, 127, 11};",
                         "  unsigned int step = 0;",
-                        "  unsigned char actual_hmac[32];",
                         "  memory_zero(&state, (unsigned int)sizeof(state));",
                         "  state.fd = -1;",
                         "  while (offset < (unsigned int)sizeof(package)) {",
@@ -790,11 +699,7 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
                             "  if (!state.complete || state.total != sizeof(package) "
                             "|| state.generation != 17 || next_fd != 5) return 11;"
                         ),
-                        "  hmac_final(&state.hmac_inner, actual_hmac);",
-                        (
-                            "  if (!bytes_equal(actual_hmac, "
-                            "state.header + PACKAGE_HMAC_OFFSET, 32)) return 12;"
-                        ),
+                        "  if (sizeof(state) != 136u) return 12;",
                         "  for (step = 0; step < 4; ++step)",
                         (
                             "    if (sizes[step] != 13 || "

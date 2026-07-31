@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 import hashlib
-import hmac
 import json
 import os
 import secrets
 import struct
 import tempfile
 import time
+import zlib
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable
@@ -21,13 +21,11 @@ from .renderer import render_all
 
 
 MAGIC = b"APAG"
-VERSION = 1
-HEADER_SIZE = 256
+VERSION = 2
+HEADER_SIZE = 64
 PAGE_COUNT = 4
 PAGE_MAX_BYTES = 96 * 1024
 PACKAGE_MAX_BYTES = 384 * 1024
-HMAC_OFFSET = 224
-HMAC_SIZE = 32
 PAGE_NAMES = (
     "01-overview.gif",
     "02-weekly.gif",
@@ -96,7 +94,6 @@ class DeviceCredentials:
 class DecodedPackage:
     generation: int
     generated_at: int
-    device_id: str
     pages: tuple[bytes, ...]
 
 
@@ -204,6 +201,7 @@ def encode_package(
     generated_at: int,
     credentials: DeviceCredentials,
 ) -> bytes:
+    _ = credentials
     selected = tuple(pages)
     if len(selected) != PAGE_COUNT:
         raise ResultPackageError("完整结果必须恰好包含四页")
@@ -238,19 +236,17 @@ def encode_package(
         0,
     )
     struct.pack_into("<4I", header, 32, *(len(page) for page in selected))
-    for index, page in enumerate(selected):
-        header[48 + index * 32 : 80 + index * 32] = hashlib.sha256(page).digest()
-    header[176:192] = credentials.device_id.encode("ascii").ljust(16, b"\0")
-    signature = hmac.new(
-        credentials.secret_key,
-        bytes(header[:HMAC_OFFSET]) + body,
-        hashlib.sha256,
-    ).digest()
-    header[HMAC_OFFSET : HMAC_OFFSET + HMAC_SIZE] = signature
+    struct.pack_into(
+        "<4I",
+        header,
+        48,
+        *(zlib.crc32(page) & 0xFFFFFFFF for page in selected),
+    )
     return bytes(header) + body
 
 
 def decode_package(payload: bytes, credentials: DeviceCredentials) -> DecodedPackage:
+    _ = credentials
     if len(payload) < HEADER_SIZE or len(payload) > PACKAGE_MAX_BYTES:
         raise ResultPackageError("完整结果包长度无效")
     try:
@@ -265,6 +261,7 @@ def decode_package(payload: bytes, credentials: DeviceCredentials) -> DecodedPac
             reserved,
         ) = struct.unpack_from("<4sHHIIQII", payload, 0)
         lengths = struct.unpack_from("<4I", payload, 32)
+        checks = struct.unpack_from("<4I", payload, 48)
     except struct.error as error:
         raise ResultPackageError("完整结果包头被截断") from error
     if (
@@ -275,22 +272,8 @@ def decode_package(payload: bytes, credentials: DeviceCredentials) -> DecodedPac
         or reserved != 0
         or total_size != len(payload)
         or generation == 0
-        or any(payload[192:HMAC_OFFSET])
     ):
         raise ResultPackageError("完整结果包头字段无效")
-    device_id = payload[176:192].rstrip(b"\0").decode("ascii", errors="strict")
-    if device_id != credentials.device_id:
-        raise ResultPackageError("完整结果包设备代号不匹配")
-    expected_signature = hmac.new(
-        credentials.secret_key,
-        payload[:HMAC_OFFSET] + payload[HEADER_SIZE:],
-        hashlib.sha256,
-    ).digest()
-    if not hmac.compare_digest(
-        expected_signature,
-        payload[HMAC_OFFSET : HMAC_OFFSET + HMAC_SIZE],
-    ):
-        raise ResultPackageError("完整结果包授权校验失败")
     if sum(lengths) != len(payload) - HEADER_SIZE:
         raise ResultPackageError("四页长度与整包长度不一致")
 
@@ -304,12 +287,11 @@ def decode_package(payload: bytes, credentials: DeviceCredentials) -> DecodedPac
         if (
             not page.startswith(b"GIF89a")
             or not page.endswith(b"\x3b")
-            or hashlib.sha256(page).digest()
-            != payload[48 + index * 32 : 80 + index * 32]
+            or (zlib.crc32(page) & 0xFFFFFFFF) != checks[index]
         ):
             raise ResultPackageError("页面格式或文件指纹无效")
         pages.append(page)
-    return DecodedPackage(generation, generated_at, device_id, tuple(pages))
+    return DecodedPackage(generation, generated_at, tuple(pages))
 
 
 def next_generation(existing_package: Path) -> int:

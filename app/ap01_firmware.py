@@ -23,18 +23,17 @@ from features.agents_dashboard_firmware import (
     AgentsDashboardFirmwareError,
     CONFIRM_COMPAT_OUTPUT_FILENAME,
     DETAIL_COMPAT_OUTPUT_FILENAME,
-    OPT_REWRITE_OUTPUT_FILENAME,
+    LOW_STACK_LOCAL_BRANCHES_OUTPUT_FILENAME,
     PET_OVERLAY_OUTPUT_FILENAME,
     STOCK_CALLCHAIN_OUTPUT_FILENAME,
     STOCK_DISPATCH_OUTPUT_FILENAME,
     STOCK_ENTER_GATE_OUTPUT_FILENAME,
-    STOCK_LOCAL_BRANCHES_OUTPUT_FILENAME,
     STOCK_PET_REUSE_OUTPUT_FILENAME,
     build_observation_firmware,
     build_page_registration_payload,
     build_stock_callchain_firmware,
     build_stock_enter_gate_firmware,
-    build_stock_local_branches_firmware,
+    build_low_stack_local_branches_firmware,
     build_sync_firmware,
 )
 from features.offline_firmware_build import (
@@ -56,11 +55,8 @@ from features.primary_page_navigation import (
 )
 from features.primary_page_settings import (
     HOOK_OBSERVATION_OUTPUT_NAME,
-    REQUIRED_SYMBOLS as PAGE_SETTINGS_SYMBOLS,
     PrimaryPageSettingsBuildError,
     SettingsHookObservationError,
-    apply_page_settings_patches,
-    build_page_settings_objects,
     build_settings_hook_observation,
 )
 from features.settings_menu_wrap import (
@@ -305,8 +301,8 @@ def _parser() -> argparse.ArgumentParser:
     )
 
     stock_local_branches_command = commands.add_parser(
-        "agents-stock-local-branches-build",
-        help="生成只挂接原厂三个萌宠局部分支的 AGENTS 离线观察固件",
+        "agents-low-stack-local-branches-build",
+        help="生成低栈四页传输与原厂三个萌宠局部分支的最小候选固件",
     )
     stock_local_branches_command.add_argument(
         "--input", type=Path, required=True
@@ -836,9 +832,9 @@ def main(argv: list[str] | None = None) -> int:
             )
             return 0
 
-        if args.command == "agents-stock-local-branches-build":
+        if args.command == "agents-low-stack-local-branches-build":
             credentials = load_credentials(args.config)
-            result = build_stock_local_branches_firmware(
+            result = build_low_stack_local_branches_firmware(
                 args.input,
                 args.output,
                 args.manifest,
@@ -851,9 +847,9 @@ def main(argv: list[str] | None = None) -> int:
             print(
                 json.dumps(
                     {
-                        "result": "AGENTS 原厂局部分支观察固件制作完成",
+                        "result": "AGENTS 低栈原厂局部分支候选固件制作完成",
                         "output": str(result.output),
-                        "expected_name": STOCK_LOCAL_BRANCHES_OUTPUT_FILENAME,
+                        "expected_name": LOW_STACK_LOCAL_BRANCHES_OUTPUT_FILENAME,
                         "manifest": str(result.manifest),
                         "output_sha256": result.sha256,
                         "output_md5": result.md5,
@@ -868,53 +864,10 @@ def main(argv: list[str] | None = None) -> int:
             return 0
 
         if args.command == "opt-build":
-            assembler = _required_tool("riscv64-elf-as")
-            compiler = _required_tool("riscv64-elf-gcc")
-            settings = build_page_settings_objects(
-                args.build_dir / "page-settings",
-                REPO_ROOT / "env/fonts",
-                assembler=assembler,
-                compiler=compiler,
+            raise AgentsDashboardFirmwareError(
+                "完整重写候选已因卡开机动画停用；"
+                "请使用 agents-low-stack-local-branches-build"
             )
-            credentials = load_credentials(args.config)
-            result = build_sync_firmware(
-                args.input,
-                args.output,
-                args.manifest,
-                args.build_dir / "firmware",
-                credentials,
-                url_base=args.url_base,
-                refresh_seconds=args.refresh_seconds,
-                tool_revision=revision,
-                extra_objects=settings.objects,
-                required_extra_symbols=PAGE_SETTINGS_SYMBOLS,
-                candidate_mutators=(apply_page_settings_patches,),
-                expected_output_name=OPT_REWRITE_OUTPUT_FILENAME,
-                implemented_scope_extra=(
-                    "设置菜单新增开关一级页面",
-                    "六个一级页面复选状态",
-                    "两份页面开关记录轮换保存",
-                    "原厂实际切页调用局部过滤关闭页面",
-                ),
-                reuse_stock_pet=True,
-            )
-            print(
-                json.dumps(
-                    {
-                        "result": "完整优化固件制作完成",
-                        "output": str(result.output),
-                        "manifest": str(result.manifest),
-                        "output_sha256": result.sha256,
-                        "output_md5": result.md5,
-                        "payload_size": result.payload_size,
-                        "payload_remaining": result.payload_remaining,
-                        "installation_allowed": False,
-                    },
-                    ensure_ascii=False,
-                    indent=2,
-                )
-            )
-            return 0
 
         if args.command == "settings-hook-observation-build":
             result = build_settings_hook_observation(
