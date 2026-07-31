@@ -33,23 +33,39 @@ from features.agents_dashboard_firmware.build import (
 )
 from features.agents_dashboard_firmware.sync_build import (
     INSTRUCTION_EXPECTED,
+    FAILURE_BACKOFF_STORE,
+    HTTP_PERFORM_CALL,
     LOADER_SOURCE,
+    LOADER_TRAMPOLINE_OFFSET,
+    LOADER_TRAMPOLINE_ORIGINAL,
+    LOCAL_UI_FORBIDDEN_CALLEES,
+    LOCAL_UI_FORBIDDEN_SYMBOLS,
+    LOCAL_UI_POWER_SAFE_OUTPUT_FILENAME,
     LOW_STACK_LOCAL_BRANCHES_OUTPUT_FILENAME,
     OPT_REWRITE_OUTPUT_FILENAME,
     PET_STATE_SIZE_EXTENDED,
     PET_STATE_SIZE_OFFSET,
     PET_STATE_SIZE_ORIGINAL,
+    SINK_CALLBACK_ADDI,
+    SINK_CALLBACK_LUI,
     STOCK_CALLCHAIN_OUTPUT_FILENAME,
     STOCK_ENTER_GATE_OUTPUT_FILENAME,
     STOCK_KEY_CALLBACK_RANGE,
     STOCK_LOCAL_BRANCH_HOOKS,
     STOCK_POWER_CONFIRM_RANGE,
+    SUCCESS_TIMER_ADD,
+    SUCCESS_TIMER_ADDI,
+    SUCCESS_TIMER_BASE_ADDI,
+    SUCCESS_TIMER_LUI,
+    SUCCESS_TIMER_REM,
     UI_CALLBACK_ADDI,
     UI_CALLBACK_LUI,
+    URL_REGIONS,
     XIP_DELTA,
     _request_formats,
     build_stock_callchain_firmware,
     build_stock_enter_gate_firmware,
+    build_local_ui_power_safe_firmware,
     build_low_stack_local_branches_firmware,
     build_sync_firmware,
     build_sync_payload,
@@ -161,7 +177,7 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
                     tool_revision={"commit": "test", "scoped_code_dirty": False},
                 )
 
-    def test_sync_payload_fits_and_full_candidate_is_bounded(self) -> None:
+    def test_local_ui_power_safe_payload_is_bounded_and_isolated(self) -> None:
         if (
             not shutil.which("riscv64-elf-as")
             or not shutil.which("riscv64-elf-gcc")
@@ -177,9 +193,10 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
             payload = build_sync_payload(
                 self.stage,
                 root / "payload",
-                credentials,
+                None,
                 tool_revision={"commit": "test", "scoped_code_dirty": False},
                 reuse_stock_pet=True,
+                local_ui_only=True,
             )
             disassembly = subprocess.run(
                 ["riscv64-elf-objdump", "-d", payload.elf],
@@ -187,21 +204,19 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
                 capture_output=True,
                 text=True,
             ).stdout
-            output = root / LOW_STACK_LOCAL_BRANCHES_OUTPUT_FILENAME
+            output = root / LOCAL_UI_POWER_SAFE_OUTPUT_FILENAME
             manifest = root / "manifest.json"
-            result = build_low_stack_local_branches_firmware(
+            result = build_local_ui_power_safe_firmware(
                 self.stage,
                 output,
                 manifest,
                 root / "firmware",
-                credentials,
-                url_base="http://192.168.31.174:18765/a",
-                refresh_seconds=300,
                 tool_revision={"commit": "test", "scoped_code_dirty": False},
             )
             manifest_text = manifest.read_text(encoding="utf-8")
             manifest_document = json.loads(manifest_text)
             output_bytes = output.read_bytes()
+            payload_bytes = payload.binary.read_bytes()
 
         self.assertLess(payload.size, 60_934)
         self.assertGreater(60_934 - payload.size, 20_000)
@@ -212,8 +227,17 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
         self.assertNotIn(credentials.access_token, manifest_text)
         self.assertNotIn(credentials.secret_key.hex(), manifest_text)
         self.assertIn('"installation_allowed": false', manifest_text)
-        self.assertIn('"download_state_heap_bytes": 0', manifest_text)
-        self.assertIn('"download_state_stack_bytes": 136', manifest_text)
+        self.assertEqual(
+            manifest_document["manifest_type"],
+            "agents-local-ui-power-safe-firmware",
+        )
+        self.assertFalse(manifest_document["transport"]["enabled"])
+        self.assertFalse(manifest_document["credentials_embedded"])
+        self.assertFalse(manifest_document["device_specific"])
+        self.assertTrue(manifest_document["payload"]["local_ui_only"])
+        self.assertFalse(
+            manifest_document["payload"]["transport_symbols_linked"]
+        )
         self.assertIn('"stock_pet_object_reused": true', manifest_text)
         self.assertEqual(
             payload.route_validation,
@@ -268,6 +292,22 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
             "local_branch_resume_targets",
             callchain_gates["disassembly"],
         )
+        self.assertTrue(
+            callchain_gates["disassembly"]["transport_symbols_absent"]
+        )
+        self.assertTrue(
+            manifest_document["validation"]["stock_transport_paths_unchanged"]
+        )
+        lowered_disassembly = disassembly.lower()
+        for symbol in LOCAL_UI_FORBIDDEN_SYMBOLS:
+            self.assertNotIn(f"<{symbol}>:", lowered_disassembly)
+        for address in LOCAL_UI_FORBIDDEN_CALLEES:
+            self.assertNotIn(f"# {address:08x} <", lowered_disassembly)
+        self.assertNotIn(b"/tmp/", payload_bytes)
+        self.assertNotIn(
+            credentials.device_id.encode(), payload_bytes
+        )
+        self.assertNotIn(credentials.secret_key, payload_bytes)
         stage_bytes = self.stage.read_bytes()
         self.assertEqual(
             stage_bytes[
@@ -355,6 +395,34 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
             output_bytes[power_start:power_end],
             stage_bytes[power_start:power_end],
         )
+        self.assertEqual(
+            output_bytes[
+                LOADER_TRAMPOLINE_OFFSET :
+                LOADER_TRAMPOLINE_OFFSET + len(LOADER_TRAMPOLINE_ORIGINAL)
+            ],
+            LOADER_TRAMPOLINE_ORIGINAL,
+        )
+        for offset in (
+            SINK_CALLBACK_LUI,
+            SINK_CALLBACK_ADDI,
+            HTTP_PERFORM_CALL,
+            SUCCESS_TIMER_LUI,
+            SUCCESS_TIMER_ADDI,
+            SUCCESS_TIMER_REM,
+            SUCCESS_TIMER_BASE_ADDI,
+            SUCCESS_TIMER_ADD,
+            FAILURE_BACKOFF_STORE,
+        ):
+            expected = INSTRUCTION_EXPECTED[offset]
+            self.assertEqual(
+                output_bytes[offset : offset + len(expected)],
+                stage_bytes[offset : offset + len(expected)],
+            )
+        for offset, capacity, _expected, _label in URL_REGIONS:
+            self.assertEqual(
+                output_bytes[offset : offset + capacity],
+                stage_bytes[offset : offset + capacity],
+            )
         page_register = disassembly.split(
             "<ap01_agents_page_register>:", 1
         )[1].split("<ap01_agents_state_read>:", 1)[0]
@@ -457,7 +525,7 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
             manifest = root / "manifest.json"
             with self.assertRaisesRegex(
                 RuntimeError,
-                "只允许生成低栈局部分支候选",
+                "只允许生成功率路径隔离的局部界面版",
             ):
                 build_sync_firmware(
                     self.stage,
@@ -497,6 +565,23 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
         )
         with tempfile.TemporaryDirectory() as selected:
             root = Path(selected)
+            with self.assertRaisesRegex(
+                RuntimeError,
+                "低栈局部分支成品已因功率页确认重启停用",
+            ):
+                build_low_stack_local_branches_firmware(
+                    self.stage,
+                    root / LOW_STACK_LOCAL_BRANCHES_OUTPUT_FILENAME,
+                    root / "retired-manifest.json",
+                    root / "retired-build",
+                    credentials,
+                    url_base="http://192.168.31.139:8765/a",
+                    refresh_seconds=300,
+                    tool_revision={
+                        "commit": "test",
+                        "scoped_code_dirty": False,
+                    },
+                )
             retired = "ap01-1.0.2_0031-agents-stock-dispatch-observation.bin"
             with self.assertRaisesRegex(
                 RuntimeError,

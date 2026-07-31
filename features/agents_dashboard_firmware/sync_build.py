@@ -68,6 +68,7 @@ class DeviceCredentialsLike(Protocol):
 
 MODULE_DIR = Path(__file__).resolve().parent
 LOADER_SOURCE = MODULE_DIR / "result_loader.c"
+LOCAL_UI_LOADER_SOURCE = MODULE_DIR / "local_ui_loader.c"
 LOADER_LINKER = MODULE_DIR / "result_loader.ld"
 SYNC_OUTPUT_FILENAME = "ap01-1.0.2_0031-agents-sync-experimental.bin"
 DETAIL_COMPAT_OUTPUT_FILENAME = (
@@ -96,6 +97,9 @@ STOCK_LOCAL_BRANCHES_OUTPUT_FILENAME = (
 )
 LOW_STACK_LOCAL_BRANCHES_OUTPUT_FILENAME = (
     "ap01-1.0.2_0031-agents-low-stack-local-branches-candidate.bin"
+)
+LOCAL_UI_POWER_SAFE_OUTPUT_FILENAME = (
+    "ap01-1.0.2_0031-agents-local-ui-power-safe.bin"
 )
 OPT_INTEGRATION_OUTPUT_FILENAME = (
     "ap01-1.0.2_0031-opt-integration-candidate.bin"
@@ -197,6 +201,10 @@ REQUIRED_SYMBOLS = (
     "agents_device_id",
     "agents_secret_key",
 )
+LOCAL_UI_REQUIRED_SYMBOLS = (
+    "ap01_agents_page_register",
+    "ap01_agents_apply_current",
+)
 LEGACY_REQUIRED_CALLEES = (
     0xA00BB5DA,
     0xA00C5D84,
@@ -221,6 +229,27 @@ STOCK_PET_REQUIRED_CALLEES = (
     0xA0026788,
     0xA003F5F4,
     0xA0027D94,
+)
+LOCAL_UI_REQUIRED_CALLEES = (
+    0xA00BE388,
+    0xA00BE3CA,
+    0xA00BFA4E,
+    0xA00CF8D8,
+)
+LOCAL_UI_FORBIDDEN_CALLEES = (
+    0xA00BB5DA,
+    0xA00D86BA,
+    0xA003F448,
+    0xA0026788,
+    0xA003F5F4,
+    0xA0027D94,
+)
+LOCAL_UI_FORBIDDEN_SYMBOLS = (
+    "ap01_agents_sink",
+    "ap01_agents_webclient_wrapper",
+    "ap01_agents_ui_timer_wrapper",
+    "agents_device_id",
+    "agents_secret_key",
 )
 STOCK_PET_FORBIDDEN_CALLEES = (
     0xA00C1EC6,
@@ -595,6 +624,7 @@ def _validate_stock_pet_reuse_disassembly(
     disassembly: str,
     *,
     integration_mode: bool = False,
+    local_ui_only: bool = False,
 ) -> dict[str, object]:
     lowered = disassembly.lower()
     if "<ap01_agents_key_event>:" in lowered:
@@ -696,7 +726,7 @@ def _validate_stock_pet_reuse_disassembly(
     detail_active = _symbol_block(
         disassembly,
         "ap01_agents_detail_active",
-        "memory_zero",
+        "ap01_agents_apply_current" if local_ui_only else "memory_zero",
     )
     if (
         "<stock_get_dispatch_index>" not in detail_active
@@ -706,23 +736,7 @@ def _validate_stock_pet_reuse_disassembly(
     ):
         raise AgentsDashboardFirmwareError("AGENTS 详情身份没有先核对原厂分派")
 
-    timer_wrapper = _symbol_block(
-        disassembly,
-        "ap01_agents_ui_timer_wrapper",
-        "agents_device_id",
-    )
-    stock_timer = timer_wrapper.find("# a00bb5da")
-    dispatch = timer_wrapper.find("# a00be388")
-    stock_child = timer_wrapper.find("# a00be3ca")
-    if not (
-        0 <= stock_timer < dispatch < stock_child
-        and "16(" in timer_wrapper
-        and "4(" in timer_wrapper
-        and "<ap01_agents_apply_current>" in timer_wrapper
-        and "<ap01_agents_restore_pet>" in timer_wrapper
-    ):
-        raise AgentsDashboardFirmwareError("后台刷新原厂分派与萌宠对象链检查未通过")
-    return {
+    evidence: dict[str, object] = {
         "retired_total_key_wrapper_absent": True,
         "retired_window_navigation_absent": True,
         "independent_tail_store": _instruction_address(
@@ -741,31 +755,68 @@ def _validate_stock_pet_reuse_disassembly(
             show_failed,
             "<ap01_agents_restore_pet>",
         ),
-        "timer_order": [
-            _instruction_address(timer_wrapper, "# a00bb5da"),
-            _instruction_address(
-                timer_wrapper,
-                "# a00be388 <stock_get_dispatch_index>",
-            ),
-            _instruction_address(
-                timer_wrapper,
-                "# a00be3ca <stock_get_child>",
-            ),
-        ],
         "forbidden_call_addresses": [
             f"0x{address:08x}" for address in STOCK_PET_FORBIDDEN_CALLEES
         ],
     }
+    if local_ui_only:
+        for symbol in LOCAL_UI_FORBIDDEN_SYMBOLS:
+            if f"<{symbol}>:" in lowered:
+                raise AgentsDashboardFirmwareError(
+                    f"局部界面载荷仍包含后台符号：{symbol}"
+                )
+        for address in LOCAL_UI_FORBIDDEN_CALLEES:
+            if f"# {address:08x} <" in lowered:
+                raise AgentsDashboardFirmwareError(
+                    f"局部界面载荷仍调用后台函数：0x{address:08x}"
+                )
+        if "/tmp/" in lowered:
+            raise AgentsDashboardFirmwareError("局部界面载荷仍包含临时文件路径")
+        evidence["transport_symbols_absent"] = True
+        evidence["transport_callees_absent"] = True
+        evidence["temporary_paths_absent"] = True
+        return evidence
+
+    timer_wrapper = _symbol_block(
+        disassembly,
+        "ap01_agents_ui_timer_wrapper",
+        "agents_device_id",
+    )
+    stock_timer = timer_wrapper.find("# a00bb5da")
+    dispatch = timer_wrapper.find("# a00be388")
+    stock_child = timer_wrapper.find("# a00be3ca")
+    if not (
+        0 <= stock_timer < dispatch < stock_child
+        and "16(" in timer_wrapper
+        and "4(" in timer_wrapper
+        and "<ap01_agents_apply_current>" in timer_wrapper
+        and "<ap01_agents_restore_pet>" in timer_wrapper
+    ):
+        raise AgentsDashboardFirmwareError("后台刷新原厂分派与萌宠对象链检查未通过")
+    evidence["timer_order"] = [
+        _instruction_address(timer_wrapper, "# a00bb5da"),
+        _instruction_address(
+            timer_wrapper,
+            "# a00be388 <stock_get_dispatch_index>",
+        ),
+        _instruction_address(
+            timer_wrapper,
+            "# a00be3ca <stock_get_child>",
+        ),
+    ]
+    return evidence
 
 
 def _validate_stock_local_branches_disassembly(
     disassembly: str,
     *,
     integration_mode: bool = False,
+    local_ui_only: bool = False,
 ) -> dict[str, object]:
     evidence = _validate_stock_pet_reuse_disassembly(
         disassembly,
         integration_mode=integration_mode,
+        local_ui_only=local_ui_only,
     )
     local_branches = _symbol_block(
         disassembly,
@@ -964,356 +1015,43 @@ def _assert_stock_local_branch_isolation(
         raise AgentsDashboardFirmwareError("原厂功率确认路径发生变化")
 
 
-def build_sync_payload(
-    stage_path: Path,
-    build_directory: Path,
-    credentials: DeviceCredentialsLike,
-    *,
-    tool_revision: dict[str, object],
-    extra_objects: tuple[Path, ...] = (),
-    required_extra_symbols: tuple[str, ...] = (),
-    reuse_stock_pet: bool = False,
-    integration_mode: bool = False,
-) -> SyncPayloadResult:
-    stage_selected, stage = _read_stage(stage_path)
-    if len(stage) != STAGE_SIZE or hashlib.sha256(stage).hexdigest() != STAGE_SHA256:
-        raise AgentsDashboardFirmwareError("已验收设置菜单阶段成品身份不匹配")
-    selected = build_directory.expanduser().resolve()
-    selected.mkdir(parents=True, exist_ok=True)
-    optimized_source = selected / "optimized-source.gif"
-    payload_space_report = selected / "payload-space-report.json"
-    inspect_payload_space(
-        stage_selected,
-        optimized_source,
-        payload_space_report,
-        tool_revision=tool_revision,
-    )
-    try:
-        assets = build_fallback_assets(selected / "fallback-assets")
-    except FallbackAssetError as error:
-        raise AgentsDashboardFirmwareError(str(error)) from error
-
-    assembler = _tool("riscv64-elf-as")
-    linker = _tool("riscv64-elf-ld")
-    gcc = _tool("riscv64-elf-gcc")
-    copier = _tool("riscv64-elf-objcopy")
-    dumper = _tool("riscv64-elf-objdump")
-    nm = _tool("riscv64-elf-nm")
-    readelf = _tool("riscv64-elf-readelf")
-    _version(assembler)
-    _version(linker)
-    _version(copier)
-    _version(dumper)
-    _version(nm)
-    _version(readelf)
-    _gcc_version(gcc)
-
-    page_object = selected / "page-registration.o"
-    loader_object = selected / "result-loader.o"
-    assets_source = selected / "fallback-assets.S"
-    assets_object = selected / "fallback-assets.o"
-    config_source = selected / "device-config.S"
-    config_object = selected / "device-config.o"
-    elf = selected / "agents-sync.elf"
-    binary = selected / "agents-sync.bin"
-    map_path = selected / "agents-sync.map"
-    disassembly_path = selected / "agents-sync.disassembly.txt"
-    readelf_path = selected / "agents-sync.readelf.txt"
-    _write_asset_assembly(assets_source, assets)
-    _config_assembly(config_source, credentials)
-
-    resolved_extra_objects: list[Path] = []
-    for item in extra_objects:
-        resolved = item.expanduser().resolve(strict=True)
-        if not resolved.is_file():
-            raise AgentsDashboardFirmwareError(f"组合目标文件无效：{resolved}")
-        resolved_extra_objects.append(resolved)
-
-    assembler_arguments = [
-        assembler,
-        "-march=rv32imac",
-        "-mabi=ilp32",
-        "--defsym",
-        "SYNC_LOADER=1",
-    ]
-    if reuse_stock_pet:
-        assembler_arguments.extend(["--defsym", "STOCK_PET_REUSE=1"])
-    if integration_mode:
-        assembler_arguments.extend(["--defsym", "OPT_INTEGRATION=1"])
-    assembler_arguments.extend(["-o", page_object, SOURCE])
-    _run(assembler_arguments)
-    _run(
-        [
-            gcc,
-            "-march=rv32imac",
-            "-mabi=ilp32",
-            "-Os",
-            "-ffreestanding",
-            "-fno-builtin",
-            "-fno-pic",
-            "-fno-pie",
-            "-fno-plt",
-            "-fno-stack-protector",
-            "-fno-asynchronous-unwind-tables",
-            "-fno-unwind-tables",
-            "-fno-jump-tables",
-            "-fno-common",
-            "-fno-toplevel-reorder",
-            "-fno-tree-loop-distribute-patterns",
-            "-fstack-usage",
-            "-msmall-data-limit=0",
-            "-Wall",
-            "-Wextra",
-            "-Werror",
-            "-c",
-            LOADER_SOURCE,
-            "-o",
-            loader_object,
+def _assert_stock_transport_unchanged(stage: bytes, candidate: bytes) -> None:
+    if (
+        stage[
+            LOADER_TRAMPOLINE_OFFSET :
+            LOADER_TRAMPOLINE_OFFSET + len(LOADER_TRAMPOLINE_ORIGINAL)
         ]
-    )
-    _run(
-        [
-            assembler,
-            "-march=rv32imac",
-            "-mabi=ilp32",
-            "-o",
-            assets_object,
-            assets_source,
+        != LOADER_TRAMPOLINE_ORIGINAL
+        or candidate[
+            LOADER_TRAMPOLINE_OFFSET :
+            LOADER_TRAMPOLINE_OFFSET + len(LOADER_TRAMPOLINE_ORIGINAL)
         ]
-    )
-    _run(
-        [
-            assembler,
-            "-march=rv32imac",
-            "-mabi=ilp32",
-            "-o",
-            config_object,
-            config_source,
-        ]
-    )
-    _run(
-        [
-            linker,
-            "-m",
-            "elf32lriscv",
-            "--no-relax",
-            f"-Map={map_path}",
-            "-T",
-            LOADER_LINKER,
-            "-o",
-            elf,
-            page_object,
-            loader_object,
-            config_object,
-            *resolved_extra_objects,
-            assets_object,
-        ]
-    )
-    _run([copier, "-O", "binary", "-j", ".payload", elf, binary])
-    payload = binary.read_bytes()
-    if not payload or len(payload) > PAYLOAD_CAPACITY:
-        raise AgentsDashboardFirmwareError("同步载荷为空或超过固定候选空间")
-    symbols = _symbols(nm, elf)
-    selected_required_symbols = REQUIRED_SYMBOLS + required_extra_symbols
-    if reuse_stock_pet:
-        selected_required_symbols += STOCK_PET_REQUIRED_SYMBOLS
-    for name in selected_required_symbols:
-        address = symbols.get(name)
-        if address is None or not PAYLOAD_VA <= address < PAYLOAD_VA + len(payload):
-            raise AgentsDashboardFirmwareError(f"同步载荷符号缺失或越界：{name}")
-    if symbols["ap01_agents_page_register"] != PAYLOAD_VA:
-        raise AgentsDashboardFirmwareError("页面注册入口不在固定载荷起点")
-
-    disassembly = _run(
-        [dumper, "-d", "-M", "no-aliases,numeric", elf],
-        capture=True,
-    )
-    required_callees = (
-        STOCK_PET_REQUIRED_CALLEES
-        if reuse_stock_pet
-        else LEGACY_REQUIRED_CALLEES
-    )
-    for address in required_callees:
-        if f"{address:08x}" not in disassembly.lower():
+        != LOADER_TRAMPOLINE_ORIGINAL
+    ):
+        raise AgentsDashboardFirmwareError("后台同步跳板不再保持原字节")
+    for offset, expected in INSTRUCTION_EXPECTED.items():
+        end = offset + len(expected)
+        if stage[offset:end] != expected or candidate[offset:end] != expected:
             raise AgentsDashboardFirmwareError(
-                f"同步载荷缺少已定位原厂调用：0x{address:08x}"
+                f"原厂后台指令区发生变化：0x{offset:06x}"
             )
-    callchain_evidence: dict[str, object] | None = None
-    route_validation: dict[str, int] | None = None
-    if reuse_stock_pet:
-        callchain_evidence = _validate_stock_local_branches_disassembly(
-            disassembly,
-            integration_mode=integration_mode,
-        )
-        route_validation = validate_stock_local_branch_routes()
-    else:
-        _validate_pet_overlay_disassembly(disassembly)
-    disassembly_path.write_text(disassembly, encoding="utf-8")
-    readelf_output = _run(
-        [readelf, "-h", "-S", "-s", "-r", elf],
-        capture=True,
-    )
-    if "There are no relocations in this file." not in readelf_output:
-        raise AgentsDashboardFirmwareError("同步载荷仍含未处理重定位")
-    readelf_path.write_text(readelf_output, encoding="utf-8")
-    stack_usage_path = loader_object.with_suffix(".su")
-    try:
-        stack_lines = stack_usage_path.read_text(encoding="utf-8").splitlines()
-    except OSError as error:
-        raise AgentsDashboardFirmwareError("缺少设备端静态栈用量报告") from error
-    stack_values: list[int] = []
-    for line in stack_lines:
-        parts = line.split("\t")
-        if len(parts) != 3 or parts[2] != "static":
-            raise AgentsDashboardFirmwareError("设备端存在无法固定的动态栈用量")
-        try:
-            stack_values.append(int(parts[1]))
-        except ValueError as error:
-            raise AgentsDashboardFirmwareError("设备端静态栈报告格式错误") from error
-    maximum_static_stack = max(stack_values, default=0)
-    if maximum_static_stack > 768:
-        raise AgentsDashboardFirmwareError("设备端单函数静态栈超过 768 字节")
-    return SyncPayloadResult(
-        binary=binary,
-        elf=elf,
-        size=len(payload),
-        sha256=hashlib.sha256(payload).hexdigest(),
-        symbols=symbols,
-        optimized_source=optimized_source,
-        payload_space_report=payload_space_report,
-        maximum_static_stack=maximum_static_stack,
-        stack_usage_report=stack_usage_path,
-        callchain_evidence=callchain_evidence,
-        route_validation=route_validation,
-    )
+    for offset, capacity, expected, label in URL_REGIONS:
+        original = expected.ljust(capacity, b"\0")
+        end = offset + capacity
+        if stage[offset:end] != original or candidate[offset:end] != original:
+            raise AgentsDashboardFirmwareError(f"原厂{label}发生变化")
 
 
-def build_sync_firmware(
-    stage_path: Path,
-    output_path: Path,
-    manifest_path: Path,
-    build_directory: Path,
+def _patch_stock_transport(
+    candidate: bytearray,
+    symbols: dict[str, int],
     credentials: DeviceCredentialsLike,
     *,
     url_base: str,
     refresh_seconds: int,
-    tool_revision: dict[str, object],
-    extra_objects: tuple[Path, ...] = (),
-    required_extra_symbols: tuple[str, ...] = (),
-    candidate_mutators: tuple[
-        Callable[[bytearray, dict[str, int]], list[ByteRange]], ...
-    ] = (),
-    expected_output_name: str = SYNC_OUTPUT_FILENAME,
-    implemented_scope_extra: tuple[str, ...] = (),
-    reuse_stock_pet: bool = False,
-) -> SyncFirmwareResult:
-    if tool_revision.get("scoped_code_dirty") is not False:
-        raise AgentsDashboardFirmwareError("制作代码尚未提交，不能冻结同步实验成品")
-    output = output_path.expanduser().resolve()
-    integration_mode = False
-    if output.name != expected_output_name:
-        raise AgentsDashboardFirmwareError(
-            f"同步实验成品文件名必须是 {expected_output_name}"
-        )
-    if (
-        not reuse_stock_pet
-        or expected_output_name != LOW_STACK_LOCAL_BRANCHES_OUTPUT_FILENAME
-    ):
-        raise AgentsDashboardFirmwareError(
-            "旧 AGENTS 固件路径已停用，只允许生成低栈局部分支候选"
-        )
-    if not integration_mode and (
-        extra_objects or required_extra_symbols or candidate_mutators
-    ):
-        raise AgentsDashboardFirmwareError("局部分支观察成品不允许组合其他界面改写")
-    try:
-        url_bytes = url_base.encode("ascii")
-    except UnicodeEncodeError as error:
-        raise AgentsDashboardFirmwareError("同步服务地址必须是 ASCII") from error
-    if (
-        not url_base.startswith("http://")
-        or not url_base.endswith("/a")
-        or len(url_bytes) + 1 > 40
-    ):
-        raise AgentsDashboardFirmwareError(
-            "同步服务地址必须是以 /a 结尾且不超过 39 字节的局域网 HTTP 地址"
-        )
-    if not 10 <= refresh_seconds <= 7200:
-        raise AgentsDashboardFirmwareError("刷新周期必须在 10～7200 秒之间")
-
-    stage_selected, stage = _read_stage(stage_path)
-    payload_result = build_sync_payload(
-        stage_selected,
-        build_directory,
-        credentials,
-        tool_revision=tool_revision,
-        extra_objects=extra_objects,
-        required_extra_symbols=required_extra_symbols,
-        reuse_stock_pet=reuse_stock_pet,
-        integration_mode=integration_mode,
-    )
-    if payload_result.maximum_static_stack > 320:
-        raise AgentsDashboardFirmwareError(
-            "低栈局部分支候选的单函数静态栈超过 320 字节"
-        )
-    payload = payload_result.binary.read_bytes()
-    optimized = payload_result.optimized_source.read_bytes()
-    candidate = bytearray(stage)
+) -> list[ByteRange]:
     allowed: list[ByteRange] = []
-
-    allowed.append(
-        _replace(
-            candidate,
-            PET_STATE_SIZE_OFFSET,
-            PET_STATE_SIZE_ORIGINAL,
-            PET_STATE_SIZE_EXTENDED,
-            "原厂萌宠状态申请长度",
-        )
-    )
-    allowed.append(
-        _replace(
-            candidate,
-            GIF_SIZE_OFFSET,
-            struct.pack("<I", ORIGINAL_SIZE),
-            struct.pack("<I", OPTIMIZED_SIZE),
-            "原厂第一张动图数据长度",
-        )
-    )
-    original_gif = bytes(
-        candidate[GIF_DATA_OFFSET : GIF_DATA_OFFSET + ORIGINAL_SIZE]
-    )
-    if hashlib.sha256(original_gif).hexdigest() != ORIGINAL_SHA256:
-        raise AgentsDashboardFirmwareError("原厂第一张动图修改前指纹不匹配")
-    candidate[GIF_DATA_OFFSET : GIF_DATA_OFFSET + len(optimized)] = optimized
-    allowed.append(ByteRange(GIF_DATA_OFFSET, GIF_DATA_OFFSET + len(optimized)))
-
-    if (
-        bytes(candidate[HOOK_OFFSET : HOOK_OFFSET + len(HOOK_ORIGINAL)])
-        != HOOK_ORIGINAL
-        or bytes(
-            candidate[
-                TRAMPOLINE_OFFSET :
-                TRAMPOLINE_OFFSET + len(TRAMPOLINE_ORIGINAL)
-            ]
-        )
-        != TRAMPOLINE_ORIGINAL
-    ):
-        raise AgentsDashboardFirmwareError(
-            "页面注册点或旧页面跳板不等于已验收设置固件"
-        )
-    allowed.extend(
-        _patch_stock_local_branches(
-            candidate,
-            payload_result.symbols,
-            integration_mode=integration_mode,
-        )
-    )
-    mutator_ranges: list[ByteRange] = []
-    for mutator in candidate_mutators:
-        changed = mutator(candidate, payload_result.symbols)
-        mutator_ranges.extend(changed)
-        allowed.extend(changed)
-
+    url_bytes = url_base.encode("ascii")
     if (
         bytes(
             candidate[
@@ -1324,7 +1062,7 @@ def build_sync_firmware(
         != LOADER_TRAMPOLINE_ORIGINAL
     ):
         raise AgentsDashboardFirmwareError("后台同步跳板区间不再是全零")
-    web_wrapper = payload_result.symbols["ap01_agents_webclient_wrapper"]
+    web_wrapper = symbols["ap01_agents_webclient_wrapper"]
     allowed.append(
         _replace(
             candidate,
@@ -1334,7 +1072,7 @@ def build_sync_firmware(
             "后台同步跳板",
         )
     )
-    sink = payload_result.symbols["ap01_agents_sink"]
+    sink = symbols["ap01_agents_sink"]
     sink_high, sink_low = _absolute_lui_addi(sink, register=15)
     allowed.append(
         _replace(
@@ -1411,6 +1149,363 @@ def build_sync_firmware(
                 label,
             )
         )
+    return allowed
+
+
+def build_sync_payload(
+    stage_path: Path,
+    build_directory: Path,
+    credentials: DeviceCredentialsLike | None,
+    *,
+    tool_revision: dict[str, object],
+    extra_objects: tuple[Path, ...] = (),
+    required_extra_symbols: tuple[str, ...] = (),
+    reuse_stock_pet: bool = False,
+    integration_mode: bool = False,
+    local_ui_only: bool = False,
+) -> SyncPayloadResult:
+    stage_selected, stage = _read_stage(stage_path)
+    if len(stage) != STAGE_SIZE or hashlib.sha256(stage).hexdigest() != STAGE_SHA256:
+        raise AgentsDashboardFirmwareError("已验收设置菜单阶段成品身份不匹配")
+    selected = build_directory.expanduser().resolve()
+    selected.mkdir(parents=True, exist_ok=True)
+    optimized_source = selected / "optimized-source.gif"
+    payload_space_report = selected / "payload-space-report.json"
+    inspect_payload_space(
+        stage_selected,
+        optimized_source,
+        payload_space_report,
+        tool_revision=tool_revision,
+    )
+    try:
+        assets = build_fallback_assets(selected / "fallback-assets")
+    except FallbackAssetError as error:
+        raise AgentsDashboardFirmwareError(str(error)) from error
+
+    assembler = _tool("riscv64-elf-as")
+    linker = _tool("riscv64-elf-ld")
+    gcc = _tool("riscv64-elf-gcc")
+    copier = _tool("riscv64-elf-objcopy")
+    dumper = _tool("riscv64-elf-objdump")
+    nm = _tool("riscv64-elf-nm")
+    readelf = _tool("riscv64-elf-readelf")
+    _version(assembler)
+    _version(linker)
+    _version(copier)
+    _version(dumper)
+    _version(nm)
+    _version(readelf)
+    _gcc_version(gcc)
+
+    page_object = selected / "page-registration.o"
+    loader_object = selected / (
+        "local-ui-loader.o" if local_ui_only else "result-loader.o"
+    )
+    assets_source = selected / "fallback-assets.S"
+    assets_object = selected / "fallback-assets.o"
+    config_source = selected / "device-config.S"
+    config_object = selected / "device-config.o"
+    elf = selected / "agents-sync.elf"
+    binary = selected / "agents-sync.bin"
+    map_path = selected / "agents-sync.map"
+    disassembly_path = selected / "agents-sync.disassembly.txt"
+    readelf_path = selected / "agents-sync.readelf.txt"
+    _write_asset_assembly(assets_source, assets)
+    if not local_ui_only:
+        if credentials is None:
+            raise AgentsDashboardFirmwareError("后台同步载荷缺少设备授权数据")
+        _config_assembly(config_source, credentials)
+
+    resolved_extra_objects: list[Path] = []
+    for item in extra_objects:
+        resolved = item.expanduser().resolve(strict=True)
+        if not resolved.is_file():
+            raise AgentsDashboardFirmwareError(f"组合目标文件无效：{resolved}")
+        resolved_extra_objects.append(resolved)
+
+    assembler_arguments = [
+        assembler,
+        "-march=rv32imac",
+        "-mabi=ilp32",
+        "--defsym",
+        "SYNC_LOADER=1",
+    ]
+    if reuse_stock_pet:
+        assembler_arguments.extend(["--defsym", "STOCK_PET_REUSE=1"])
+    if integration_mode:
+        assembler_arguments.extend(["--defsym", "OPT_INTEGRATION=1"])
+    assembler_arguments.extend(["-o", page_object, SOURCE])
+    _run(assembler_arguments)
+    _run(
+        [
+            gcc,
+            "-march=rv32imac",
+            "-mabi=ilp32",
+            "-Os",
+            "-ffreestanding",
+            "-fno-builtin",
+            "-fno-pic",
+            "-fno-pie",
+            "-fno-plt",
+            "-fno-stack-protector",
+            "-fno-asynchronous-unwind-tables",
+            "-fno-unwind-tables",
+            "-fno-jump-tables",
+            "-fno-common",
+            "-fno-toplevel-reorder",
+            "-fno-tree-loop-distribute-patterns",
+            "-fstack-usage",
+            "-msmall-data-limit=0",
+            "-Wall",
+            "-Wextra",
+            "-Werror",
+            "-c",
+            LOCAL_UI_LOADER_SOURCE if local_ui_only else LOADER_SOURCE,
+            "-o",
+            loader_object,
+        ]
+    )
+    _run(
+        [
+            assembler,
+            "-march=rv32imac",
+            "-mabi=ilp32",
+            "-o",
+            assets_object,
+            assets_source,
+        ]
+    )
+    linked_config_objects: list[Path] = []
+    if not local_ui_only:
+        _run(
+            [
+                assembler,
+                "-march=rv32imac",
+                "-mabi=ilp32",
+                "-o",
+                config_object,
+                config_source,
+            ]
+        )
+        linked_config_objects.append(config_object)
+    _run(
+        [
+            linker,
+            "-m",
+            "elf32lriscv",
+            "--no-relax",
+            f"-Map={map_path}",
+            "-T",
+            LOADER_LINKER,
+            "-o",
+            elf,
+            page_object,
+            loader_object,
+            *linked_config_objects,
+            *resolved_extra_objects,
+            assets_object,
+        ]
+    )
+    _run([copier, "-O", "binary", "-j", ".payload", elf, binary])
+    payload = binary.read_bytes()
+    if not payload or len(payload) > PAYLOAD_CAPACITY:
+        raise AgentsDashboardFirmwareError("同步载荷为空或超过固定候选空间")
+    symbols = _symbols(nm, elf)
+    selected_required_symbols = (
+        LOCAL_UI_REQUIRED_SYMBOLS if local_ui_only else REQUIRED_SYMBOLS
+    ) + required_extra_symbols
+    if reuse_stock_pet:
+        selected_required_symbols += STOCK_PET_REQUIRED_SYMBOLS
+    for name in selected_required_symbols:
+        address = symbols.get(name)
+        if address is None or not PAYLOAD_VA <= address < PAYLOAD_VA + len(payload):
+            raise AgentsDashboardFirmwareError(f"同步载荷符号缺失或越界：{name}")
+    if symbols["ap01_agents_page_register"] != PAYLOAD_VA:
+        raise AgentsDashboardFirmwareError("页面注册入口不在固定载荷起点")
+
+    disassembly = _run(
+        [dumper, "-d", "-M", "no-aliases,numeric", elf],
+        capture=True,
+    )
+    if local_ui_only:
+        required_callees = LOCAL_UI_REQUIRED_CALLEES
+    else:
+        required_callees = (
+            STOCK_PET_REQUIRED_CALLEES
+            if reuse_stock_pet
+            else LEGACY_REQUIRED_CALLEES
+        )
+    for address in required_callees:
+        if f"{address:08x}" not in disassembly.lower():
+            raise AgentsDashboardFirmwareError(
+                f"同步载荷缺少已定位原厂调用：0x{address:08x}"
+            )
+    callchain_evidence: dict[str, object] | None = None
+    route_validation: dict[str, int] | None = None
+    if reuse_stock_pet:
+        callchain_evidence = _validate_stock_local_branches_disassembly(
+            disassembly,
+            integration_mode=integration_mode,
+            local_ui_only=local_ui_only,
+        )
+        route_validation = validate_stock_local_branch_routes()
+    else:
+        _validate_pet_overlay_disassembly(disassembly)
+    disassembly_path.write_text(disassembly, encoding="utf-8")
+    readelf_output = _run(
+        [readelf, "-h", "-S", "-s", "-r", elf],
+        capture=True,
+    )
+    if "There are no relocations in this file." not in readelf_output:
+        raise AgentsDashboardFirmwareError("同步载荷仍含未处理重定位")
+    readelf_path.write_text(readelf_output, encoding="utf-8")
+    stack_usage_path = loader_object.with_suffix(".su")
+    try:
+        stack_lines = stack_usage_path.read_text(encoding="utf-8").splitlines()
+    except OSError as error:
+        raise AgentsDashboardFirmwareError("缺少设备端静态栈用量报告") from error
+    stack_values: list[int] = []
+    for line in stack_lines:
+        parts = line.split("\t")
+        if len(parts) != 3 or parts[2] != "static":
+            raise AgentsDashboardFirmwareError("设备端存在无法固定的动态栈用量")
+        try:
+            stack_values.append(int(parts[1]))
+        except ValueError as error:
+            raise AgentsDashboardFirmwareError("设备端静态栈报告格式错误") from error
+    maximum_static_stack = max(stack_values, default=0)
+    if maximum_static_stack > 768:
+        raise AgentsDashboardFirmwareError("设备端单函数静态栈超过 768 字节")
+    return SyncPayloadResult(
+        binary=binary,
+        elf=elf,
+        size=len(payload),
+        sha256=hashlib.sha256(payload).hexdigest(),
+        symbols=symbols,
+        optimized_source=optimized_source,
+        payload_space_report=payload_space_report,
+        maximum_static_stack=maximum_static_stack,
+        stack_usage_report=stack_usage_path,
+        callchain_evidence=callchain_evidence,
+        route_validation=route_validation,
+    )
+
+
+def build_sync_firmware(
+    stage_path: Path,
+    output_path: Path,
+    manifest_path: Path,
+    build_directory: Path,
+    credentials: DeviceCredentialsLike | None,
+    *,
+    tool_revision: dict[str, object],
+    url_base: str = "",
+    refresh_seconds: int = 0,
+    extra_objects: tuple[Path, ...] = (),
+    required_extra_symbols: tuple[str, ...] = (),
+    candidate_mutators: tuple[
+        Callable[[bytearray, dict[str, int]], list[ByteRange]], ...
+    ] = (),
+    expected_output_name: str = SYNC_OUTPUT_FILENAME,
+    implemented_scope_extra: tuple[str, ...] = (),
+    reuse_stock_pet: bool = False,
+    local_ui_only: bool = False,
+) -> SyncFirmwareResult:
+    if tool_revision.get("scoped_code_dirty") is not False:
+        raise AgentsDashboardFirmwareError("制作代码尚未提交，不能冻结同步实验成品")
+    output = output_path.expanduser().resolve()
+    integration_mode = False
+    if output.name != expected_output_name:
+        raise AgentsDashboardFirmwareError(
+            f"同步实验成品文件名必须是 {expected_output_name}"
+        )
+    if (
+        not reuse_stock_pet
+        or not local_ui_only
+        or expected_output_name != LOCAL_UI_POWER_SAFE_OUTPUT_FILENAME
+    ):
+        raise AgentsDashboardFirmwareError(
+            "旧 AGENTS 固件路径已停用，只允许生成功率路径隔离的局部界面版"
+        )
+    if not integration_mode and (
+        extra_objects or required_extra_symbols or candidate_mutators
+    ):
+        raise AgentsDashboardFirmwareError("局部分支观察成品不允许组合其他界面改写")
+    stage_selected, stage = _read_stage(stage_path)
+    payload_result = build_sync_payload(
+        stage_selected,
+        build_directory,
+        credentials,
+        tool_revision=tool_revision,
+        extra_objects=extra_objects,
+        required_extra_symbols=required_extra_symbols,
+        reuse_stock_pet=reuse_stock_pet,
+        integration_mode=integration_mode,
+        local_ui_only=local_ui_only,
+    )
+    if payload_result.maximum_static_stack > 320:
+        raise AgentsDashboardFirmwareError(
+            "低栈局部分支候选的单函数静态栈超过 320 字节"
+        )
+    payload = payload_result.binary.read_bytes()
+    optimized = payload_result.optimized_source.read_bytes()
+    candidate = bytearray(stage)
+    allowed: list[ByteRange] = []
+
+    allowed.append(
+        _replace(
+            candidate,
+            PET_STATE_SIZE_OFFSET,
+            PET_STATE_SIZE_ORIGINAL,
+            PET_STATE_SIZE_EXTENDED,
+            "原厂萌宠状态申请长度",
+        )
+    )
+    allowed.append(
+        _replace(
+            candidate,
+            GIF_SIZE_OFFSET,
+            struct.pack("<I", ORIGINAL_SIZE),
+            struct.pack("<I", OPTIMIZED_SIZE),
+            "原厂第一张动图数据长度",
+        )
+    )
+    original_gif = bytes(
+        candidate[GIF_DATA_OFFSET : GIF_DATA_OFFSET + ORIGINAL_SIZE]
+    )
+    if hashlib.sha256(original_gif).hexdigest() != ORIGINAL_SHA256:
+        raise AgentsDashboardFirmwareError("原厂第一张动图修改前指纹不匹配")
+    candidate[GIF_DATA_OFFSET : GIF_DATA_OFFSET + len(optimized)] = optimized
+    allowed.append(ByteRange(GIF_DATA_OFFSET, GIF_DATA_OFFSET + len(optimized)))
+
+    if (
+        bytes(candidate[HOOK_OFFSET : HOOK_OFFSET + len(HOOK_ORIGINAL)])
+        != HOOK_ORIGINAL
+        or bytes(
+            candidate[
+                TRAMPOLINE_OFFSET :
+                TRAMPOLINE_OFFSET + len(TRAMPOLINE_ORIGINAL)
+            ]
+        )
+        != TRAMPOLINE_ORIGINAL
+    ):
+        raise AgentsDashboardFirmwareError(
+            "页面注册点或旧页面跳板不等于已验收设置固件"
+        )
+    allowed.extend(
+        _patch_stock_local_branches(
+            candidate,
+            payload_result.symbols,
+            integration_mode=integration_mode,
+        )
+    )
+    mutator_ranges: list[ByteRange] = []
+    for mutator in candidate_mutators:
+        changed = mutator(candidate, payload_result.symbols)
+        mutator_ranges.extend(changed)
+        allowed.extend(changed)
+
+    _assert_stock_transport_unchanged(stage, bytes(candidate))
 
     _assert_stock_local_branch_isolation(
         stage,
@@ -1424,6 +1519,7 @@ def build_sync_firmware(
         raise AgentsDashboardFirmwareError("同步载荷写入前后完全相同")
     candidate[PAYLOAD_START : PAYLOAD_START + len(payload)] = payload
     allowed.append(ByteRange(PAYLOAD_START, PAYLOAD_START + len(payload)))
+    _assert_stock_transport_unchanged(stage, bytes(candidate))
 
     recovery_crc = refresh_recovery_crc(candidate, AP01_1_0_2_0031)
     allowed.append(
@@ -1440,7 +1536,7 @@ def build_sync_firmware(
     )
     manifest: dict[str, object] = {
         "schema_version": 1,
-        "manifest_type": "agents-low-stack-local-branches-candidate-firmware",
+        "manifest_type": "agents-local-ui-power-safe-firmware",
         "status": "built-not-approved-for-installation",
         "built_at_beijing": datetime.now(ZoneInfo("Asia/Shanghai")).isoformat(
             timespec="seconds"
@@ -1457,15 +1553,16 @@ def build_sync_firmware(
             "read_only": True,
             **report.to_dict(),
         },
-        "device_specific": True,
-        "credentials_embedded": True,
+        "device_specific": False,
+        "credentials_embedded": False,
         "credentials_disclosed": False,
         "transport": {
-            "url_base": url_base,
-            "refresh_seconds": refresh_seconds,
-            "failure_retry_seconds": 30,
-            "request_device_id_suffix_length": 4,
-            "request_access_token_suffix_length": 12,
+            "enabled": False,
+            "stock_loader_trampoline_unchanged": True,
+            "stock_download_callback_unchanged": True,
+            "stock_network_call_unchanged": True,
+            "stock_timers_unchanged": True,
+            "stock_request_regions_unchanged": True,
         },
         "payload": {
             "file_offset": f"0x{PAYLOAD_START:06x}",
@@ -1476,31 +1573,30 @@ def build_sync_firmware(
             "remaining": PAYLOAD_CAPACITY - payload_result.size,
             "relocations": 0,
             "maximum_static_stack": payload_result.maximum_static_stack,
-            "download_state_stack_bytes": 136,
-            "download_state_heap_bytes": 0,
+            "local_ui_only": True,
+            "transport_symbols_linked": False,
+            "device_credentials_linked": False,
             "stock_pet_object_reused": True,
             "stock_pet_state_bytes_before": 16,
             "stock_pet_state_bytes_after": 20,
             "agents_state_offset": 16,
         },
         "implemented_scope": [
-            "四页完整包流式接收",
-            "64 字节第二版包头",
-            "四页逐页 CRC-32 损坏校验",
-            "请求侧设备代号与访问标识校验",
-            "三组临时槽原子提交",
-            "界面线程只切换已提交页面",
-            "固定周期后台刷新",
+            "四张指纹固定的内置页面",
             "复用原厂萌宠既有动图对象",
             "只挂接原厂已筛选的三个萌宠局部分支",
-            "功率左键保持原厂并由实际切页过滤处理",
+            "AGENTS 概览作为萌宠与功率之间的逻辑一级页",
+            "周报、今日和近 30 天作为三个二级页",
             "原厂功率确认和两个全局回调保持原字节",
+            "原厂后台网络回调、调用、定时和请求区保持原字节",
             "真实页面使用原厂实际切页入口",
             "AGENTS 状态使用萌宠状态新增尾部",
             *implemented_scope_extra,
         ],
         "pending_scope": [
-            "重启后保留最后成功包",
+            "四页在线取数与后台刷新",
+            "请求侧设备代号与访问标识校验",
+            "重启后保留最后成功页面",
             "页面开关关闭时停用刷新",
             "NAS 与云服务器故障切换",
             "停留页面时即时应用后台新数据",
@@ -1522,6 +1618,7 @@ def build_sync_firmware(
             "global_ui_timer_callback_registration_unchanged": True,
             "stock_key_callback_unchanged_except_local_targets": True,
             "stock_power_confirm_path_unchanged": True,
+            "stock_transport_paths_unchanged": True,
             "local_branch_hooks": [
                 {
                     "label": label,
@@ -1576,6 +1673,9 @@ def build_sync_firmware(
             "global_key_callback_registration_unchanged": True,
             "global_ui_timer_callback_registration_unchanged": True,
             "stock_power_confirm_path_unchanged": True,
+            "stock_transport_paths_unchanged": True,
+            "transport_symbols_absent": True,
+            "device_credentials_absent": True,
             "independent_tail_recovery_verified": True,
             "installation_allowed": False,
         },
@@ -1668,21 +1768,34 @@ def build_low_stack_local_branches_firmware(
     refresh_seconds: int,
     tool_revision: dict[str, object],
 ) -> SyncFirmwareResult:
+    raise AgentsDashboardFirmwareError(
+        "低栈局部分支成品已因功率页确认重启停用"
+    )
+
+
+def build_local_ui_power_safe_firmware(
+    stage_path: Path,
+    output_path: Path,
+    manifest_path: Path,
+    build_directory: Path,
+    *,
+    tool_revision: dict[str, object],
+) -> SyncFirmwareResult:
     return build_sync_firmware(
         stage_path,
         output_path,
         manifest_path,
         build_directory,
-        credentials,
-        url_base=url_base,
-        refresh_seconds=refresh_seconds,
+        None,
         tool_revision=tool_revision,
-        expected_output_name=LOW_STACK_LOCAL_BRANCHES_OUTPUT_FILENAME,
+        expected_output_name=LOCAL_UI_POWER_SAFE_OUTPUT_FILENAME,
         implemented_scope_extra=(
             "萌宠左旋、右旋和确认三个局部分支接入",
             "未消费事件从三个原厂继续地址恢复",
             "消费事件从原厂公共退出地址返回",
             "异常尾部先恢复原厂萌宠再继续处理",
+            "载荷不链接后台下载、网络包装和界面同步定时入口",
         ),
         reuse_stock_pet=True,
+        local_ui_only=True,
     )

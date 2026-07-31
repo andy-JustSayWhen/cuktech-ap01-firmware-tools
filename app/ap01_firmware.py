@@ -23,7 +23,7 @@ from features.agents_dashboard_firmware import (
     AgentsDashboardFirmwareError,
     CONFIRM_COMPAT_OUTPUT_FILENAME,
     DETAIL_COMPAT_OUTPUT_FILENAME,
-    LOW_STACK_LOCAL_BRANCHES_OUTPUT_FILENAME,
+    LOCAL_UI_POWER_SAFE_OUTPUT_FILENAME,
     PET_OVERLAY_OUTPUT_FILENAME,
     STOCK_CALLCHAIN_OUTPUT_FILENAME,
     STOCK_DISPATCH_OUTPUT_FILENAME,
@@ -33,7 +33,7 @@ from features.agents_dashboard_firmware import (
     build_page_registration_payload,
     build_stock_callchain_firmware,
     build_stock_enter_gate_firmware,
-    build_low_stack_local_branches_firmware,
+    build_local_ui_power_safe_firmware,
     build_sync_firmware,
 )
 from features.offline_firmware_build import (
@@ -301,8 +301,8 @@ def _parser() -> argparse.ArgumentParser:
     )
 
     stock_local_branches_command = commands.add_parser(
-        "agents-low-stack-local-branches-build",
-        help="生成低栈四页传输与原厂三个萌宠局部分支的最小候选固件",
+        "agents-local-ui-power-safe-build",
+        help="生成不修改后台网络和功率路径的 AGENTS 局部界面固件",
     )
     stock_local_branches_command.add_argument(
         "--input", type=Path, required=True
@@ -315,15 +315,6 @@ def _parser() -> argparse.ArgumentParser:
     )
     stock_local_branches_command.add_argument(
         "--build-dir", type=Path, required=True
-    )
-    stock_local_branches_command.add_argument(
-        "--config", type=Path, required=True
-    )
-    stock_local_branches_command.add_argument("--url-base", required=True)
-    stock_local_branches_command.add_argument(
-        "--refresh-seconds",
-        type=int,
-        default=300,
     )
 
     optimized_build_command = commands.add_parser(
@@ -832,24 +823,20 @@ def main(argv: list[str] | None = None) -> int:
             )
             return 0
 
-        if args.command == "agents-low-stack-local-branches-build":
-            credentials = load_credentials(args.config)
-            result = build_low_stack_local_branches_firmware(
+        if args.command == "agents-local-ui-power-safe-build":
+            result = build_local_ui_power_safe_firmware(
                 args.input,
                 args.output,
                 args.manifest,
                 args.build_dir,
-                credentials,
-                url_base=args.url_base,
-                refresh_seconds=args.refresh_seconds,
                 tool_revision=revision,
             )
             print(
                 json.dumps(
                     {
-                        "result": "AGENTS 低栈原厂局部分支候选固件制作完成",
+                        "result": "AGENTS 功率路径隔离的局部界面固件制作完成",
                         "output": str(result.output),
-                        "expected_name": LOW_STACK_LOCAL_BRANCHES_OUTPUT_FILENAME,
+                        "expected_name": LOCAL_UI_POWER_SAFE_OUTPUT_FILENAME,
                         "manifest": str(result.manifest),
                         "output_sha256": result.sha256,
                         "output_md5": result.md5,
@@ -866,7 +853,7 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "opt-build":
             raise AgentsDashboardFirmwareError(
                 "完整重写候选已因卡开机动画停用；"
-                "请使用 agents-low-stack-local-branches-build"
+                "请使用 agents-local-ui-power-safe-build"
             )
 
         if args.command == "settings-hook-observation-build":
