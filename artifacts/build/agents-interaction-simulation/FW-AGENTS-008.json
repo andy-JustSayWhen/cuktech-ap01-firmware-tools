@@ -1,0 +1,689 @@
+{
+  "schema_version": 1,
+  "report_type": "agents-preflash-interaction-simulation",
+  "contract": {
+    "name": "FW-AGENTS-008",
+    "local_hook_labels": [
+      "萌宠左旋",
+      "萌宠右旋",
+      "萌宠确认"
+    ],
+    "overview_right_target_dispatch": null,
+    "power_left_enters_agents": false,
+    "stock_entry_filter_enabled": false,
+    "power_confirm_isolated": true,
+    "page_registration_unchanged": true,
+    "global_key_callback_registration_unchanged": true,
+    "source_manifest_sha256": "a43671b4a528ad0462cb67011400bb5279fa461a97353992c5a8e8e38042c2fe"
+  },
+  "scope": {
+    "events": [
+      "left",
+      "right",
+      "enter"
+    ],
+    "stock_dispatches": {
+      "0": "power",
+      "1": "c1",
+      "2": "c2",
+      "3": "clock",
+      "4": "calendar",
+      "5": "weather",
+      "6": "settings",
+      "7": "pet"
+    },
+    "agents_states": {
+      "1": "agents-overview",
+      "2": "agents-weekly",
+      "3": "agents-today",
+      "4": "agents-last-30-days"
+    },
+    "configuration_cases": 16,
+    "exhaustive_depth": 5
+  },
+  "capability_boundary": {
+    "continuous_page_event_model": true,
+    "instruction_level_execution": false,
+    "board_hardware_model": false,
+    "physical_acceptance_replaced": false
+  },
+  "summary": {
+    "passed": false,
+    "build_allowed": false,
+    "scenario_count": 38,
+    "trace_step_count": 270,
+    "exhaustive_sequence_count": 3630,
+    "failure_count": 35
+  },
+  "failures": [
+    {
+      "code": "UNRESOLVED_FINAL_PAGE",
+      "scenario": "primary-cycle:agents_enabled:left",
+      "message": "最终页面未解析：当前成品没有证明共享分派入口的目标画面",
+      "event": "left",
+      "state": {
+        "dispatch": 0,
+        "agents_state": 0,
+        "original_owned_context": null,
+        "visible_page": "power"
+      }
+    },
+    {
+      "code": "PRIMARY_PAGE_UNREACHABLE",
+      "scenario": "primary-cycle:agents_enabled:left",
+      "message": "连续旋转未到达：agents-overview、settings",
+      "event": null,
+      "state": null
+    },
+    {
+      "code": "UNRESOLVED_FINAL_PAGE",
+      "scenario": "primary-cycle:agents_enabled:right",
+      "message": "最终页面未解析：当前成品没有证明共享分派入口的目标画面",
+      "event": "right",
+      "state": {
+        "dispatch": 6,
+        "agents_state": 0,
+        "original_owned_context": null,
+        "visible_page": "settings"
+      }
+    },
+    {
+      "code": "PRIMARY_PAGE_UNREACHABLE",
+      "scenario": "primary-cycle:agents_enabled:right",
+      "message": "连续旋转未到达：agents-overview、power",
+      "event": null,
+      "state": null
+    },
+    {
+      "code": "UNRESOLVED_FINAL_PAGE",
+      "scenario": "primary-cycle:pet_enabled+agents_enabled:left",
+      "message": "最终页面未解析：当前成品没有证明共享分派入口的目标画面",
+      "event": "left",
+      "state": {
+        "dispatch": 0,
+        "agents_state": 0,
+        "original_owned_context": null,
+        "visible_page": "power"
+      }
+    },
+    {
+      "code": "PRIMARY_PAGE_UNREACHABLE",
+      "scenario": "primary-cycle:pet_enabled+agents_enabled:left",
+      "message": "连续旋转未到达：agents-overview、pet、settings",
+      "event": null,
+      "state": null
+    },
+    {
+      "code": "UNRESOLVED_FINAL_PAGE",
+      "scenario": "primary-cycle:pet_enabled+agents_enabled:right",
+      "message": "最终页面未解析：恢复萌宠后只证明返回原厂继续地址，没有证明继续执行后的可见页面",
+      "event": "right",
+      "state": {
+        "dispatch": 7,
+        "agents_state": 1,
+        "original_owned_context": null,
+        "visible_page": "agents-overview"
+      }
+    },
+    {
+      "code": "PRIMARY_PAGE_UNREACHABLE",
+      "scenario": "primary-cycle:pet_enabled+agents_enabled:right",
+      "message": "连续旋转未到达：power",
+      "event": null,
+      "state": null
+    },
+    {
+      "code": "UNRESOLVED_FINAL_PAGE",
+      "scenario": "primary-cycle:c2_enabled+agents_enabled:left",
+      "message": "最终页面未解析：当前成品没有证明共享分派入口的目标画面",
+      "event": "left",
+      "state": {
+        "dispatch": 0,
+        "agents_state": 0,
+        "original_owned_context": null,
+        "visible_page": "power"
+      }
+    },
+    {
+      "code": "PRIMARY_PAGE_UNREACHABLE",
+      "scenario": "primary-cycle:c2_enabled+agents_enabled:left",
+      "message": "连续旋转未到达：agents-overview、settings",
+      "event": null,
+      "state": null
+    },
+    {
+      "code": "UNRESOLVED_FINAL_PAGE",
+      "scenario": "primary-cycle:c2_enabled+agents_enabled:right",
+      "message": "最终页面未解析：当前成品没有证明共享分派入口的目标画面",
+      "event": "right",
+      "state": {
+        "dispatch": 6,
+        "agents_state": 0,
+        "original_owned_context": null,
+        "visible_page": "settings"
+      }
+    },
+    {
+      "code": "PRIMARY_PAGE_UNREACHABLE",
+      "scenario": "primary-cycle:c2_enabled+agents_enabled:right",
+      "message": "连续旋转未到达：agents-overview、power",
+      "event": null,
+      "state": null
+    },
+    {
+      "code": "UNRESOLVED_FINAL_PAGE",
+      "scenario": "primary-cycle:c2_enabled+pet_enabled+agents_enabled:left",
+      "message": "最终页面未解析：当前成品没有证明共享分派入口的目标画面",
+      "event": "left",
+      "state": {
+        "dispatch": 0,
+        "agents_state": 0,
+        "original_owned_context": null,
+        "visible_page": "power"
+      }
+    },
+    {
+      "code": "PRIMARY_PAGE_UNREACHABLE",
+      "scenario": "primary-cycle:c2_enabled+pet_enabled+agents_enabled:left",
+      "message": "连续旋转未到达：agents-overview、pet、settings",
+      "event": null,
+      "state": null
+    },
+    {
+      "code": "UNRESOLVED_FINAL_PAGE",
+      "scenario": "primary-cycle:c2_enabled+pet_enabled+agents_enabled:right",
+      "message": "最终页面未解析：恢复萌宠后只证明返回原厂继续地址，没有证明继续执行后的可见页面",
+      "event": "right",
+      "state": {
+        "dispatch": 7,
+        "agents_state": 1,
+        "original_owned_context": null,
+        "visible_page": "agents-overview"
+      }
+    },
+    {
+      "code": "PRIMARY_PAGE_UNREACHABLE",
+      "scenario": "primary-cycle:c2_enabled+pet_enabled+agents_enabled:right",
+      "message": "连续旋转未到达：power",
+      "event": null,
+      "state": null
+    },
+    {
+      "code": "UNRESOLVED_FINAL_PAGE",
+      "scenario": "primary-cycle:c1_enabled+agents_enabled:left",
+      "message": "最终页面未解析：当前成品没有证明共享分派入口的目标画面",
+      "event": "left",
+      "state": {
+        "dispatch": 0,
+        "agents_state": 0,
+        "original_owned_context": null,
+        "visible_page": "power"
+      }
+    },
+    {
+      "code": "PRIMARY_PAGE_UNREACHABLE",
+      "scenario": "primary-cycle:c1_enabled+agents_enabled:left",
+      "message": "连续旋转未到达：agents-overview、settings",
+      "event": null,
+      "state": null
+    },
+    {
+      "code": "UNRESOLVED_FINAL_PAGE",
+      "scenario": "primary-cycle:c1_enabled+agents_enabled:right",
+      "message": "最终页面未解析：当前成品没有证明共享分派入口的目标画面",
+      "event": "right",
+      "state": {
+        "dispatch": 6,
+        "agents_state": 0,
+        "original_owned_context": null,
+        "visible_page": "settings"
+      }
+    },
+    {
+      "code": "PRIMARY_PAGE_UNREACHABLE",
+      "scenario": "primary-cycle:c1_enabled+agents_enabled:right",
+      "message": "连续旋转未到达：agents-overview、power",
+      "event": null,
+      "state": null
+    },
+    {
+      "code": "UNRESOLVED_FINAL_PAGE",
+      "scenario": "primary-cycle:c1_enabled+pet_enabled+agents_enabled:left",
+      "message": "最终页面未解析：当前成品没有证明共享分派入口的目标画面",
+      "event": "left",
+      "state": {
+        "dispatch": 0,
+        "agents_state": 0,
+        "original_owned_context": null,
+        "visible_page": "power"
+      }
+    },
+    {
+      "code": "PRIMARY_PAGE_UNREACHABLE",
+      "scenario": "primary-cycle:c1_enabled+pet_enabled+agents_enabled:left",
+      "message": "连续旋转未到达：agents-overview、pet、settings",
+      "event": null,
+      "state": null
+    },
+    {
+      "code": "UNRESOLVED_FINAL_PAGE",
+      "scenario": "primary-cycle:c1_enabled+pet_enabled+agents_enabled:right",
+      "message": "最终页面未解析：恢复萌宠后只证明返回原厂继续地址，没有证明继续执行后的可见页面",
+      "event": "right",
+      "state": {
+        "dispatch": 7,
+        "agents_state": 1,
+        "original_owned_context": null,
+        "visible_page": "agents-overview"
+      }
+    },
+    {
+      "code": "PRIMARY_PAGE_UNREACHABLE",
+      "scenario": "primary-cycle:c1_enabled+pet_enabled+agents_enabled:right",
+      "message": "连续旋转未到达：power",
+      "event": null,
+      "state": null
+    },
+    {
+      "code": "UNRESOLVED_FINAL_PAGE",
+      "scenario": "primary-cycle:c1_enabled+c2_enabled+agents_enabled:left",
+      "message": "最终页面未解析：当前成品没有证明共享分派入口的目标画面",
+      "event": "left",
+      "state": {
+        "dispatch": 0,
+        "agents_state": 0,
+        "original_owned_context": null,
+        "visible_page": "power"
+      }
+    },
+    {
+      "code": "PRIMARY_PAGE_UNREACHABLE",
+      "scenario": "primary-cycle:c1_enabled+c2_enabled+agents_enabled:left",
+      "message": "连续旋转未到达：agents-overview、settings",
+      "event": null,
+      "state": null
+    },
+    {
+      "code": "UNRESOLVED_FINAL_PAGE",
+      "scenario": "primary-cycle:c1_enabled+c2_enabled+agents_enabled:right",
+      "message": "最终页面未解析：当前成品没有证明共享分派入口的目标画面",
+      "event": "right",
+      "state": {
+        "dispatch": 6,
+        "agents_state": 0,
+        "original_owned_context": null,
+        "visible_page": "settings"
+      }
+    },
+    {
+      "code": "PRIMARY_PAGE_UNREACHABLE",
+      "scenario": "primary-cycle:c1_enabled+c2_enabled+agents_enabled:right",
+      "message": "连续旋转未到达：agents-overview、power",
+      "event": null,
+      "state": null
+    },
+    {
+      "code": "UNRESOLVED_FINAL_PAGE",
+      "scenario": "primary-cycle:c1_enabled+c2_enabled+pet_enabled+agents_enabled:left",
+      "message": "最终页面未解析：当前成品没有证明共享分派入口的目标画面",
+      "event": "left",
+      "state": {
+        "dispatch": 0,
+        "agents_state": 0,
+        "original_owned_context": null,
+        "visible_page": "power"
+      }
+    },
+    {
+      "code": "PRIMARY_PAGE_UNREACHABLE",
+      "scenario": "primary-cycle:c1_enabled+c2_enabled+pet_enabled+agents_enabled:left",
+      "message": "连续旋转未到达：agents-overview、pet、settings",
+      "event": null,
+      "state": null
+    },
+    {
+      "code": "UNRESOLVED_FINAL_PAGE",
+      "scenario": "primary-cycle:c1_enabled+c2_enabled+pet_enabled+agents_enabled:right",
+      "message": "最终页面未解析：恢复萌宠后只证明返回原厂继续地址，没有证明继续执行后的可见页面",
+      "event": "right",
+      "state": {
+        "dispatch": 7,
+        "agents_state": 1,
+        "original_owned_context": null,
+        "visible_page": "agents-overview"
+      }
+    },
+    {
+      "code": "PRIMARY_PAGE_UNREACHABLE",
+      "scenario": "primary-cycle:c1_enabled+c2_enabled+pet_enabled+agents_enabled:right",
+      "message": "连续旋转未到达：power",
+      "event": null,
+      "state": null
+    },
+    {
+      "code": "UNRESOLVED_FINAL_PAGE",
+      "scenario": "overview-right-exit",
+      "message": "最终页面未解析：恢复萌宠后只证明返回原厂继续地址，没有证明继续执行后的可见页面",
+      "event": "right",
+      "state": {
+        "dispatch": 7,
+        "agents_state": 1,
+        "original_owned_context": null,
+        "visible_page": "agents-overview"
+      }
+    },
+    {
+      "code": "UNRESOLVED_FINAL_PAGE",
+      "scenario": "exhaustive:power:right-right-left-left-left",
+      "message": "最终页面未解析：当前成品没有证明共享分派入口的目标画面",
+      "event": "left",
+      "state": {
+        "dispatch": 0,
+        "agents_state": 0,
+        "original_owned_context": null,
+        "visible_page": "power"
+      }
+    },
+    {
+      "code": "UNRESOLVED_FINAL_PAGE",
+      "scenario": "exhaustive:agents-overview:enter-enter-enter-enter-right",
+      "message": "最终页面未解析：恢复萌宠后只证明返回原厂继续地址，没有证明继续执行后的可见页面",
+      "event": "right",
+      "state": {
+        "dispatch": 7,
+        "agents_state": 1,
+        "original_owned_context": null,
+        "visible_page": "agents-overview"
+      }
+    }
+  ],
+  "selected_traces": {
+    "overview-enter-return": [
+      {
+        "sequence": 1,
+        "event": "enter",
+        "before": {
+          "dispatch": 7,
+          "agents_state": 1,
+          "original_owned_context": null,
+          "visible_page": "agents-overview"
+        },
+        "action": "show-agents",
+        "after": {
+          "dispatch": 7,
+          "agents_state": 2,
+          "original_owned_context": null,
+          "visible_page": "agents-weekly"
+        },
+        "continuation_address": null,
+        "resolved": true,
+        "message": null
+      },
+      {
+        "sequence": 2,
+        "event": "enter",
+        "before": {
+          "dispatch": 7,
+          "agents_state": 2,
+          "original_owned_context": null,
+          "visible_page": "agents-weekly"
+        },
+        "action": "show-agents",
+        "after": {
+          "dispatch": 7,
+          "agents_state": 1,
+          "original_owned_context": null,
+          "visible_page": "agents-overview"
+        },
+        "continuation_address": null,
+        "resolved": true,
+        "message": null
+      }
+    ],
+    "details-right-cycle": [
+      {
+        "sequence": 1,
+        "event": "right",
+        "before": {
+          "dispatch": 7,
+          "agents_state": 2,
+          "original_owned_context": null,
+          "visible_page": "agents-weekly"
+        },
+        "action": "show-agents",
+        "after": {
+          "dispatch": 7,
+          "agents_state": 3,
+          "original_owned_context": null,
+          "visible_page": "agents-today"
+        },
+        "continuation_address": null,
+        "resolved": true,
+        "message": null
+      },
+      {
+        "sequence": 2,
+        "event": "right",
+        "before": {
+          "dispatch": 7,
+          "agents_state": 3,
+          "original_owned_context": null,
+          "visible_page": "agents-today"
+        },
+        "action": "show-agents",
+        "after": {
+          "dispatch": 7,
+          "agents_state": 4,
+          "original_owned_context": null,
+          "visible_page": "agents-last-30-days"
+        },
+        "continuation_address": null,
+        "resolved": true,
+        "message": null
+      },
+      {
+        "sequence": 3,
+        "event": "right",
+        "before": {
+          "dispatch": 7,
+          "agents_state": 4,
+          "original_owned_context": null,
+          "visible_page": "agents-last-30-days"
+        },
+        "action": "show-agents",
+        "after": {
+          "dispatch": 7,
+          "agents_state": 2,
+          "original_owned_context": null,
+          "visible_page": "agents-weekly"
+        },
+        "continuation_address": null,
+        "resolved": true,
+        "message": null
+      }
+    ],
+    "details-left-cycle": [
+      {
+        "sequence": 1,
+        "event": "left",
+        "before": {
+          "dispatch": 7,
+          "agents_state": 2,
+          "original_owned_context": null,
+          "visible_page": "agents-weekly"
+        },
+        "action": "show-agents",
+        "after": {
+          "dispatch": 7,
+          "agents_state": 4,
+          "original_owned_context": null,
+          "visible_page": "agents-last-30-days"
+        },
+        "continuation_address": null,
+        "resolved": true,
+        "message": null
+      },
+      {
+        "sequence": 2,
+        "event": "left",
+        "before": {
+          "dispatch": 7,
+          "agents_state": 4,
+          "original_owned_context": null,
+          "visible_page": "agents-last-30-days"
+        },
+        "action": "show-agents",
+        "after": {
+          "dispatch": 7,
+          "agents_state": 3,
+          "original_owned_context": null,
+          "visible_page": "agents-today"
+        },
+        "continuation_address": null,
+        "resolved": true,
+        "message": null
+      },
+      {
+        "sequence": 3,
+        "event": "left",
+        "before": {
+          "dispatch": 7,
+          "agents_state": 3,
+          "original_owned_context": null,
+          "visible_page": "agents-today"
+        },
+        "action": "show-agents",
+        "after": {
+          "dispatch": 7,
+          "agents_state": 2,
+          "original_owned_context": null,
+          "visible_page": "agents-weekly"
+        },
+        "continuation_address": null,
+        "resolved": true,
+        "message": null
+      }
+    ],
+    "overview-right-exit": [
+      {
+        "sequence": 1,
+        "event": "right",
+        "before": {
+          "dispatch": 7,
+          "agents_state": 1,
+          "original_owned_context": null,
+          "visible_page": "agents-overview"
+        },
+        "action": "restore-then-stock-resume",
+        "after": null,
+        "continuation_address": "0xa00bc716",
+        "resolved": false,
+        "message": "最终页面未解析：恢复萌宠后只证明返回原厂继续地址，没有证明继续执行后的可见页面"
+      }
+    ],
+    "power-confirm": [
+      {
+        "sequence": 1,
+        "event": "enter",
+        "before": {
+          "dispatch": 0,
+          "agents_state": 0,
+          "original_owned_context": null,
+          "visible_page": "power"
+        },
+        "action": "stock-confirm",
+        "after": {
+          "dispatch": 0,
+          "agents_state": 0,
+          "original_owned_context": "stock-owned:power:confirm",
+          "visible_page": "stock-owned:power:confirm"
+        },
+        "continuation_address": null,
+        "resolved": true,
+        "message": null
+      }
+    ],
+    "fast-reversal": [
+      {
+        "sequence": 1,
+        "event": "right",
+        "before": {
+          "dispatch": 3,
+          "agents_state": 0,
+          "original_owned_context": null,
+          "visible_page": "clock"
+        },
+        "action": "stock-rotate",
+        "after": {
+          "dispatch": 4,
+          "agents_state": 0,
+          "original_owned_context": null,
+          "visible_page": "calendar"
+        },
+        "continuation_address": null,
+        "resolved": true,
+        "message": null
+      },
+      {
+        "sequence": 2,
+        "event": "left",
+        "before": {
+          "dispatch": 4,
+          "agents_state": 0,
+          "original_owned_context": null,
+          "visible_page": "calendar"
+        },
+        "action": "stock-rotate",
+        "after": {
+          "dispatch": 3,
+          "agents_state": 0,
+          "original_owned_context": null,
+          "visible_page": "clock"
+        },
+        "continuation_address": null,
+        "resolved": true,
+        "message": null
+      },
+      {
+        "sequence": 3,
+        "event": "right",
+        "before": {
+          "dispatch": 3,
+          "agents_state": 0,
+          "original_owned_context": null,
+          "visible_page": "clock"
+        },
+        "action": "stock-rotate",
+        "after": {
+          "dispatch": 4,
+          "agents_state": 0,
+          "original_owned_context": null,
+          "visible_page": "calendar"
+        },
+        "continuation_address": null,
+        "resolved": true,
+        "message": null
+      },
+      {
+        "sequence": 4,
+        "event": "left",
+        "before": {
+          "dispatch": 4,
+          "agents_state": 0,
+          "original_owned_context": null,
+          "visible_page": "calendar"
+        },
+        "action": "stock-rotate",
+        "after": {
+          "dispatch": 3,
+          "agents_state": 0,
+          "original_owned_context": null,
+          "visible_page": "clock"
+        },
+        "continuation_address": null,
+        "resolved": true,
+        "message": null
+      }
+    ]
+  }
+}

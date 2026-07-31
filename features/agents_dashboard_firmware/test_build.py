@@ -9,6 +9,7 @@ import unittest
 import zlib
 from dataclasses import dataclass
 from pathlib import Path
+from unittest import mock
 
 from core.firmware_image import prepare_read_only_copy
 from features.agents_dashboard.result_package import encode_package
@@ -209,13 +210,26 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
             ).stdout
             output = root / LOCAL_UI_STOCK_RESUME_OUTPUT_FILENAME
             manifest = root / "manifest.json"
-            result = build_local_ui_stock_resume_firmware(
-                self.stage,
-                output,
-                manifest,
-                root / "firmware",
-                tool_revision={"commit": "test", "scoped_code_dirty": False},
-            )
+            proven_simulation = {
+                "summary": {"passed": True, "build_allowed": True},
+                "failures": [],
+                "selected_traces": {},
+            }
+            with mock.patch(
+                "features.agents_dashboard_firmware.interaction_simulator."
+                "run_interaction_simulation",
+                return_value=proven_simulation,
+            ):
+                result = build_local_ui_stock_resume_firmware(
+                    self.stage,
+                    output,
+                    manifest,
+                    root / "firmware",
+                    tool_revision={
+                        "commit": "test",
+                        "scoped_code_dirty": False,
+                    },
+                )
             manifest_text = manifest.read_text(encoding="utf-8")
             manifest_document = json.loads(manifest_text)
             output_bytes = output.read_bytes()
@@ -237,6 +251,9 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
         self.assertFalse(manifest_document["transport"]["enabled"])
         self.assertFalse(manifest_document["credentials_embedded"])
         self.assertFalse(manifest_document["device_specific"])
+        self.assertTrue(
+            manifest_document["interaction_simulation"]["summary"]["passed"]
+        )
         self.assertTrue(manifest_document["payload"]["local_ui_only"])
         self.assertFalse(
             manifest_document["payload"]["transport_symbols_linked"]
@@ -484,6 +501,35 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
         self.assertIn("# a00be3ca <stock_get_child>", find_state)
         self.assertIn("16(a0)", find_state)
         self.assertIn("4(t0)", find_state)
+
+    def test_stock_resume_builder_stops_before_writing_unresolved_route(
+        self,
+    ) -> None:
+        if (
+            not shutil.which("riscv64-elf-as")
+            or not shutil.which("riscv64-elf-gcc")
+        ):
+            self.skipTest("本机没有阶段固件或固定编译工具")
+        with tempfile.TemporaryDirectory() as selected:
+            root = Path(selected)
+            output = root / LOCAL_UI_STOCK_RESUME_OUTPUT_FILENAME
+            manifest = root / "manifest.json"
+            with self.assertRaisesRegex(
+                AgentsDashboardFirmwareError,
+                "刷前连续页面事件模拟未通过",
+            ):
+                build_local_ui_stock_resume_firmware(
+                    self.stage,
+                    output,
+                    manifest,
+                    root / "firmware",
+                    tool_revision={
+                        "commit": "test",
+                        "scoped_code_dirty": False,
+                    },
+                )
+            self.assertFalse(output.exists())
+            self.assertFalse(manifest.exists())
 
     def test_rejected_local_ui_power_safe_builder_is_blocked(self) -> None:
         with tempfile.TemporaryDirectory() as selected:

@@ -29,12 +29,15 @@ from features.agents_dashboard_firmware import (
     STOCK_DISPATCH_OUTPUT_FILENAME,
     STOCK_ENTER_GATE_OUTPUT_FILENAME,
     STOCK_PET_REUSE_OUTPUT_FILENAME,
+    InteractionSimulationError,
     build_observation_firmware,
     build_page_registration_payload,
     build_stock_callchain_firmware,
     build_stock_enter_gate_firmware,
     build_local_ui_stock_resume_firmware,
     build_sync_firmware,
+    simulate_current_manifest,
+    write_simulation_report,
 )
 from features.offline_firmware_build import (
     BuildGateError,
@@ -315,6 +318,20 @@ def _parser() -> argparse.ArgumentParser:
     )
     stock_local_branches_command.add_argument(
         "--build-dir", type=Path, required=True
+    )
+
+    interaction_simulation_command = commands.add_parser(
+        "agents-interaction-simulate",
+        help="对刷前构建清单执行连续页面事件模拟",
+    )
+    interaction_simulation_command.add_argument(
+        "--manifest", type=Path, required=True
+    )
+    interaction_simulation_command.add_argument(
+        "--report", type=Path, required=True
+    )
+    interaction_simulation_command.add_argument(
+        "--depth", type=int, default=5
     )
 
     optimized_build_command = commands.add_parser(
@@ -850,6 +867,33 @@ def main(argv: list[str] | None = None) -> int:
             )
             return 0
 
+        if args.command == "agents-interaction-simulate":
+            report = simulate_current_manifest(
+                args.manifest,
+                exhaustive_depth=args.depth,
+            )
+            selected_report = write_simulation_report(args.report, report)
+            print(
+                json.dumps(
+                    {
+                        "result": (
+                            "刷前连续页面事件模拟通过"
+                            if report["summary"]["passed"]
+                            else "刷前连续页面事件模拟失败"
+                        ),
+                        "report": str(selected_report),
+                        "summary": report["summary"],
+                        "failures": report["failures"][:5],
+                        "failures_truncated": len(report["failures"]) > 5,
+                        "instruction_level_execution": False,
+                        "physical_acceptance_replaced": False,
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                )
+            )
+            return 0 if report["summary"]["passed"] else 2
+
         if args.command == "opt-build":
             raise AgentsDashboardFirmwareError(
                 "完整重写候选已因卡开机动画停用；"
@@ -917,6 +961,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     except (
         AgentsDashboardFirmwareError,
+        InteractionSimulationError,
         BuildGateError,
         FirmwarePayloadSpaceError,
         FirmwareValidationError,

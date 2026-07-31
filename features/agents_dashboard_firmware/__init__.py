@@ -10,6 +10,11 @@ from .fallback_assets import (
     FallbackAssetError,
     build_fallback_assets,
 )
+from .interaction_simulator import (
+    InteractionSimulationError,
+    simulate_current_manifest,
+    write_simulation_report,
+)
 from .sync_build import (
     CONFIRM_COMPAT_OUTPUT_FILENAME,
     DETAIL_COMPAT_OUTPUT_FILENAME,
@@ -39,6 +44,7 @@ from .sync_build import (
 __all__ = [
     "AgentsDashboardFirmwareError",
     "FallbackAssetError",
+    "InteractionSimulationError",
     "ObservationBuildResult",
     "build_observation_firmware",
     "build_fallback_assets",
@@ -66,4 +72,6 @@ __all__ = [
     "build_stock_local_branches_firmware",
     "build_sync_firmware",
     "build_sync_payload",
+    "simulate_current_manifest",
+    "write_simulation_report",
 ]

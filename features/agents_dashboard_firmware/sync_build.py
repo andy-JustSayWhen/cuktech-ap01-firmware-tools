@@ -1530,6 +1530,38 @@ def build_sync_firmware(
         additional_allowed=tuple(mutator_ranges),
     )
 
+    from .interaction_simulator import (
+        InteractionContract,
+        run_interaction_simulation,
+    )
+
+    local_hook_labels = tuple(item[-1] for item in STOCK_LOCAL_BRANCH_HOOKS)
+    overview_right_route = route_stock_local_branch("pet-right", 1)
+    interaction_simulation = run_interaction_simulation(
+        InteractionContract(
+            name="FW-AGENTS-008",
+            local_hook_labels=local_hook_labels,
+            overview_right_target_dispatch=(
+                overview_right_route.target_dispatch
+            ),
+            power_left_enters_agents=any(
+                label == "功率左旋" for label in local_hook_labels
+            ),
+            stock_entry_filter_enabled=integration_mode,
+            power_confirm_isolated=True,
+            page_registration_unchanged=True,
+            global_key_callback_registration_unchanged=True,
+        ),
+        route_stock_local_branch,
+    )
+    if not interaction_simulation["summary"]["passed"]:
+        first_failure = interaction_simulation["failures"][0]
+        raise AgentsDashboardFirmwareError(
+            "刷前连续页面事件模拟未通过："
+            f"{first_failure['message']}；"
+            "当前方案不得生成待刷固件"
+        )
+
     payload_before = bytes(candidate[PAYLOAD_START : PAYLOAD_START + len(payload)])
     if payload_before == payload:
         raise AgentsDashboardFirmwareError("同步载荷写入前后完全相同")
@@ -1675,6 +1707,7 @@ def build_sync_firmware(
                 "after_hex": PET_STATE_SIZE_EXTENDED.hex(),
             },
         },
+        "interaction_simulation": interaction_simulation,
         "recovery_crc_after_build": f"0x{recovery_crc:08x}",
         "validation": {
             "old_bytes_asserted": True,
