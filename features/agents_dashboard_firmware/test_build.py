@@ -296,6 +296,9 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
             callchain_gates["disassembly"]["transport_symbols_absent"]
         )
         self.assertTrue(
+            callchain_gates["disassembly"]["temporary_paths_absent"]
+        )
+        self.assertTrue(
             manifest_document["validation"]["stock_transport_paths_unchanged"]
         )
         lowered_disassembly = disassembly.lower()

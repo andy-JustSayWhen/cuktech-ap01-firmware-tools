@@ -770,11 +770,8 @@ def _validate_stock_pet_reuse_disassembly(
                 raise AgentsDashboardFirmwareError(
                     f"局部界面载荷仍调用后台函数：0x{address:08x}"
                 )
-        if "/tmp/" in lowered:
-            raise AgentsDashboardFirmwareError("局部界面载荷仍包含临时文件路径")
         evidence["transport_symbols_absent"] = True
         evidence["transport_callees_absent"] = True
-        evidence["temporary_paths_absent"] = True
         return evidence
 
     timer_wrapper = _symbol_block(
@@ -1348,6 +1345,12 @@ def build_sync_payload(
             integration_mode=integration_mode,
             local_ui_only=local_ui_only,
         )
+        if local_ui_only:
+            if b"/tmp/" in payload:
+                raise AgentsDashboardFirmwareError(
+                    "局部界面载荷仍包含临时文件路径"
+                )
+            callchain_evidence["temporary_paths_absent"] = True
         route_validation = validate_stock_local_branch_routes()
     else:
         _validate_pet_overlay_disassembly(disassembly)
