@@ -14,4 +14,4 @@
 | AGENTS 原厂精确调用链失败成品 | `artifacts/firmware/ap01-1.0.2_0031-agents-stock-callchain-observation.bin` | 功率页按下后设备重启，禁止安装；设备已回刷 `opt-setting.bin`。 |
 | AGENTS 原厂确认键无栈透传失败成品 | `artifacts/firmware/ap01-1.0.2_0031-agents-stock-enter-gate-observation.bin` | 功率页按下后界面线程卡死，禁止安装；设备已回刷 `opt-setting.bin`。 |
 | AGENTS 原厂局部分支观察成品 | `artifacts/firmware/ap01-1.0.2_0031-agents-stock-local-branches-observation.bin` | 仅挂接功率左旋和萌宠三种键值局部分支；已刷入并通过自动验收，等待物理验收。 |
-| AGENTS 原厂收尾顺序双向候选 | `artifacts/firmware/ap01-1.0.2_0031-agents-local-ui-stock-safe.bin` | `FW-AGENTS-009`；严格交互模拟和两次确定性构建通过，放行一次专用测试安装。 |
+| AGENTS 原厂收尾顺序双向成品 | `artifacts/firmware/ap01-1.0.2_0031-agents-local-ui-stock-safe.bin` | `FW-AGENTS-009`；离线门禁、云端完整回读、一次安装、重启和重新上线通过，待物理验收。 |
