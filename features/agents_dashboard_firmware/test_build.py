@@ -41,6 +41,7 @@ from features.agents_dashboard_firmware.sync_build import (
     LOADER_TRAMPOLINE_ORIGINAL,
     LIVE_DATA_BASE_SAFE_OUTPUT_FILENAME,
     LIVE_DATA_REFERENCE_COMPLETE_OUTPUT_FILENAME,
+    LIVE_DATA_LOW_STACK_OUTPUT_FILENAME,
     LOCAL_UI_FORBIDDEN_CALLEES,
     LOCAL_UI_FORBIDDEN_SYMBOLS,
     LOCAL_UI_BASE_SAFE_OUTPUT_FILENAME,
@@ -80,6 +81,7 @@ from features.agents_dashboard_firmware.sync_build import (
     build_low_stack_local_branches_firmware,
     build_live_data_base_safe_firmware,
     build_live_data_reference_complete_firmware,
+    build_live_data_low_stack_firmware,
     build_sync_firmware,
     build_sync_payload,
     decode_agents_state,
@@ -846,7 +848,7 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
         self.assertEqual(city, b"%s")
         self.assertNotIn(b"?", location + city)
 
-    def test_live_data_reference_complete_firmware_passes_all_build_gates(self) -> None:
+    def test_live_data_low_stack_firmware_passes_all_build_gates(self) -> None:
         if (
             not shutil.which("riscv64-elf-as")
             or not shutil.which("riscv64-elf-gcc")
@@ -854,9 +856,9 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
             self.skipTest("本机没有阶段固件或固定编译工具")
         with tempfile.TemporaryDirectory() as selected:
             root = Path(selected)
-            output = root / LIVE_DATA_REFERENCE_COMPLETE_OUTPUT_FILENAME
+            output = root / LIVE_DATA_LOW_STACK_OUTPUT_FILENAME
             manifest = root / "manifest.json"
-            result = build_live_data_reference_complete_firmware(
+            result = build_live_data_low_stack_firmware(
                 self.stage,
                 output,
                 manifest,
@@ -873,11 +875,11 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
 
         self.assertEqual(
             document["manifest_type"],
-            "agents-live-data-reference-complete-firmware",
+            "agents-live-data-low-stack-firmware",
         )
         self.assertEqual(
             result.output.name,
-            LIVE_DATA_REFERENCE_COMPLETE_OUTPUT_FILENAME,
+            LIVE_DATA_LOW_STACK_OUTPUT_FILENAME,
         )
         self.assertTrue(document["transport"]["enabled"])
         self.assertEqual(
@@ -906,6 +908,7 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
         self.assertTrue(document["validation"]["installation_allowed"])
         self.assertTrue(document["interaction_simulation"]["summary"]["passed"])
         self.assertTrue(document["callchain_gates"]["stock_transport_scoped_patch"])
+        self.assertLessEqual(document["payload"]["maximum_static_stack"], 96)
         self.assertNotEqual(
             output_bytes[
                 UI_CALLBACK_LUI : UI_CALLBACK_LUI + len(
@@ -929,6 +932,26 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
                 build_live_data_base_safe_firmware(
                     self.stage,
                     root / LIVE_DATA_BASE_SAFE_OUTPUT_FILENAME,
+                    root / "manifest.json",
+                    root / "payload",
+                    url_base="http://192.168.31.174:18765/a",
+                    refresh_seconds=300,
+                    tool_revision={
+                        "commit": "test",
+                        "scoped_code_dirty": False,
+                    },
+                )
+
+    def test_failed_reference_complete_name_is_blocked(self) -> None:
+        with tempfile.TemporaryDirectory() as selected:
+            root = Path(selected)
+            with self.assertRaisesRegex(
+                RuntimeError,
+                "FW-AGENTS-012 已因安装后无设备取包请求停用",
+            ):
+                build_live_data_reference_complete_firmware(
+                    self.stage,
+                    root / LIVE_DATA_REFERENCE_COMPLETE_OUTPUT_FILENAME,
                     root / "manifest.json",
                     root / "payload",
                     url_base="http://192.168.31.174:18765/a",
@@ -1031,6 +1054,11 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
                             "memcpy(files[i] + sizes[i], b, n); sizes[i] += n; "
                             "return (int)n; }"
                         ),
+                        "void *ap01_selftest_malloc(unsigned int n) "
+                        "{ (void)n; return 0; }",
+                        "void ap01_selftest_free(void *p) { (void)p; }",
+                        "int ap01_selftest_webclient_perform(void *p) "
+                        "{ (void)p; return -1; }",
                         f'#include "{LOADER_SOURCE}"',
                         f"static unsigned char package[] = {{{package_values}}};",
                         "int main(void) {",
@@ -1080,6 +1108,92 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
                 capture_output=True,
                 text=True,
             )
+            result = subprocess.run(
+                [executable],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_low_stack_wrapper_allocates_and_releases_once(self) -> None:
+        compiler = shutil.which("cc")
+        if not compiler:
+            self.skipTest("本机没有主机 C 编译器")
+        page = b"GIF89a\x40\x01\xf0\x00\x00\x00\x3b"
+        package = encode_package(
+            (page, page, page, page),
+            generation=23,
+            generated_at=1_700_000_000,
+        )
+        with tempfile.TemporaryDirectory() as selected:
+            root = Path(selected)
+            harness = root / "wrapper-harness.c"
+            executable = root / "wrapper-harness"
+            package_values = ",".join(str(value) for value in package)
+            harness.write_text(
+                "\n".join(
+                    (
+                        "#define AP01_LOADER_SELF_TEST 1",
+                        "#include <string.h>",
+                        f'#include "{LOADER_SOURCE}"',
+                        f"static unsigned char package[] = {{{package_values}}};",
+                        "static unsigned char heap_state[136];",
+                        "static int fail_alloc = 1;",
+                        "static int malloc_calls;",
+                        "static int free_calls;",
+                        "static int perform_calls;",
+                        "static int next_fd = 1;",
+                        "int ap01_agents_restore_pet(void *p) "
+                        "{ (void)p; return 1; }",
+                        "int ap01_selftest_open(const char *p, int f, int m) "
+                        "{ (void)p; (void)f; (void)m; return next_fd++; }",
+                        "int ap01_selftest_close(int fd) "
+                        "{ return fd > 0 ? 0 : -1; }",
+                        "int ap01_selftest_read(int fd, void *b, unsigned int n) "
+                        "{ (void)fd; (void)b; (void)n; return -1; }",
+                        "int ap01_selftest_write(int fd, const void *b, "
+                        "unsigned int n) { (void)fd; (void)b; return (int)n; }",
+                        "void *ap01_selftest_malloc(unsigned int n) {",
+                        "  malloc_calls += 1;",
+                        "  if (fail_alloc || n != sizeof(heap_state)) return 0;",
+                        "  return heap_state;",
+                        "}",
+                        "void ap01_selftest_free(void *p) {",
+                        "  if (p == heap_state) free_calls += 1;",
+                        "}",
+                        "int ap01_selftest_webclient_perform(void *context) {",
+                        "  char *cursor = (char *)package;",
+                        "  int length = (int)sizeof(package);",
+                        "  void *state = *(void **)((unsigned char *)context + 64);",
+                        "  perform_calls += 1;",
+                        "  *(unsigned int *)((unsigned char *)context + 96) = 200u;",
+                        "  return ap01_agents_sink(&cursor, 0, length, &length, state);",
+                        "}",
+                        "int main(void) {",
+                        "  unsigned char context[128];",
+                        "  memset(context, 0, sizeof(context));",
+                        "  if (ap01_agents_webclient_wrapper(context) != ERR_IO) return 10;",
+                        "  if (malloc_calls != 1 || free_calls != 0 || perform_calls != 0) return 11;",
+                        "  fail_alloc = 0;",
+                        "  if (ap01_agents_webclient_wrapper(context) != 0) return 12;",
+                        "  if (malloc_calls != 2 || free_calls != 1 || perform_calls != 1) return 13;",
+                        "  if (*(void **)(context + 64) != (void *)0) return 14;",
+                        "  if (next_fd != 8) return 15;",
+                        "  return 0;",
+                        "}",
+                        "",
+                    )
+                ),
+                encoding="utf-8",
+            )
+            build = subprocess.run(
+                [compiler, "-O2", harness, "-o", executable],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(build.returncode, 0, build.stderr)
             result = subprocess.run(
                 [executable],
                 check=False,

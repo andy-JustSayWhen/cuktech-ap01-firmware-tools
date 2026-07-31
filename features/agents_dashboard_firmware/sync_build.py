@@ -110,6 +110,9 @@ LIVE_DATA_BASE_SAFE_OUTPUT_FILENAME = (
 LIVE_DATA_REFERENCE_COMPLETE_OUTPUT_FILENAME = (
     "ap01-1.0.2_0031-agents-live-data-reference-complete.bin"
 )
+LIVE_DATA_LOW_STACK_OUTPUT_FILENAME = (
+    "ap01-1.0.2_0031-agents-live-data-low-stack.bin"
+)
 OPT_INTEGRATION_OUTPUT_FILENAME = (
     "ap01-1.0.2_0031-opt-integration-candidate.bin"
 )
@@ -253,6 +256,8 @@ STOCK_PET_REQUIRED_CALLEES = (
     0xA0026788,
     0xA003F5F4,
     0xA0027D94,
+    0xA007E1C4,
+    0xA007C256,
 )
 LOCAL_UI_REQUIRED_CALLEES = (
     0xA00BE388,
@@ -647,9 +652,44 @@ def _validate_stock_pet_reuse_disassembly(
             )
     if not integration_mode:
         for address in STOCK_PET_FORBIDDEN_CALLEES:
+            if not local_ui_only and address in (0xA007E1C4, 0xA007C256):
+                continue
             if f"# {address:08x} <" in lowered:
                 raise AgentsDashboardFirmwareError(
                     f"原厂精确调用链载荷调用了禁止函数：0x{address:08x}"
+                )
+
+    if not local_ui_only:
+        web_wrapper = _symbol_block(
+            disassembly,
+            "ap01_agents_webclient_wrapper",
+            "ap01_agents_apply_current",
+        )
+        malloc_wrapper = _symbol_block(disassembly, "fw_malloc", "fw_free")
+        free_wrapper = _symbol_block(
+            disassembly,
+            "fw_free",
+            "fw_webclient_perform",
+        )
+        if (
+            web_wrapper.count("<fw_malloc>") != 1
+            or web_wrapper.count("<fw_free>") != 1
+        ):
+            raise AgentsDashboardFirmwareError(
+                "后台下载包装没有唯一申请或释放下载状态"
+            )
+        for address, helper in (
+            (0xA007E1C4, malloc_wrapper),
+            (0xA007C256, free_wrapper),
+        ):
+            marker = f"# {address:08x} <"
+            if helper.count(marker) != 1:
+                raise AgentsDashboardFirmwareError(
+                    f"后台下载包装没有唯一调用内存入口：0x{address:08x}"
+                )
+            if disassembly.count(marker) != helper.count(marker):
+                raise AgentsDashboardFirmwareError(
+                    f"后台下载以外调用了内存入口：0x{address:08x}"
                 )
 
     page_register = _symbol_block(
@@ -770,6 +810,8 @@ def _validate_stock_pet_reuse_disassembly(
             f"0x{address:08x}" for address in STOCK_PET_FORBIDDEN_CALLEES
         ],
     }
+    if not local_ui_only:
+        evidence["transport_heap_calls_scoped"] = True
     if local_ui_only:
         for symbol in LOCAL_UI_FORBIDDEN_SYMBOLS:
             if f"<{symbol}>:" in lowered:
@@ -1580,9 +1622,7 @@ def build_sync_firmware(
         raise AgentsDashboardFirmwareError(
             f"同步实验成品文件名必须是 {expected_output_name}"
         )
-    live_data_enabled = (
-        expected_output_name == LIVE_DATA_REFERENCE_COMPLETE_OUTPUT_FILENAME
-    )
+    live_data_enabled = expected_output_name == LIVE_DATA_LOW_STACK_OUTPUT_FILENAME
     allowed_variants = {
         (
             LOCAL_UI_STOCK_RESUME_OUTPUT_FILENAME,
@@ -1599,11 +1639,11 @@ def build_sync_firmware(
             "FW-AGENTS-010",
         ),
         (
-            LIVE_DATA_REFERENCE_COMPLETE_OUTPUT_FILENAME,
+            LIVE_DATA_LOW_STACK_OUTPUT_FILENAME,
             False,
             True,
             True,
-            "FW-AGENTS-012",
+            "FW-AGENTS-013",
         ),
     }
     if (
@@ -1647,9 +1687,10 @@ def build_sync_firmware(
         power_confirm_guard=power_confirm_guard,
         local_ui_only=local_ui_only,
     )
-    if payload_result.maximum_static_stack > 320:
+    stack_limit = 96 if interaction_name == "FW-AGENTS-013" else 320
+    if payload_result.maximum_static_stack > stack_limit:
         raise AgentsDashboardFirmwareError(
-            "低栈局部分支候选的单函数静态栈超过 320 字节"
+            f"低栈局部分支候选的单函数静态栈超过 {stack_limit} 字节"
         )
     payload = payload_result.binary.read_bytes()
     optimized = payload_result.optimized_source.read_bytes()
@@ -1798,7 +1839,7 @@ def build_sync_firmware(
     manifest: dict[str, object] = {
         "schema_version": 1,
         "manifest_type": (
-            "agents-live-data-reference-complete-firmware"
+            "agents-live-data-low-stack-firmware"
             if live_data_enabled
             else (
                 "agents-local-ui-base-safe-firmware"
@@ -2176,6 +2217,21 @@ def build_live_data_reference_complete_firmware(
     refresh_seconds: int,
     tool_revision: dict[str, object],
 ) -> SyncFirmwareResult:
+    raise AgentsDashboardFirmwareError(
+        "FW-AGENTS-012 已因安装后无设备取包请求停用"
+    )
+
+
+def build_live_data_low_stack_firmware(
+    stage_path: Path,
+    output_path: Path,
+    manifest_path: Path,
+    build_directory: Path,
+    *,
+    url_base: str,
+    refresh_seconds: int,
+    tool_revision: dict[str, object],
+) -> SyncFirmwareResult:
     return build_sync_firmware(
         stage_path,
         output_path,
@@ -2184,7 +2240,7 @@ def build_live_data_reference_complete_firmware(
         tool_revision=tool_revision,
         url_base=url_base,
         refresh_seconds=refresh_seconds,
-        expected_output_name=LIVE_DATA_REFERENCE_COMPLETE_OUTPUT_FILENAME,
+        expected_output_name=LIVE_DATA_LOW_STACK_OUTPUT_FILENAME,
         implemented_scope_extra=(
             "64 字节四页包流式接收与逐页损坏检查",
             "三组内存临时槽原子提交",
@@ -2193,10 +2249,11 @@ def build_live_data_reference_complete_firmware(
             "界面定时包装先调用原厂入口再应用已提交页面",
             "进入概览与切换详情时主动应用已提交页面",
             "不链接任何设备共享配置",
+            "四页下载状态使用原厂内存申请与释放入口且不占后台任务栈",
         ),
         reuse_stock_pet=True,
         local_ui_only=False,
         shared_page_filter=True,
         power_confirm_guard=True,
-        interaction_name="FW-AGENTS-012",
+        interaction_name="FW-AGENTS-013",
     )

@@ -26,6 +26,8 @@ typedef unsigned long long u64;
 #define VA_CLOSE                          0xa0026788u
 #define VA_READ                           0xa003f5f4u
 #define VA_WRITE                          0xa0027d94u
+#define VA_MALLOC                         0xa007e1c4u
+#define VA_FREE                           0xa007c256u
 
 #define AP01_O_RDONLY                     1
 #define AP01_O_RDWR_CREAT_TRUNC           39
@@ -60,6 +62,8 @@ typedef int (*open_fn)(const char *, int, int);
 typedef int (*close_fn)(int);
 typedef int (*io_fn)(int, void *, u32);
 typedef int (*write_fn)(int, const void *, u32);
+typedef void *(*malloc_fn)(u32);
+typedef void (*free_fn)(void *);
 
 struct agents_meta
 {
@@ -194,6 +198,36 @@ static ATTR_NOINLINE int fw_write(int fd, const void *buffer, u32 length)
   return ap01_selftest_write(fd, buffer, length);
 #else
   return ((write_fn)VA_WRITE)(fd, buffer, length);
+#endif
+}
+
+static ATTR_NOINLINE void *fw_malloc(u32 length)
+{
+#ifdef AP01_LOADER_SELF_TEST
+  extern void *ap01_selftest_malloc(u32);
+  return ap01_selftest_malloc(length);
+#else
+  return ((malloc_fn)VA_MALLOC)(length);
+#endif
+}
+
+static ATTR_NOINLINE void fw_free(void *pointer)
+{
+#ifdef AP01_LOADER_SELF_TEST
+  extern void ap01_selftest_free(void *);
+  ap01_selftest_free(pointer);
+#else
+  ((free_fn)VA_FREE)(pointer);
+#endif
+}
+
+static ATTR_NOINLINE int fw_webclient_perform(void *context)
+{
+#ifdef AP01_LOADER_SELF_TEST
+  extern int ap01_selftest_webclient_perform(void *);
+  return ap01_selftest_webclient_perform(context);
+#else
+  return ((webclient_perform_fn)VA_WEBCLIENT_PERFORM)(context);
 #endif
 }
 
@@ -505,8 +539,7 @@ ATTR_ENTRY int ap01_agents_webclient_wrapper(void *context)
 {
   struct agents_meta old_meta;
   struct agents_meta old_ack;
-  struct download_state state_storage;
-  struct download_state *state = &state_storage;
+  struct download_state *state;
   u32 next_slot;
   u32 have_meta;
   u32 have_ack;
@@ -515,6 +548,11 @@ ATTR_ENTRY int ap01_agents_webclient_wrapper(void *context)
   if (context == (void *)0)
     {
       return ERR_INVAL;
+    }
+  state = (struct download_state *)fw_malloc((u32)sizeof(*state));
+  if (state == (void *)0)
+    {
+      return ERR_IO;
     }
   memory_zero(state, (u32)sizeof(*state));
   state->fd = -1;
@@ -530,11 +568,12 @@ ATTR_ENTRY int ap01_agents_webclient_wrapper(void *context)
     }
   if (next_slot >= 3u)
     {
-      return ERR_IO;
+      result = ERR_IO;
+      goto release_state;
     }
   state->slot = next_slot;
   *(void **)((u8 *)context + WEBCLIENT_SINK_ARG_OFFSET) = state;
-  result = ((webclient_perform_fn)VA_WEBCLIENT_PERFORM)(context);
+  result = fw_webclient_perform(context);
   *(void **)((u8 *)context + WEBCLIENT_SINK_ARG_OFFSET) = (void *)0;
   if (state->fd >= 0)
     {
@@ -556,6 +595,8 @@ ATTR_ENTRY int ap01_agents_webclient_wrapper(void *context)
     {
       result = ERR_INVAL;
     }
+release_state:
+  fw_free(state);
   return result;
 }
 
