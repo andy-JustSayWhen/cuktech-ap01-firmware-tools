@@ -45,7 +45,7 @@
 | `SPEC-DASHBOARD-015` 至 `SPEC-DASHBOARD-018` | [`优化固件 DESIGN`](AP01-1.0.2_0031-opt.bin.md) 第 7.3、7.5、7.6 节 | `features/agents_dashboard/formatting.py`、`renderer.py` | 单位边界、五位主体数字、无小数和比例方向自动测试 | 自动测试已实现；真机显示待验证 |
 | `SPEC-DASHBOARD-019` 至 `SPEC-DASHBOARD-025` | [`优化固件 DESIGN`](AP01-1.0.2_0031-opt.bin.md) 第 7.2 至 7.6 节 | `features/agents_dashboard/models.py`、`renderer.py` | 四页逐字段、组图标、文字颜色和无虚假圆环的图像核对 | 自动产物已有；真机逐页验收待完成 |
 | `SPEC-DASHBOARD-026` 至 `SPEC-DASHBOARD-028` | [`优化固件 DESIGN`](AP01-1.0.2_0031-opt.bin.md) 第 7.4、8 节 | `features/agents_dashboard/collector.py`、`pricing.py`、`result_package.py` | 官方来源字段、字段白名单、缓存和成品敏感内容检查 | 本机数据链已实现；发布环境检查待完成 |
-| `SPEC-DASHBOARD-029` 至 `SPEC-DASHBOARD-033` | [`优化固件 DESIGN`](AP01-1.0.2_0031-opt.bin.md) 第 6.1、7.1、10.6 至 10.20、14 节 | `features/agents_dashboard_firmware/` 的原厂萌宠三个局部分支、共享序号切页过滤、功率确认连接保护与 `interaction_simulator.py` | 基座在线与离线连续事件模拟、残留功率页安全确认、概览进入详情、三详情循环、返回、一级左右导航与全部原厂页面回归 | `FW-AGENTS-010` 正式冻结构建通过；待上传全量回读、自动安装与真机验收 |
+| `SPEC-DASHBOARD-029` 至 `SPEC-DASHBOARD-033` | [`优化固件 DESIGN`](AP01-1.0.2_0031-opt.bin.md) 第 6.1、7.1、10.6 至 10.20、14 节 | `features/agents_dashboard_firmware/` 的原厂萌宠三个局部分支、共享序号切页过滤、功率确认连接保护与 `interaction_simulator.py` | 基座在线与离线连续事件模拟、残留功率页安全确认、概览进入详情、三详情循环、返回、一级左右导航与全部原厂页面回归 | `FW-AGENTS-010` 已安装、重启并重新上线；待功率与 AGENTS 物理验收 |
 
 ## 6. 系统设置旋钮
 
