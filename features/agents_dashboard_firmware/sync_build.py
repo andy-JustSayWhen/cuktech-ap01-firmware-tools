@@ -113,6 +113,9 @@ LIVE_DATA_REFERENCE_COMPLETE_OUTPUT_FILENAME = (
 LIVE_DATA_LOW_STACK_OUTPUT_FILENAME = (
     "ap01-1.0.2_0031-agents-live-data-low-stack.bin"
 )
+LIVE_DATA_LOCATION_INDEPENDENT_OUTPUT_FILENAME = (
+    "ap01-1.0.2_0031-agents-live-data-location-independent.bin"
+)
 OPT_INTEGRATION_OUTPUT_FILENAME = (
     "ap01-1.0.2_0031-opt-integration-candidate.bin"
 )
@@ -126,6 +129,9 @@ PET_STATE_SIZE_EXTENDED = bytes.fromhex("5145")
 LOADER_TRAMPOLINE_OFFSET = 0x01C0B4
 LOADER_TRAMPOLINE_VA = XIP_DELTA + LOADER_TRAMPOLINE_OFFSET
 LOADER_TRAMPOLINE_ORIGINAL = b"\x00" * 8
+LOCATION_TRAMPOLINE_OFFSET = 0x01C0E4
+LOCATION_TRAMPOLINE_VA = XIP_DELTA + LOCATION_TRAMPOLINE_OFFSET
+LOCATION_TRAMPOLINE_ORIGINAL = b"\x00" * 8
 STOCK_LOCAL_BRANCH_HOOKS = (
     (
         0x0BD460,
@@ -184,6 +190,7 @@ UI_CALLBACK_ADDI = 0x0B37EE
 SINK_CALLBACK_LUI = 0x0B7D92
 SINK_CALLBACK_ADDI = 0x0B7D96
 HTTP_PERFORM_CALL = 0x0B82C0
+LOCATION_LOOKUP_CALL = 0x0B7DD4
 SUCCESS_TIMER_LUI = 0x0B7F86
 SUCCESS_TIMER_ADDI = 0x0B7F8A
 SUCCESS_TIMER_REM = 0x0B7F8E
@@ -213,6 +220,7 @@ INSTRUCTION_EXPECTED = {
     SINK_CALLBACK_LUI: bytes.fromhex("b7670ba0"),
     SINK_CALLBACK_ADDI: bytes.fromhex("9387672d"),
     HTTP_PERFORM_CALL: bytes.fromhex("ef10a23f"),
+    LOCATION_LOOKUP_CALL: bytes.fromhex("ef507fe1"),
     SUCCESS_TIMER_LUI: bytes.fromhex("b7f73600"),
     SUCCESS_TIMER_ADDI: bytes.fromhex("138917e8"),
     SUCCESS_TIMER_REM: bytes.fromhex("33692503"),
@@ -223,6 +231,7 @@ INSTRUCTION_EXPECTED = {
 REQUIRED_SYMBOLS = (
     "ap01_agents_page_register",
     "ap01_agents_sink",
+    "ap01_agents_location_stub",
     "ap01_agents_webclient_wrapper",
     "ap01_agents_apply_current",
     "ap01_agents_ui_timer_wrapper",
@@ -660,6 +669,29 @@ def _validate_stock_pet_reuse_disassembly(
                 )
 
     if not local_ui_only:
+        location_stub = _symbol_block(
+            disassembly,
+            "ap01_agents_location_stub",
+            "ap01_agents_webclient_wrapper",
+        )
+        store_offsets = {
+            int(match.group(1))
+            for match in re.finditer(
+                r"\bsb\s+x\d+,(\d+)\(x10\)",
+                location_stub,
+            )
+        }
+        if (
+            store_offsets != set(range(10))
+            or (
+                "addi\tx10,x0,1" not in location_stub
+                and "c.li\tx10,1" not in location_stub
+            )
+            or re.search(r"\bjal\s+x1,|\bjalr\s+x1,", location_stub)
+        ):
+            raise AgentsDashboardFirmwareError(
+                "位置占位入口没有保持十字节有界写入和成功返回"
+            )
         web_wrapper = _symbol_block(
             disassembly,
             "ap01_agents_webclient_wrapper",
@@ -1219,6 +1251,19 @@ def _assert_stock_transport_unchanged(stage: bytes, candidate: bytes) -> None:
         != LOADER_TRAMPOLINE_ORIGINAL
     ):
         raise AgentsDashboardFirmwareError("后台同步跳板不再保持原字节")
+    if (
+        stage[
+            LOCATION_TRAMPOLINE_OFFSET :
+            LOCATION_TRAMPOLINE_OFFSET + len(LOCATION_TRAMPOLINE_ORIGINAL)
+        ]
+        != LOCATION_TRAMPOLINE_ORIGINAL
+        or candidate[
+            LOCATION_TRAMPOLINE_OFFSET :
+            LOCATION_TRAMPOLINE_OFFSET + len(LOCATION_TRAMPOLINE_ORIGINAL)
+        ]
+        != LOCATION_TRAMPOLINE_ORIGINAL
+    ):
+        raise AgentsDashboardFirmwareError("位置占位跳板不再保持原字节")
     for offset, expected in INSTRUCTION_EXPECTED.items():
         end = offset + len(expected)
         if stage[offset:end] != expected or candidate[offset:end] != expected:
@@ -1238,6 +1283,7 @@ def _patch_stock_transport(
     *,
     url_base: str,
     refresh_seconds: int,
+    location_independent: bool,
 ) -> list[ByteRange]:
     allowed: list[ByteRange] = []
     url_bytes = url_base.encode("ascii")
@@ -1259,6 +1305,40 @@ def _patch_stock_transport(
             LOADER_TRAMPOLINE_ORIGINAL,
             _absolute_tail_jump(web_wrapper),
             "后台同步跳板",
+        )
+    )
+    if not location_independent:
+        raise AgentsDashboardFirmwareError("真实数据固件必须解除天气位置依赖")
+    if (
+        bytes(
+            candidate[
+                LOCATION_TRAMPOLINE_OFFSET :
+                LOCATION_TRAMPOLINE_OFFSET + len(LOCATION_TRAMPOLINE_ORIGINAL)
+            ]
+        )
+        != LOCATION_TRAMPOLINE_ORIGINAL
+    ):
+        raise AgentsDashboardFirmwareError("位置占位跳板区间不再是全零")
+    location_stub = symbols["ap01_agents_location_stub"]
+    allowed.append(
+        _replace(
+            candidate,
+            LOCATION_TRAMPOLINE_OFFSET,
+            LOCATION_TRAMPOLINE_ORIGINAL,
+            _absolute_tail_jump(location_stub),
+            "位置占位跳板",
+        )
+    )
+    allowed.append(
+        _replace(
+            candidate,
+            LOCATION_LOOKUP_CALL,
+            INSTRUCTION_EXPECTED[LOCATION_LOOKUP_CALL],
+            _encode_jal(
+                XIP_DELTA + LOCATION_LOOKUP_CALL,
+                LOCATION_TRAMPOLINE_VA,
+            ),
+            "位置取得调用",
         )
     )
     ui_wrapper = symbols["ap01_agents_ui_timer_wrapper"]
@@ -1622,7 +1702,10 @@ def build_sync_firmware(
         raise AgentsDashboardFirmwareError(
             f"同步实验成品文件名必须是 {expected_output_name}"
         )
-    live_data_enabled = expected_output_name == LIVE_DATA_LOW_STACK_OUTPUT_FILENAME
+    live_data_enabled = (
+        expected_output_name
+        == LIVE_DATA_LOCATION_INDEPENDENT_OUTPUT_FILENAME
+    )
     allowed_variants = {
         (
             LOCAL_UI_STOCK_RESUME_OUTPUT_FILENAME,
@@ -1639,11 +1722,11 @@ def build_sync_firmware(
             "FW-AGENTS-010",
         ),
         (
-            LIVE_DATA_LOW_STACK_OUTPUT_FILENAME,
+            LIVE_DATA_LOCATION_INDEPENDENT_OUTPUT_FILENAME,
             False,
             True,
             True,
-            "FW-AGENTS-013",
+            "FW-AGENTS-014",
         ),
     }
     if (
@@ -1687,7 +1770,7 @@ def build_sync_firmware(
         power_confirm_guard=power_confirm_guard,
         local_ui_only=local_ui_only,
     )
-    stack_limit = 96 if interaction_name == "FW-AGENTS-013" else 320
+    stack_limit = 96 if interaction_name == "FW-AGENTS-014" else 320
     if payload_result.maximum_static_stack > stack_limit:
         raise AgentsDashboardFirmwareError(
             f"低栈局部分支候选的单函数静态栈超过 {stack_limit} 字节"
@@ -1758,6 +1841,7 @@ def build_sync_firmware(
             payload_result.symbols,
             url_base=url_base,
             refresh_seconds=refresh_seconds,
+            location_independent=True,
         )
         allowed.extend(transport_ranges)
     else:
@@ -1839,7 +1923,7 @@ def build_sync_firmware(
     manifest: dict[str, object] = {
         "schema_version": 1,
         "manifest_type": (
-            "agents-live-data-low-stack-firmware"
+            "agents-live-data-location-independent-firmware"
             if live_data_enabled
             else (
                 "agents-local-ui-base-safe-firmware"
@@ -1882,6 +1966,8 @@ def build_sync_firmware(
             "city_request_format": "%s" if live_data_enabled else None,
             "ui_timer_wrapper_enabled": live_data_enabled,
             "shared_device_configuration_used": False,
+            "weather_location_dependency_removed": live_data_enabled,
+            "location_placeholder_transmitted": False,
         },
         "payload": {
             "file_offset": f"0x{PAYLOAD_START:06x}",
@@ -1950,6 +2036,32 @@ def build_sync_firmware(
             "power_confirm_guard_calls_stock_clock": power_confirm_guard,
             "stock_transport_paths_unchanged": not live_data_enabled,
             "stock_transport_scoped_patch": live_data_enabled,
+            "stock_location_lookup_scoped_patch": live_data_enabled,
+            "stock_location_lookup": (
+                {
+                    "call_file_offset": f"0x{LOCATION_LOOKUP_CALL:06x}",
+                    "call_before_hex": INSTRUCTION_EXPECTED[
+                        LOCATION_LOOKUP_CALL
+                    ].hex(),
+                    "call_after_hex": _encode_jal(
+                        XIP_DELTA + LOCATION_LOOKUP_CALL,
+                        LOCATION_TRAMPOLINE_VA,
+                    ).hex(),
+                    "trampoline_file_offset": (
+                        f"0x{LOCATION_TRAMPOLINE_OFFSET:06x}"
+                    ),
+                    "trampoline_after_hex": _absolute_tail_jump(
+                        payload_result.symbols["ap01_agents_location_stub"]
+                    ).hex(),
+                    "payload_symbol": "ap01_agents_location_stub",
+                    "payload_address": (
+                        "0x"
+                        f"{payload_result.symbols['ap01_agents_location_stub']:08x}"
+                    ),
+                }
+                if live_data_enabled
+                else None
+            ),
             "overview_right_stock_resume_only": True,
             "local_branch_hooks": [
                 {
@@ -2011,6 +2123,7 @@ def build_sync_firmware(
             "stock_transport_paths_unchanged": not live_data_enabled,
             "transport_symbols_absent": not live_data_enabled,
             "transport_symbols_present": live_data_enabled,
+            "stock_location_lookup_scoped_patch": live_data_enabled,
             "shared_device_configuration_absent": True,
             "independent_tail_recovery_verified": True,
             "installation_allowed": power_confirm_guard,
@@ -2232,6 +2345,21 @@ def build_live_data_low_stack_firmware(
     refresh_seconds: int,
     tool_revision: dict[str, object],
 ) -> SyncFirmwareResult:
+    raise AgentsDashboardFirmwareError(
+        "FW-AGENTS-013 已因安装后无设备取包请求停用"
+    )
+
+
+def build_live_data_location_independent_firmware(
+    stage_path: Path,
+    output_path: Path,
+    manifest_path: Path,
+    build_directory: Path,
+    *,
+    url_base: str,
+    refresh_seconds: int,
+    tool_revision: dict[str, object],
+) -> SyncFirmwareResult:
     return build_sync_firmware(
         stage_path,
         output_path,
@@ -2240,7 +2368,7 @@ def build_live_data_low_stack_firmware(
         tool_revision=tool_revision,
         url_base=url_base,
         refresh_seconds=refresh_seconds,
-        expected_output_name=LIVE_DATA_LOW_STACK_OUTPUT_FILENAME,
+        expected_output_name=LIVE_DATA_LOCATION_INDEPENDENT_OUTPUT_FILENAME,
         implemented_scope_extra=(
             "64 字节四页包流式接收与逐页损坏检查",
             "三组内存临时槽原子提交",
@@ -2250,10 +2378,11 @@ def build_live_data_low_stack_firmware(
             "进入概览与切换详情时主动应用已提交页面",
             "不链接任何设备共享配置",
             "四页下载状态使用原厂内存申请与释放入口且不占后台任务栈",
+            "位置占位入口解除局域网取包对原厂天气位置的依赖",
         ),
         reuse_stock_pet=True,
         local_ui_only=False,
         shared_page_filter=True,
         power_confirm_guard=True,
-        interaction_name="FW-AGENTS-013",
+        interaction_name="FW-AGENTS-014",
     )

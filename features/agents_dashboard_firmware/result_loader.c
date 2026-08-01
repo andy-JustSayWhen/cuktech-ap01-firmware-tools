@@ -535,6 +535,26 @@ ATTR_ENTRY int ap01_agents_sink(char **buffer, int offset, int data_end,
   return 0;
 }
 
+ATTR_ENTRY int ap01_agents_location_stub(void *target)
+{
+  volatile u8 *text = (volatile u8 *)target;
+  if (text == (void *)0)
+    {
+      return 0;
+    }
+  text[0] = (u8)'0';
+  text[1] = (u8)'0';
+  text[2] = (u8)'0';
+  text[3] = (u8)'0';
+  text[4] = (u8)'0';
+  text[5] = (u8)'0';
+  text[6] = (u8)'0';
+  text[7] = (u8)'0';
+  text[8] = (u8)'0';
+  text[9] = 0u;
+  return 1;
+}
+
 ATTR_ENTRY int ap01_agents_webclient_wrapper(void *context)
 {
   struct agents_meta old_meta;

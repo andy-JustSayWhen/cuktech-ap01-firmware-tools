@@ -36,12 +36,16 @@ from features.agents_dashboard_firmware.sync_build import (
     INSTRUCTION_EXPECTED,
     FAILURE_BACKOFF_STORE,
     HTTP_PERFORM_CALL,
+    LOCATION_LOOKUP_CALL,
+    LOCATION_TRAMPOLINE_OFFSET,
+    LOCATION_TRAMPOLINE_ORIGINAL,
     LOADER_SOURCE,
     LOADER_TRAMPOLINE_OFFSET,
     LOADER_TRAMPOLINE_ORIGINAL,
     LIVE_DATA_BASE_SAFE_OUTPUT_FILENAME,
     LIVE_DATA_REFERENCE_COMPLETE_OUTPUT_FILENAME,
     LIVE_DATA_LOW_STACK_OUTPUT_FILENAME,
+    LIVE_DATA_LOCATION_INDEPENDENT_OUTPUT_FILENAME,
     LOCAL_UI_FORBIDDEN_CALLEES,
     LOCAL_UI_FORBIDDEN_SYMBOLS,
     LOCAL_UI_BASE_SAFE_OUTPUT_FILENAME,
@@ -82,6 +86,7 @@ from features.agents_dashboard_firmware.sync_build import (
     build_live_data_base_safe_firmware,
     build_live_data_reference_complete_firmware,
     build_live_data_low_stack_firmware,
+    build_live_data_location_independent_firmware,
     build_sync_firmware,
     build_sync_payload,
     decode_agents_state,
@@ -848,7 +853,9 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
         self.assertEqual(city, b"%s")
         self.assertNotIn(b"?", location + city)
 
-    def test_live_data_low_stack_firmware_passes_all_build_gates(self) -> None:
+    def test_live_data_location_independent_firmware_passes_all_build_gates(
+        self,
+    ) -> None:
         if (
             not shutil.which("riscv64-elf-as")
             or not shutil.which("riscv64-elf-gcc")
@@ -856,9 +863,9 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
             self.skipTest("本机没有阶段固件或固定编译工具")
         with tempfile.TemporaryDirectory() as selected:
             root = Path(selected)
-            output = root / LIVE_DATA_LOW_STACK_OUTPUT_FILENAME
+            output = root / LIVE_DATA_LOCATION_INDEPENDENT_OUTPUT_FILENAME
             manifest = root / "manifest.json"
-            result = build_live_data_low_stack_firmware(
+            result = build_live_data_location_independent_firmware(
                 self.stage,
                 output,
                 manifest,
@@ -875,11 +882,11 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
 
         self.assertEqual(
             document["manifest_type"],
-            "agents-live-data-low-stack-firmware",
+            "agents-live-data-location-independent-firmware",
         )
         self.assertEqual(
             result.output.name,
-            LIVE_DATA_LOW_STACK_OUTPUT_FILENAME,
+            LIVE_DATA_LOCATION_INDEPENDENT_OUTPUT_FILENAME,
         )
         self.assertTrue(document["transport"]["enabled"])
         self.assertEqual(
@@ -890,6 +897,12 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
         self.assertEqual(document["transport"]["location_request_format"], "%s")
         self.assertEqual(document["transport"]["city_request_format"], "%s")
         self.assertTrue(document["transport"]["ui_timer_wrapper_enabled"])
+        self.assertTrue(
+            document["transport"]["weather_location_dependency_removed"]
+        )
+        self.assertFalse(
+            document["transport"]["location_placeholder_transmitted"]
+        )
         self.assertFalse(
             document["transport"]["shared_device_configuration_used"]
         )
@@ -908,6 +921,17 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
         self.assertTrue(document["validation"]["installation_allowed"])
         self.assertTrue(document["interaction_simulation"]["summary"]["passed"])
         self.assertTrue(document["callchain_gates"]["stock_transport_scoped_patch"])
+        self.assertTrue(
+            document["callchain_gates"][
+                "stock_location_lookup_scoped_patch"
+            ]
+        )
+        self.assertEqual(
+            document["callchain_gates"]["stock_location_lookup"][
+                "payload_symbol"
+            ],
+            "ap01_agents_location_stub",
+        )
         self.assertLessEqual(document["payload"]["maximum_static_stack"], 96)
         self.assertNotEqual(
             output_bytes[
@@ -921,6 +945,53 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
             value = output_bytes[offset : offset + capacity].split(b"\0", 1)[0]
             if "格式" in label:
                 self.assertEqual(value, b"%s")
+        self.assertNotEqual(
+            output_bytes[
+                LOCATION_LOOKUP_CALL :
+                LOCATION_LOOKUP_CALL + len(
+                    INSTRUCTION_EXPECTED[LOCATION_LOOKUP_CALL]
+                )
+            ],
+            INSTRUCTION_EXPECTED[LOCATION_LOOKUP_CALL],
+        )
+        self.assertEqual(
+            self.stage.read_bytes()[
+                LOCATION_TRAMPOLINE_OFFSET :
+                LOCATION_TRAMPOLINE_OFFSET + len(
+                    LOCATION_TRAMPOLINE_ORIGINAL
+                )
+            ],
+            LOCATION_TRAMPOLINE_ORIGINAL,
+        )
+        self.assertNotEqual(
+            output_bytes[
+                LOCATION_TRAMPOLINE_OFFSET :
+                LOCATION_TRAMPOLINE_OFFSET + len(
+                    LOCATION_TRAMPOLINE_ORIGINAL
+                )
+            ],
+            LOCATION_TRAMPOLINE_ORIGINAL,
+        )
+
+    def test_failed_live_data_low_stack_name_is_blocked(self) -> None:
+        with tempfile.TemporaryDirectory() as selected:
+            root = Path(selected)
+            with self.assertRaisesRegex(
+                RuntimeError,
+                "FW-AGENTS-013 已因安装后无设备取包请求停用",
+            ):
+                build_live_data_low_stack_firmware(
+                    self.stage,
+                    root / LIVE_DATA_LOW_STACK_OUTPUT_FILENAME,
+                    root / "manifest.json",
+                    root / "payload",
+                    url_base="http://192.168.31.174:18765/a",
+                    refresh_seconds=300,
+                    tool_revision={
+                        "commit": "test",
+                        "scoped_code_dirty": False,
+                    },
+                )
 
     def test_failed_live_data_base_safe_name_is_blocked(self) -> None:
         with tempfile.TemporaryDirectory() as selected:
@@ -1172,7 +1243,13 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
                         "}",
                         "int main(void) {",
                         "  unsigned char context[128];",
+                        "  unsigned char location[12];",
                         "  memset(context, 0, sizeof(context));",
+                        "  memset(location, 0xaa, sizeof(location));",
+                        "  if (ap01_agents_location_stub(0) != 0) return 8;",
+                        "  if (ap01_agents_location_stub(location) != 1) return 9;",
+                        "  if (memcmp(location, \"000000000\", 10) != 0) return 16;",
+                        "  if (location[10] != 0xaa || location[11] != 0xaa) return 17;",
                         "  if (ap01_agents_webclient_wrapper(context) != ERR_IO) return 10;",
                         "  if (malloc_calls != 1 || free_calls != 0 || perform_calls != 0) return 11;",
                         "  fail_alloc = 0;",

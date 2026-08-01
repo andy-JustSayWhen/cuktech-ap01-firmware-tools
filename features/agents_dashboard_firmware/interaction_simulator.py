@@ -833,6 +833,7 @@ def contract_from_manifest(
         "agents-live-data-base-safe-firmware",
         "agents-live-data-reference-complete-firmware",
         "agents-live-data-low-stack-firmware",
+        "agents-live-data-location-independent-firmware",
     ):
         raise InteractionSimulationError("构建清单类型不是当前局部界面固件")
     validation = document.get("validation")
@@ -853,22 +854,28 @@ def contract_from_manifest(
         "agents-live-data-base-safe-firmware",
         "agents-live-data-reference-complete-firmware",
         "agents-live-data-low-stack-firmware",
+        "agents-live-data-location-independent-firmware",
     )
     base_safe = manifest_type in (
         "agents-local-ui-base-safe-firmware",
         "agents-live-data-base-safe-firmware",
         "agents-live-data-reference-complete-firmware",
         "agents-live-data-low-stack-firmware",
+        "agents-live-data-location-independent-firmware",
     )
     live_data = manifest_type == "agents-live-data-base-safe-firmware"
     reference_complete = (
         manifest_type == "agents-live-data-reference-complete-firmware"
     )
     low_stack = manifest_type == "agents-live-data-low-stack-firmware"
+    location_independent = (
+        manifest_type == "agents-live-data-location-independent-firmware"
+    )
     return InteractionContract(
         name=(
-            "FW-AGENTS-013"
-            if low_stack
+            "FW-AGENTS-014"
+            if location_independent
+            else "FW-AGENTS-013" if low_stack
             else "FW-AGENTS-012" if reference_complete
             else "FW-AGENTS-011" if live_data
             else "FW-AGENTS-010" if base_safe
