@@ -64,8 +64,11 @@ from features.primary_page_navigation import (
 )
 from features.primary_page_settings import (
     HOOK_OBSERVATION_OUTPUT_NAME,
+    READ_ONLY_ENTRY_OUTPUT_NAME,
+    PageSettingsReadOnlyEntryError,
     PrimaryPageSettingsBuildError,
     SettingsHookObservationError,
+    build_page_settings_read_only_entry,
     build_settings_hook_observation,
 )
 from features.settings_menu_wrap import (
@@ -420,6 +423,14 @@ def _parser() -> argparse.ArgumentParser:
     hook_observation_command.add_argument("--output", type=Path, required=True)
     hook_observation_command.add_argument("--manifest", type=Path, required=True)
     hook_observation_command.add_argument("--build-dir", type=Path, required=True)
+    read_only_entry_command = commands.add_parser(
+        "page-settings-read-only-entry-build",
+        help="从已验收设置固件生成第八项只读入口候选",
+    )
+    read_only_entry_command.add_argument("--input", type=Path, required=True)
+    read_only_entry_command.add_argument("--output", type=Path, required=True)
+    read_only_entry_command.add_argument("--manifest", type=Path, required=True)
+    read_only_entry_command.add_argument("--build-dir", type=Path, required=True)
     return parser
 
 
@@ -1123,6 +1134,40 @@ def main(argv: list[str] | None = None) -> int:
             )
             return 0
 
+        if args.command == "page-settings-read-only-entry-build":
+            result = build_page_settings_read_only_entry(
+                args.input,
+                args.output,
+                args.manifest,
+                args.build_dir,
+                assembler=_required_tool("riscv64-elf-as"),
+                linker=_required_tool("riscv64-elf-ld"),
+                copier=_required_tool("riscv64-elf-objcopy"),
+                readelf=_required_tool("riscv64-elf-readelf"),
+                nm=_required_tool("riscv64-elf-nm"),
+                dumper=_required_tool("riscv64-elf-objdump"),
+                tool_revision=revision,
+            )
+            print(
+                json.dumps(
+                    {
+                        "result": "页面开关第八项只读入口候选制作完成",
+                        "output": str(result.output),
+                        "manifest": str(result.manifest),
+                        "output_name": READ_ONLY_ENTRY_OUTPUT_NAME,
+                        "output_sha256": result.sha256,
+                        "output_md5": result.md5,
+                        "payload_size": result.payload_size,
+                        "payload_remaining": result.payload_remaining,
+                        "simulation_sequences": result.simulation_sequences,
+                        "installation_allowed": True,
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                )
+            )
+            return 0
+
         result = make_firmware(
             args.input,
             args.plan,
@@ -1159,6 +1204,7 @@ def main(argv: list[str] | None = None) -> int:
         OptimizedFirmwareBuildError,
         PrimaryPageNavigationError,
         PrimaryPageSettingsBuildError,
+        PageSettingsReadOnlyEntryError,
         SettingsHookObservationError,
         SettingsMenuWrapError,
         OSError,
