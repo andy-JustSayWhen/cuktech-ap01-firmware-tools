@@ -21,6 +21,13 @@ from .read_only_entry import (
     build_page_settings_read_only_entry,
     simulate_page_settings_read_only_entry,
 )
+from .startup_passthrough import (
+    OUTPUT_NAME as STARTUP_PASSTHROUGH_OUTPUT_NAME,
+    PageSettingsStartupPassthroughError,
+    PageSettingsStartupPassthroughResult,
+    build_page_settings_startup_passthrough,
+    simulate_page_settings_startup_passthrough,
+)
 
 __all__ = (
     "HOOK_OBSERVATION_OUTPUT_NAME",
@@ -33,10 +40,15 @@ __all__ = (
     "REQUIRED_SYMBOLS",
     "SettingsHookObservationError",
     "SettingsHookObservationResult",
+    "STARTUP_PASSTHROUGH_OUTPUT_NAME",
+    "PageSettingsStartupPassthroughError",
+    "PageSettingsStartupPassthroughResult",
     "apply_page_settings_patches",
     "build_page_settings_assets",
     "build_page_settings_objects",
     "build_page_settings_read_only_entry",
+    "build_page_settings_startup_passthrough",
     "build_settings_hook_observation",
     "simulate_page_settings_read_only_entry",
+    "simulate_page_settings_startup_passthrough",
 )

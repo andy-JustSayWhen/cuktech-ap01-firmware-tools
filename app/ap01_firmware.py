@@ -65,10 +65,13 @@ from features.primary_page_navigation import (
 from features.primary_page_settings import (
     HOOK_OBSERVATION_OUTPUT_NAME,
     READ_ONLY_ENTRY_OUTPUT_NAME,
+    STARTUP_PASSTHROUGH_OUTPUT_NAME,
     PageSettingsReadOnlyEntryError,
+    PageSettingsStartupPassthroughError,
     PrimaryPageSettingsBuildError,
     SettingsHookObservationError,
     build_page_settings_read_only_entry,
+    build_page_settings_startup_passthrough,
     build_settings_hook_observation,
 )
 from features.settings_menu_wrap import (
@@ -431,6 +434,14 @@ def _parser() -> argparse.ArgumentParser:
     read_only_entry_command.add_argument("--output", type=Path, required=True)
     read_only_entry_command.add_argument("--manifest", type=Path, required=True)
     read_only_entry_command.add_argument("--build-dir", type=Path, required=True)
+    startup_passthrough_command = commands.add_parser(
+        "page-settings-startup-passthrough-build",
+        help="从已验收设置固件生成启动基础透传候选",
+    )
+    startup_passthrough_command.add_argument("--input", type=Path, required=True)
+    startup_passthrough_command.add_argument("--output", type=Path, required=True)
+    startup_passthrough_command.add_argument("--manifest", type=Path, required=True)
+    startup_passthrough_command.add_argument("--build-dir", type=Path, required=True)
     return parser
 
 
@@ -1168,6 +1179,40 @@ def main(argv: list[str] | None = None) -> int:
             )
             return 0
 
+        if args.command == "page-settings-startup-passthrough-build":
+            result = build_page_settings_startup_passthrough(
+                args.input,
+                args.output,
+                args.manifest,
+                args.build_dir,
+                assembler=_required_tool("riscv64-elf-as"),
+                linker=_required_tool("riscv64-elf-ld"),
+                copier=_required_tool("riscv64-elf-objcopy"),
+                readelf=_required_tool("riscv64-elf-readelf"),
+                nm=_required_tool("riscv64-elf-nm"),
+                dumper=_required_tool("riscv64-elf-objdump"),
+                tool_revision=revision,
+            )
+            print(
+                json.dumps(
+                    {
+                        "result": "页面开关启动基础透传候选制作完成",
+                        "output": str(result.output),
+                        "manifest": str(result.manifest),
+                        "output_name": STARTUP_PASSTHROUGH_OUTPUT_NAME,
+                        "output_sha256": result.sha256,
+                        "output_md5": result.md5,
+                        "payload_size": result.payload_size,
+                        "payload_remaining": result.payload_remaining,
+                        "simulation_indices": result.simulation_indices,
+                        "installation_allowed": True,
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                )
+            )
+            return 0
+
         result = make_firmware(
             args.input,
             args.plan,
@@ -1205,6 +1250,7 @@ def main(argv: list[str] | None = None) -> int:
         PrimaryPageNavigationError,
         PrimaryPageSettingsBuildError,
         PageSettingsReadOnlyEntryError,
+        PageSettingsStartupPassthroughError,
         SettingsHookObservationError,
         SettingsMenuWrapError,
         OSError,
