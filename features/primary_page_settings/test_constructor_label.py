@@ -6,6 +6,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from core.firmware_image import AP01_1_0_2_0031, changed_ranges
 from features.primary_page_settings.constructor_label import (
     LABEL_CONSTRUCTOR_CALL_OFFSET,
     OUTPUT_NAME,
@@ -78,9 +79,27 @@ class PageSettingsConstructorLabelTests(unittest.TestCase):
                 before[LABEL_CONSTRUCTOR_CALL_OFFSET : LABEL_CONSTRUCTOR_CALL_OFFSET + 4],
             )
             document = json.loads(manifest.read_text(encoding="utf-8"))
+            allowed = [
+                (item["start"], item["end_exclusive"])
+                for item in document["allowed_ranges"]
+            ]
+            for difference in changed_ranges(before, after):
+                self.assertTrue(
+                    any(
+                        start <= difference.start and difference.end <= end
+                        for start, end in allowed
+                    )
+                )
+            self.assertEqual(
+                allowed[-1],
+                (
+                    AP01_1_0_2_0031.recovery_trailer_offset + 36,
+                    AP01_1_0_2_0031.recovery_trailer_offset + 40,
+                ),
+            )
             self.assertTrue(document["validation"]["static_stack_zero"])
             self.assertTrue(document["validation"]["mutable_state_absent"])
-            self.assertFalse(document["validation"]["installation_allowed"])
+            self.assertTrue(document["validation"]["installation_allowed"])
 
 
 if __name__ == "__main__":

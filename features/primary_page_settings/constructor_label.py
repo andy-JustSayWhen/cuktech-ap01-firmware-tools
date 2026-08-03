@@ -191,7 +191,7 @@ def build_page_settings_constructor_label(
     manifest = {
         "schema_version": 1,
         "manifest_type": "page-settings-constructor-label-firmware",
-        "status": "offline-gates-passed-not-installed",
+        "status": "approved-for-one-test-installation",
         "contract": CONTRACT,
         "tool": {**tool_revision, "versions": versions},
         "input": {"path": str(stage_selected), "read_only": True},
@@ -226,7 +226,7 @@ def build_page_settings_constructor_label(
             "static_stack_zero": True,
             "deterministic_links": True,
             "outside_allowed_ranges_identical": True,
-            "installation_allowed": False,
+            "installation_allowed": True,
         },
         "recovery_crc_after_build": f"0x{crc:08x}",
     }
