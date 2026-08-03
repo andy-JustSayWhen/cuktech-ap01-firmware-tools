@@ -1,29 +1,35 @@
 {
   "schema_version": 1,
-  "generation": 1785312691,
-  "generated_at": "2026-07-29T16:11:31+08:00",
-  "package_bytes": 124366,
-  "package_sha256": "c2b58ca5af3262a4afde96e949247771f769eb18cce099b14d1f72e82868a299",
+  "generation": 1785781848,
+  "generated_at": "2026-08-04T02:30:48+08:00",
+  "package_bytes": 118943,
+  "package_sha256": "36d91718dd52fced7b2d5e6a5caafffdd24f2487898e76380dee76acc82aad18",
+  "data_sources": {
+    "quota": true,
+    "reset_cards": true,
+    "profile": true,
+    "local_sessions": true
+  },
   "pages": [
     {
       "name": "01-overview.gif",
-      "bytes": 29854,
-      "sha256": "e38846c0b2bf3ba40966a4143717994b6db62699dd1cd4c52f6b59e66436faad"
+      "bytes": 27898,
+      "sha256": "2c179f53ea0716054dd3cebd09dfafa80ba9ebf3a77dda3e160e498619733a26"
     },
     {
       "name": "02-weekly.gif",
-      "bytes": 31551,
-      "sha256": "323983d90552b961711f256ed2c1e144c715a24398cf2726a368237f090a9e93"
+      "bytes": 26272,
+      "sha256": "5946809de40ddc44a6c52948e09f85cfe774e77ee6d9ba7481f3d5de953ba26f"
     },
     {
       "name": "03-today.gif",
-      "bytes": 27543,
-      "sha256": "1ec210cc48e1a182ca62305743231a4067804aac091bae005229272007c0f507"
+      "bytes": 29597,
+      "sha256": "ef0b53fe3887ada29f0f8b818595a1647b793a832f2240e8c2d67015c6c570de"
     },
     {
       "name": "04-last-30-days.gif",
-      "bytes": 35162,
-      "sha256": "be1166d8ec5cbe423cd03b5524b54eafb69c3677e0e736aa5a6e8338c1eac971"
+      "bytes": 35112,
+      "sha256": "12b507154294529d1200119cddf45bb859205b8251ea75fa7f317fb9a8a3817f"
     }
   ]
 }
