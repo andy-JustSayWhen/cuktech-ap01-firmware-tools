@@ -28,6 +28,13 @@ from .startup_passthrough import (
     build_page_settings_startup_passthrough,
     simulate_page_settings_startup_passthrough,
 )
+from .row_creation import (
+    OUTPUT_NAME as ROW_CREATION_OUTPUT_NAME,
+    PageSettingsRowCreationError,
+    PageSettingsRowCreationResult,
+    build_page_settings_row_creation,
+    simulate_page_settings_row_creation,
+)
 
 __all__ = (
     "HOOK_OBSERVATION_OUTPUT_NAME",
@@ -36,7 +43,10 @@ __all__ = (
     "PrimaryPageSettingsObjects",
     "PageSettingsReadOnlyEntryError",
     "PageSettingsReadOnlyEntryResult",
+    "PageSettingsRowCreationError",
+    "PageSettingsRowCreationResult",
     "READ_ONLY_ENTRY_OUTPUT_NAME",
+    "ROW_CREATION_OUTPUT_NAME",
     "REQUIRED_SYMBOLS",
     "SettingsHookObservationError",
     "SettingsHookObservationResult",
@@ -47,8 +57,10 @@ __all__ = (
     "build_page_settings_assets",
     "build_page_settings_objects",
     "build_page_settings_read_only_entry",
+    "build_page_settings_row_creation",
     "build_page_settings_startup_passthrough",
     "build_settings_hook_observation",
     "simulate_page_settings_read_only_entry",
+    "simulate_page_settings_row_creation",
     "simulate_page_settings_startup_passthrough",
 )
