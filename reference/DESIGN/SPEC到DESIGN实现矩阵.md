@@ -32,7 +32,7 @@
 
 | SPEC 条款 | DESIGN 落点 | 代码或维护落点 | 验证方法 | 当前状态 |
 | --- | --- | --- | --- | --- |
-| `SPEC-PAGE-001` 至 `SPEC-PAGE-004` | [`优化固件 DESIGN`](AP01-1.0.2_0031-opt.bin.md) 第 5、14 节 | `features/primary_page_settings/` 的分阶段构建与后续同行虚拟状态；后续再进入 `features/primary_page_navigation/` | 保持原厂设置七项对象树；启动、设置进入与文字物理验收 | `FW-PAGE-007-A` 已否定；A 阶段回刷首次尝试无成功证据，待断电重启后复查 |
+| `SPEC-PAGE-001` 至 `SPEC-PAGE-004` | [`优化固件 DESIGN`](AP01-1.0.2_0031-opt.bin.md) 第 5、14 节 | `features/primary_page_settings/` 的分阶段构建与后续同行虚拟状态；后续再进入 `features/primary_page_navigation/` | 保持原厂设置七项对象树；启动、设置进入与文字物理验收 | `FW-PAGE-007-A` 已否定；断电重启已恢复更新空闲，准备重新回读并回刷 A 阶段 |
 | `SPEC-PAGE-005` 至 `SPEC-PAGE-007` | [`优化固件 DESIGN`](AP01-1.0.2_0031-opt.bin.md) 第 5、6、10.14、11、14 节 | `features/primary_page_settings/` 的保存与恢复代码、原厂实际切页调用局部挂接 | 逐回调方向与调用链审计、即时生效、保存失败、断电、重启、默认值和关闭当前页 | `FW-INTEGRATION-002` 已冻结但旋钮审计失效；完成 DESIGN 与代码纠偏前不可安装 |
 
 ## 5. AGENTS 看板
