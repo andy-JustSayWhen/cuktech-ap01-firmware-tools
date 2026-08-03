@@ -35,6 +35,13 @@ from .row_creation import (
     build_page_settings_row_creation,
     simulate_page_settings_row_creation,
 )
+from .single_iteration_append import (
+    OUTPUT_NAME as SINGLE_ITERATION_APPEND_OUTPUT_NAME,
+    PageSettingsSingleIterationAppendError,
+    PageSettingsSingleIterationAppendResult,
+    build_page_settings_single_iteration_append,
+    simulate_page_settings_single_iteration_append,
+)
 
 __all__ = (
     "HOOK_OBSERVATION_OUTPUT_NAME",
@@ -45,8 +52,11 @@ __all__ = (
     "PageSettingsReadOnlyEntryResult",
     "PageSettingsRowCreationError",
     "PageSettingsRowCreationResult",
+    "PageSettingsSingleIterationAppendError",
+    "PageSettingsSingleIterationAppendResult",
     "READ_ONLY_ENTRY_OUTPUT_NAME",
     "ROW_CREATION_OUTPUT_NAME",
+    "SINGLE_ITERATION_APPEND_OUTPUT_NAME",
     "REQUIRED_SYMBOLS",
     "SettingsHookObservationError",
     "SettingsHookObservationResult",
@@ -58,9 +68,11 @@ __all__ = (
     "build_page_settings_objects",
     "build_page_settings_read_only_entry",
     "build_page_settings_row_creation",
+    "build_page_settings_single_iteration_append",
     "build_page_settings_startup_passthrough",
     "build_settings_hook_observation",
     "simulate_page_settings_read_only_entry",
     "simulate_page_settings_row_creation",
+    "simulate_page_settings_single_iteration_append",
     "simulate_page_settings_startup_passthrough",
 )
