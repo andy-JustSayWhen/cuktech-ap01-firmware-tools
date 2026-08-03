@@ -53,6 +53,23 @@ typedef unsigned long long u64;
 #define WEBCLIENT_SINK_ARG_OFFSET         64u
 #define WEBCLIENT_HTTP_STATUS_OFFSET      96u
 
+#define GIF_PARSE_SKIP_MASK               0x000003ffu
+#define GIF_PARSE_STATE_SHIFT             10u
+#define GIF_PARSE_STATE_MASK              0x00003c00u
+#define GIF_PARSE_FRAMES_SHIFT            14u
+#define GIF_PARSE_FRAMES_MASK             0x0000c000u
+
+#define GIF_STATE_HEADER                  0u
+#define GIF_STATE_GLOBAL_COLOR_TABLE      1u
+#define GIF_STATE_BLOCK                   2u
+#define GIF_STATE_EXTENSION_LABEL         3u
+#define GIF_STATE_SUBBLOCK_SIZE           4u
+#define GIF_STATE_SUBBLOCK_DATA           5u
+#define GIF_STATE_IMAGE_DESCRIPTOR        6u
+#define GIF_STATE_LOCAL_COLOR_TABLE       7u
+#define GIF_STATE_LZW_CODE_SIZE           8u
+#define GIF_STATE_DONE                    9u
+
 typedef void (*void_one_arg_fn)(void *);
 typedef int (*stock_get_dispatch_fn)(void *);
 typedef void *(*stock_get_child_fn)(void *, int);
@@ -95,10 +112,10 @@ struct download_state
   u32 page_index;
   u32 page_written;
   u32 page_length[PAGE_COUNT];
-  u32 gif_header_length;
+  u32 gif_parse;
   u32 complete;
   u8 gif_header[10];
-  u8 last_byte;
+  u8 gif_packed;
   u8 header[PACKAGE_HEADER_SIZE];
   u32 page_crc;
 };
@@ -337,6 +354,28 @@ static int write_record(const char *path, u32 generation, u32 slot)
   return result;
 }
 
+static int clear_slot(u32 slot)
+{
+  u32 page;
+  int result = 0;
+  for (page = 0u; page < PAGE_COUNT; ++page)
+    {
+      int fd = fw_open(
+          page_path(slot, page),
+          AP01_O_RDWR_CREAT_TRUNC,
+          AP01_MODE_0666);
+      if (fd < 0)
+        {
+          result = ERR_IO;
+        }
+      else if (fw_close(fd) < 0)
+        {
+          result = ERR_IO;
+        }
+    }
+  return result;
+}
+
 static u32 crc32_update(u32 crc, const u8 *data, u32 length)
 {
   u32 index;
@@ -359,6 +398,174 @@ static int gif_header_valid(const u8 *header)
          header[4] == (u8)'9' && header[5] == (u8)'a' &&
          header[6] == 0x40u && header[7] == 0x01u &&
          header[8] == 0xf0u && header[9] == 0x00u;
+}
+
+static u32 gif_parse_state(const struct download_state *state)
+{
+  return (state->gif_parse & GIF_PARSE_STATE_MASK) >>
+         GIF_PARSE_STATE_SHIFT;
+}
+
+static u32 gif_parse_skip(const struct download_state *state)
+{
+  return state->gif_parse & GIF_PARSE_SKIP_MASK;
+}
+
+static u32 gif_parse_frames(const struct download_state *state)
+{
+  return (state->gif_parse & GIF_PARSE_FRAMES_MASK) >>
+         GIF_PARSE_FRAMES_SHIFT;
+}
+
+static void gif_parse_transition(struct download_state *state,
+                                 u32 next_state, u32 skip)
+{
+  state->gif_parse =
+      (state->gif_parse & GIF_PARSE_FRAMES_MASK) |
+      ((next_state << GIF_PARSE_STATE_SHIFT) & GIF_PARSE_STATE_MASK) |
+      (skip & GIF_PARSE_SKIP_MASK);
+}
+
+static void gif_parse_add_frame(struct download_state *state)
+{
+  u32 frames = gif_parse_frames(state);
+  if (frames < 3u)
+    {
+      frames += 1u;
+    }
+  state->gif_parse =
+      (state->gif_parse & ~GIF_PARSE_FRAMES_MASK) |
+      (frames << GIF_PARSE_FRAMES_SHIFT);
+}
+
+static u32 gif_color_table_bytes(u8 packed)
+{
+  return 3u << (((u32)packed & 7u) + 1u);
+}
+
+static int gif_consume_byte(struct download_state *state,
+                            u32 page_offset, u8 value)
+{
+  u32 parse_state;
+  u32 skip;
+  if (page_offset < 10u)
+    {
+      state->gif_header[page_offset] = value;
+      return 0;
+    }
+  if (page_offset < 13u)
+    {
+      if (page_offset == 10u)
+        {
+          state->gif_packed = value;
+        }
+      if (page_offset == 12u)
+        {
+          if ((state->gif_packed & 0x80u) != 0u)
+            {
+              gif_parse_transition(
+                  state,
+                  GIF_STATE_GLOBAL_COLOR_TABLE,
+                  gif_color_table_bytes(state->gif_packed));
+            }
+          else
+            {
+              gif_parse_transition(state, GIF_STATE_BLOCK, 0u);
+            }
+        }
+      return 0;
+    }
+
+  parse_state = gif_parse_state(state);
+  skip = gif_parse_skip(state);
+  if (parse_state == GIF_STATE_GLOBAL_COLOR_TABLE)
+    {
+      if (skip == 0u) return ERR_INVAL;
+      gif_parse_transition(
+          state, skip == 1u ? GIF_STATE_BLOCK : parse_state, skip - 1u);
+      return 0;
+    }
+  if (parse_state == GIF_STATE_BLOCK)
+    {
+      if (value == 0x2cu)
+        {
+          gif_parse_add_frame(state);
+          gif_parse_transition(state, GIF_STATE_IMAGE_DESCRIPTOR, 9u);
+          return 0;
+        }
+      if (value == 0x21u)
+        {
+          gif_parse_transition(state, GIF_STATE_EXTENSION_LABEL, 0u);
+          return 0;
+        }
+      if (value == 0x3bu)
+        {
+          gif_parse_transition(state, GIF_STATE_DONE, 0u);
+          return 0;
+        }
+      return ERR_INVAL;
+    }
+  if (parse_state == GIF_STATE_EXTENSION_LABEL)
+    {
+      gif_parse_transition(state, GIF_STATE_SUBBLOCK_SIZE, 0u);
+      return 0;
+    }
+  if (parse_state == GIF_STATE_SUBBLOCK_SIZE)
+    {
+      gif_parse_transition(
+          state,
+          value == 0u ? GIF_STATE_BLOCK : GIF_STATE_SUBBLOCK_DATA,
+          (u32)value);
+      return 0;
+    }
+  if (parse_state == GIF_STATE_SUBBLOCK_DATA)
+    {
+      if (skip == 0u) return ERR_INVAL;
+      gif_parse_transition(
+          state,
+          skip == 1u ? GIF_STATE_SUBBLOCK_SIZE : parse_state,
+          skip - 1u);
+      return 0;
+    }
+  if (parse_state == GIF_STATE_IMAGE_DESCRIPTOR)
+    {
+      if (skip == 0u) return ERR_INVAL;
+      if (skip == 1u)
+        {
+          if ((value & 0x80u) != 0u)
+            {
+              gif_parse_transition(
+                  state,
+                  GIF_STATE_LOCAL_COLOR_TABLE,
+                  gif_color_table_bytes(value));
+            }
+          else
+            {
+              gif_parse_transition(state, GIF_STATE_LZW_CODE_SIZE, 0u);
+            }
+        }
+      else
+        {
+          gif_parse_transition(state, parse_state, skip - 1u);
+        }
+      return 0;
+    }
+  if (parse_state == GIF_STATE_LOCAL_COLOR_TABLE)
+    {
+      if (skip == 0u) return ERR_INVAL;
+      gif_parse_transition(
+          state,
+          skip == 1u ? GIF_STATE_LZW_CODE_SIZE : parse_state,
+          skip - 1u);
+      return 0;
+    }
+  if (parse_state == GIF_STATE_LZW_CODE_SIZE)
+    {
+      if (value < 2u || value > 8u) return ERR_INVAL;
+      gif_parse_transition(state, GIF_STATE_SUBBLOCK_SIZE, 0u);
+      return 0;
+    }
+  return ERR_INVAL;
 }
 
 static int validate_package_header(struct download_state *state)
@@ -412,8 +619,8 @@ static int open_current_page(struct download_state *state)
       return ERR_IO;
     }
   state->page_written = 0u;
-  state->gif_header_length = 0u;
-  state->last_byte = 0u;
+  state->gif_parse = 0u;
+  state->gif_packed = 0u;
   state->page_crc = 0xffffffffu;
   return 0;
 }
@@ -425,9 +632,10 @@ static int finish_current_page(struct download_state *state)
   state->fd = -1;
   if (close_result < 0 ||
       state->page_written != state->page_length[state->page_index] ||
-      state->gif_header_length != 10u ||
+      state->page_written < GIF_MIN_BYTES ||
       !gif_header_valid(state->gif_header) ||
-      state->last_byte != 0x3bu ||
+      gif_parse_state(state) != GIF_STATE_DONE ||
+      gif_parse_frames(state) < 2u ||
       actual_crc != read_u32(
           state->header + 48u + state->page_index * 4u))
     {
@@ -459,11 +667,16 @@ static int consume_body(struct download_state *state,
       u32 remaining = state->page_length[state->page_index] -
                       state->page_written;
       u32 amount = length - offset < remaining ? length - offset : remaining;
-      u32 header_index = 0u;
-      while (state->gif_header_length < 10u && header_index < amount)
+      u32 page_offset;
+      for (page_offset = 0u; page_offset < amount; ++page_offset)
         {
-          state->gif_header[state->gif_header_length++] =
-              data[offset + header_index++];
+          if (gif_consume_byte(
+                  state,
+                  state->page_written + page_offset,
+                  data[offset + page_offset]) < 0)
+            {
+              return ERR_INVAL;
+            }
         }
       state->page_crc = crc32_update(
           state->page_crc, data + offset, amount);
@@ -472,7 +685,6 @@ static int consume_body(struct download_state *state,
           return ERR_IO;
         }
       state->page_written += amount;
-      state->last_byte = data[offset + amount - 1u];
       offset += amount;
       if (state->page_written == state->page_length[state->page_index] &&
           finish_current_page(state) < 0)
@@ -565,6 +777,7 @@ ATTR_ENTRY int ap01_agents_webclient_wrapper(void *context)
   u32 have_ack;
   int result;
   int close_result = 0;
+  int published = 0;
   if (context == (void *)0)
     {
       return ERR_INVAL;
@@ -610,10 +823,18 @@ ATTR_ENTRY int ap01_agents_webclient_wrapper(void *context)
         {
           result = ERR_INVAL;
         }
+      else
+        {
+          published = 1;
+        }
     }
   else if (result >= 0)
     {
       result = ERR_INVAL;
+    }
+  if (published == 0 && clear_slot(state->slot) < 0 && result >= 0)
+    {
+      result = ERR_IO;
     }
 release_state:
   fw_free(state);

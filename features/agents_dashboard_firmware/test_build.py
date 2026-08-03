@@ -100,6 +100,20 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 STAGE = REPO_ROOT / "artifacts/firmware/opt-setting.bin"
 
 
+def _test_gif(frame_count: int = 2, *, embedded_marker: bool = False) -> bytes:
+    header = b"GIF89a\x40\x01\xf0\x00\x80\x00\x00"
+    color_table = b"\x00\x00\x00\xff\xff\xff"
+    compressed = b"\x2c\x01" if embedded_marker else b"\x44\x01"
+    frame = (
+        b"\x2c"
+        b"\x00\x00\x00\x00\x01\x00\x01\x00\x00"
+        b"\x02\x02"
+        + compressed
+        + b"\x00"
+    )
+    return header + color_table + frame * frame_count + b"\x3b"
+
+
 class AgentsDashboardFirmwareTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
@@ -1046,12 +1060,12 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
                 "\n".join(
                     (
                         "#define AP01_CRC_SELF_TEST 1",
+                        "#include <stdio.h>",
                         (
                             "int ap01_agents_restore_pet(void *p) "
                             "{ (void)p; return 1; }"
                         ),
                         f'#include "{LOADER_SOURCE}"',
-                        "#include <stdio.h>",
                         "int main(void) {",
                         '  const unsigned char input[] = "abc";',
                         "  unsigned int value = crc32_update(",
@@ -1083,7 +1097,7 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
         compiler = shutil.which("cc")
         if not compiler:
             self.skipTest("本机没有主机 C 编译器")
-        page = b"GIF89a\x40\x01\xf0\x00\x00\x00\x3b"
+        page = _test_gif()
         package = encode_package(
             (page, page, page, page),
             generation=17,
@@ -1103,7 +1117,7 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
                             "int ap01_agents_restore_pet(void *p) "
                             "{ (void)p; return 1; }"
                         ),
-                        "static unsigned char files[4][32];",
+                        "static unsigned char files[4][64];",
                         "static unsigned int sizes[4];",
                         "static int next_fd = 1;",
                         (
@@ -1121,7 +1135,7 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
                         (
                             "int ap01_selftest_write(int fd, const void *b, "
                             "unsigned int n) { unsigned int i = (unsigned int)(fd - 1); "
-                            "if (fd < 1 || fd > 4 || sizes[i] + n > 32) return -1; "
+                            "if (fd < 1 || fd > 4 || sizes[i] + n > 64) return -1; "
                             "memcpy(files[i] + sizes[i], b, n); sizes[i] += n; "
                             "return (int)n; }"
                         ),
@@ -1162,10 +1176,216 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
                         "  if (sizeof(state) != 136u) return 12;",
                         "  for (step = 0; step < 4; ++step)",
                         (
-                            "    if (sizes[step] != 13 || "
+                            f"    if (sizes[step] != {len(page)} || "
                             "memcmp(files[step], package + PACKAGE_HEADER_SIZE "
-                            "+ step * 13, 13) != 0) return 13;"
+                            f"+ step * {len(page)}, {len(page)}) != 0) return 13;"
                         ),
+                        "  return 0;",
+                        "}",
+                        "",
+                    )
+                ),
+                encoding="utf-8",
+            )
+            subprocess.run(
+                [compiler, "-O2", harness, "-o", executable],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            result = subprocess.run(
+                [executable],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_streaming_loader_rejects_single_frame_with_embedded_marker(self) -> None:
+        compiler = shutil.which("cc")
+        if not compiler:
+            self.skipTest("本机没有主机 C 编译器")
+        page = _test_gif(1, embedded_marker=True)
+        package = encode_package(
+            (page, page, page, page),
+            generation=19,
+            generated_at=1_700_000_000,
+        )
+        with tempfile.TemporaryDirectory() as selected:
+            root = Path(selected)
+            harness = root / "single-frame-harness.c"
+            executable = root / "single-frame-harness"
+            package_values = ",".join(str(value) for value in package)
+            harness.write_text(
+                "\n".join(
+                    (
+                        "#define AP01_LOADER_SELF_TEST 1",
+                        "int ap01_agents_restore_pet(void *p) "
+                        "{ (void)p; return 1; }",
+                        "static int next_fd = 1;",
+                        "int ap01_selftest_open(const char *p, int f, int m) "
+                        "{ (void)p; (void)f; (void)m; return next_fd++; }",
+                        "int ap01_selftest_close(int fd) { return fd > 0 ? 0 : -1; }",
+                        "int ap01_selftest_read(int fd, void *b, unsigned int n) "
+                        "{ (void)fd; (void)b; (void)n; return -1; }",
+                        "int ap01_selftest_write(int fd, const void *b, unsigned int n) "
+                        "{ (void)fd; (void)b; return (int)n; }",
+                        "void *ap01_selftest_malloc(unsigned int n) "
+                        "{ (void)n; return 0; }",
+                        "void ap01_selftest_free(void *p) { (void)p; }",
+                        "int ap01_selftest_webclient_perform(void *p) "
+                        "{ (void)p; return -1; }",
+                        f'#include "{LOADER_SOURCE}"',
+                        f"static unsigned char package[] = {{{package_values}}};",
+                        "int main(void) {",
+                        "  struct download_state state;",
+                        "  char *cursor = (char *)package;",
+                        "  int length = (int)sizeof(package);",
+                        "  memory_zero(&state, (unsigned int)sizeof(state));",
+                        "  state.fd = -1;",
+                        "  if (ap01_agents_sink(&cursor, 0, length, &length, &state) "
+                        "      != ERR_INVAL) return 10;",
+                        "  if (state.complete != 0u) return 11;",
+                        "  if (sizeof(state) != 136u) return 12;",
+                        "  return 0;",
+                        "}",
+                        "",
+                    )
+                ),
+                encoding="utf-8",
+            )
+            subprocess.run(
+                [compiler, "-O2", harness, "-o", executable],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            result = subprocess.run(
+                [executable],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_gif_parser_accepts_all_frozen_fallback_assets(self) -> None:
+        compiler = shutil.which("cc")
+        if not compiler:
+            self.skipTest("本机没有主机 C 编译器")
+        assets = sorted(
+            (REPO_ROOT / "features/agents_dashboard_firmware/assets").glob(
+                "fallback-*.gif"
+            )
+        )
+        self.assertEqual(len(assets), 4)
+        with tempfile.TemporaryDirectory() as selected:
+            root = Path(selected)
+            harness = root / "fallback-parser-harness.c"
+            executable = root / "fallback-parser-harness"
+            harness.write_text(
+                "\n".join(
+                    (
+                        "#define AP01_CRC_SELF_TEST 1",
+                        "#include <stdio.h>",
+                        "int ap01_agents_restore_pet(void *p) "
+                        "{ (void)p; return 1; }",
+                        f'#include "{LOADER_SOURCE}"',
+                        "int main(int argc, char **argv) {",
+                        "  int file_index;",
+                        "  if (argc != 5) return 9;",
+                        "  for (file_index = 1; file_index < argc; ++file_index) {",
+                        "    struct download_state state;",
+                        "    FILE *stream = fopen(argv[file_index], \"rb\");",
+                        "    unsigned int offset = 0u;",
+                        "    int value;",
+                        "    if (stream == 0) return 10;",
+                        "    memory_zero(&state, (unsigned int)sizeof(state));",
+                        "    while ((value = fgetc(stream)) != EOF) {",
+                        "      if (gif_consume_byte(&state, offset++, (u8)value) != 0) "
+                        "return 11;",
+                        "    }",
+                        "    if (fclose(stream) != 0) return 12;",
+                        "    if (!gif_header_valid(state.gif_header)) return 13;",
+                        "    if (gif_parse_state(&state) != GIF_STATE_DONE) return 14;",
+                        "    if (gif_parse_frames(&state) < 2u) return 15;",
+                        "  }",
+                        "  return 0;",
+                        "}",
+                        "",
+                    )
+                ),
+                encoding="utf-8",
+            )
+            subprocess.run(
+                [compiler, "-O2", harness, "-o", executable],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            result = subprocess.run(
+                [executable, *(str(asset) for asset in assets)],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_failed_wrapper_clears_all_files_in_unpublished_slot(self) -> None:
+        compiler = shutil.which("cc")
+        if not compiler:
+            self.skipTest("本机没有主机 C 编译器")
+        page = _test_gif(1)
+        package = encode_package(
+            (page, page, page, page),
+            generation=21,
+            generated_at=1_700_000_000,
+        )
+        with tempfile.TemporaryDirectory() as selected:
+            root = Path(selected)
+            harness = root / "cleanup-harness.c"
+            executable = root / "cleanup-harness"
+            package_values = ",".join(str(value) for value in package)
+            harness.write_text(
+                "\n".join(
+                    (
+                        "#define AP01_LOADER_SELF_TEST 1",
+                        "#include <string.h>",
+                        f'#include "{LOADER_SOURCE}"',
+                        f"static unsigned char package[] = {{{package_values}}};",
+                        "static unsigned char heap_state[136];",
+                        "static int truncate_calls;",
+                        "static int meta_writes;",
+                        "static int next_fd = 1;",
+                        "int ap01_agents_restore_pet(void *p) "
+                        "{ (void)p; return 1; }",
+                        "int ap01_selftest_open(const char *p, int f, int m) {",
+                        "  (void)m;",
+                        "  if (f == 39 && strstr(p, \".gif\") != 0) truncate_calls += 1;",
+                        "  if (f == 39 && strstr(p, \".meta\") != 0) meta_writes += 1;",
+                        "  return next_fd++;",
+                        "}",
+                        "int ap01_selftest_close(int fd) { return fd > 0 ? 0 : -1; }",
+                        "int ap01_selftest_read(int fd, void *b, unsigned int n) "
+                        "{ (void)fd; (void)b; (void)n; return -1; }",
+                        "int ap01_selftest_write(int fd, const void *b, unsigned int n) "
+                        "{ (void)fd; (void)b; return (int)n; }",
+                        "void *ap01_selftest_malloc(unsigned int n) "
+                        "{ return n == sizeof(heap_state) ? heap_state : 0; }",
+                        "void ap01_selftest_free(void *p) { (void)p; }",
+                        "int ap01_selftest_webclient_perform(void *context) {",
+                        "  char *cursor = (char *)package;",
+                        "  int length = (int)sizeof(package);",
+                        "  void *state = *(void **)((unsigned char *)context + 64);",
+                        "  *(unsigned int *)((unsigned char *)context + 96) = 200u;",
+                        "  return ap01_agents_sink(&cursor, 0, length, &length, state);",
+                        "}",
+                        "int main(void) {",
+                        "  unsigned char context[128];",
+                        "  memset(context, 0, sizeof(context));",
+                        "  if (ap01_agents_webclient_wrapper(context) != ERR_INVAL) return 10;",
+                        "  if (truncate_calls != 5) return 11;",
+                        "  if (meta_writes != 0) return 12;",
+                        "  if (*(void **)(context + 64) != (void *)0) return 13;",
                         "  return 0;",
                         "}",
                         "",
@@ -1191,7 +1411,7 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
         compiler = shutil.which("cc")
         if not compiler:
             self.skipTest("本机没有主机 C 编译器")
-        page = b"GIF89a\x40\x01\xf0\x00\x00\x00\x3b"
+        page = _test_gif()
         package = encode_package(
             (page, page, page, page),
             generation=23,
