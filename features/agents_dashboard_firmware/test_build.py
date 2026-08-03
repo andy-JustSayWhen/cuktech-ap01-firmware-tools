@@ -989,7 +989,7 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
             LOCATION_TRAMPOLINE_ORIGINAL,
         )
 
-    def test_live_data_validated_package_is_distinct_and_not_installable(
+    def test_live_data_validated_package_is_distinct_and_installable_once(
         self,
     ) -> None:
         if (
@@ -1024,7 +1024,7 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
             LIVE_DATA_VALIDATED_PACKAGE_OUTPUT_FILENAME,
         )
         self.assertEqual(
-            document["status"], "built-not-approved-for-installation"
+            document["status"], "approved-for-one-test-installation"
         )
         self.assertTrue(document["transport"]["gif_structural_validation"])
         self.assertTrue(document["transport"]["gif_trailer_validation"])
@@ -1033,7 +1033,7 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
             document["transport"]["unpublished_slot_cleared_on_failure"]
         )
         self.assertEqual(document["transport"]["download_state_bytes"], 136)
-        self.assertFalse(document["validation"]["installation_allowed"])
+        self.assertTrue(document["validation"]["installation_allowed"])
         self.assertTrue(document["interaction_simulation"]["summary"]["passed"])
         self.assertLessEqual(document["payload"]["maximum_static_stack"], 96)
 

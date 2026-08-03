@@ -1950,7 +1950,7 @@ def build_sync_firmware(
         ),
         "status": (
             "approved-for-one-test-installation"
-            if power_confirm_guard and not validated_package_candidate
+            if power_confirm_guard
             else "built-not-approved-for-installation"
         ),
         "built_at_beijing": datetime.now(ZoneInfo("Asia/Shanghai")).isoformat(
@@ -2148,9 +2148,7 @@ def build_sync_firmware(
             "stock_location_lookup_scoped_patch": live_data_enabled,
             "shared_device_configuration_absent": True,
             "independent_tail_recovery_verified": True,
-            "installation_allowed": (
-                power_confirm_guard and not validated_package_candidate
-            ),
+            "installation_allowed": power_confirm_guard,
         },
     }
     output_written = False
