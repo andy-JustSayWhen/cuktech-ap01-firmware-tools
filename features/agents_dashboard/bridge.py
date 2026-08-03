@@ -16,6 +16,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlsplit
 
+from .controlled_fault import ControlledFaultGate
 from .result_package import (
     ResultPackageError,
     decode_package,
@@ -72,11 +73,13 @@ class BridgeState:
         *,
         codex_home: Path | None = None,
         cache_directory: Path | None = None,
+        controlled_fault_plan: Path | None = None,
     ) -> None:
         self.output = output
         self.fonts = fonts
         self.codex_home = codex_home
         self.cache_directory = cache_directory
+        self.controlled_fault = ControlledFaultGate(controlled_fault_plan)
         self.lock = threading.Lock()
         self.last_refresh: float | None = None
         self.last_request: float | None = None
@@ -149,11 +152,21 @@ class BridgeState:
                 "error": self.error,
                 "data_sources": dict(self.data_sources),
             }
+            document.update(self.controlled_fault.health())
         return json.dumps(
             document,
             ensure_ascii=False,
             separators=(",", ":"),
         ).encode("utf-8")
+
+    def package_for_request(self, client_ip: str) -> tuple[bytes, bool]:
+        package_path = self.output / "agents-dashboard.apag"
+        body = package_path.read_bytes()
+        with self.lock:
+            self.requests += 1
+            self.last_request = time.time()
+            controlled = self.controlled_fault.consume(client_ip, body)
+        return (controlled if controlled is not None else body, controlled is not None)
 
 
 def make_handler(state: BridgeState):
@@ -168,15 +181,18 @@ def make_handler(state: BridgeState):
             if split.path != "/a":
                 self.send_error(HTTPStatus.NOT_FOUND)
                 return
-            package_path = state.output / "agents-dashboard.apag"
             try:
-                body = package_path.read_bytes()
+                body, controlled = state.package_for_request(
+                    str(self.client_address[0])
+                )
             except OSError:
                 self.send_error(HTTPStatus.SERVICE_UNAVAILABLE)
                 return
-            with state.lock:
-                state.requests += 1
-                state.last_request = time.time()
+            if controlled:
+                print(
+                    f"[{self.log_date_time_string()}] "
+                    f"{self.client_address[0]} 可控单帧包已发送且授权已消耗"
+                )
             self._send(body, "application/octet-stream")
 
         def _send(self, body: bytes, content_type: str) -> None:
@@ -218,6 +234,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--font-directory", type=Path, default=DEFAULT_FONTS)
     parser.add_argument("--codex-home", type=Path)
     parser.add_argument("--cache-directory", type=Path, default=DEFAULT_CACHE)
+    parser.add_argument(
+        "--controlled-fault-plan",
+        type=Path,
+        help="显式启用一次性可控单帧包授权记录",
+    )
     arguments = parser.parse_args(argv)
     if not 10 <= arguments.interval <= 7200:
         parser.error("刷新周期必须在 10～7200 秒之间")
@@ -226,6 +247,7 @@ def main(argv: list[str] | None = None) -> int:
         arguments.font_directory,
         codex_home=arguments.codex_home,
         cache_directory=arguments.cache_directory,
+        controlled_fault_plan=arguments.controlled_fault_plan,
     )
     try:
         state.refresh()
