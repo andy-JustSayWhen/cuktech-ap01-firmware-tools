@@ -45,6 +45,7 @@ from .return_row_label import (
 from .runtime_return_label import (
     OUTPUT_NAME as RUNTIME_RETURN_LABEL_OUTPUT_NAME,
     build_page_settings_runtime_return_label,
+    simulate_page_settings_runtime_return_label,
 )
 from .row_creation import (
     OUTPUT_NAME as ROW_CREATION_OUTPUT_NAME,
@@ -95,6 +96,7 @@ __all__ = (
     "build_page_settings_read_only_entry",
     "build_page_settings_return_row_label",
     "build_page_settings_runtime_return_label",
+    "simulate_page_settings_runtime_return_label",
     "build_page_settings_row_creation",
     "build_page_settings_single_iteration_append",
     "build_page_settings_startup_passthrough",

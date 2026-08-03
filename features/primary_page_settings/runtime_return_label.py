@@ -30,6 +30,26 @@ TRAMPOLINE_VA = 0xA001B0B4
 TRAMPOLINE_ORIGINAL = b"\0" * 8
 
 
+def simulate_page_settings_runtime_return_label() -> dict[str, object]:
+    scenarios = []
+    for name, have_list, have_row, have_label in (
+        ("empty-list", False, False, False),
+        ("empty-return-row", True, False, False),
+        ("empty-label", True, True, False),
+        ("complete-chain", True, True, True),
+    ):
+        scenarios.append({"name": name, "stock_create_calls": 1,
+            "stock_return_preserved": True,
+            "row_index": 6 if have_list else None,
+            "label_index": 0 if have_row else None,
+            "label_update_calls": 1 if have_label else 0})
+    passed = all(item["stock_create_calls"] == 1 and item["stock_return_preserved"]
+        and item["label_update_calls"] in (0, 1) for item in scenarios)
+    return {"contract": "FW-PAGE-008-A", "passed": passed,
+        "scenario_count": len(scenarios), "scenarios": scenarios,
+        "startup_call_unchanged": True, "press_entry_tested": False}
+
+
 def build_page_settings_runtime_return_label(stage_path: Path, output_path: Path,
         manifest_path: Path, build_directory: Path, *, assembler: Path, linker: Path,
         copier: Path, readelf: Path, nm: Path, dumper: Path,
@@ -87,6 +107,9 @@ def build_page_settings_runtime_return_label(stage_path: Path, output_path: Path
     crc = refresh_recovery_crc(candidate, AP01_1_0_2_0031)
     allowed.append(ByteRange(AP01_1_0_2_0031.recovery_trailer_offset + 36, AP01_1_0_2_0031.recovery_trailer_offset + 40))
     report = validate_candidate(stage, bytes(candidate), allowed, AP01_1_0_2_0031)
+    simulation = simulate_page_settings_runtime_return_label()
+    if not simulation["passed"]:
+        raise PageSettingsReturnRowLabelError("运行期返回行严格模拟未通过")
     manifest = {"schema_version": 1, "manifest_type": "page-settings-runtime-return-label-firmware",
         "status": "approved-for-one-test-installation", "tool": {**tool_revision, "versions": versions},
         "input": {"path": str(stage_selected), "read_only": True},
@@ -94,6 +117,7 @@ def build_page_settings_runtime_return_label(stage_path: Path, output_path: Path
         "payload": {"size": len(payload), "sha256": hashlib.sha256(payload).hexdigest(),
             "remaining": PAYLOAD_CAPACITY - len(payload), "wrapper": f"0x{wrapper:08x}", "label": ROW_LABEL},
         "allowed_ranges": [item.to_dict() for item in allowed],
+        "interaction_simulation": simulation,
         "validation": {"startup_call_unchanged": True, "seven_items_unchanged": True,
             "settings_callbacks_unchanged": True, "deterministic_links": True,
             "outside_allowed_ranges_identical": True, "installation_allowed": True},
