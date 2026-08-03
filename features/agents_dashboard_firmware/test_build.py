@@ -46,6 +46,7 @@ from features.agents_dashboard_firmware.sync_build import (
     LIVE_DATA_REFERENCE_COMPLETE_OUTPUT_FILENAME,
     LIVE_DATA_LOW_STACK_OUTPUT_FILENAME,
     LIVE_DATA_LOCATION_INDEPENDENT_OUTPUT_FILENAME,
+    LIVE_DATA_VALIDATED_PACKAGE_OUTPUT_FILENAME,
     LOCAL_UI_FORBIDDEN_CALLEES,
     LOCAL_UI_FORBIDDEN_SYMBOLS,
     LOCAL_UI_BASE_SAFE_OUTPUT_FILENAME,
@@ -87,6 +88,7 @@ from features.agents_dashboard_firmware.sync_build import (
     build_live_data_reference_complete_firmware,
     build_live_data_low_stack_firmware,
     build_live_data_location_independent_firmware,
+    build_live_data_validated_package_firmware,
     build_sync_firmware,
     build_sync_payload,
     decode_agents_state,
@@ -986,6 +988,54 @@ class AgentsDashboardFirmwareTests(unittest.TestCase):
             ],
             LOCATION_TRAMPOLINE_ORIGINAL,
         )
+
+    def test_live_data_validated_package_is_distinct_and_not_installable(
+        self,
+    ) -> None:
+        if (
+            not shutil.which("riscv64-elf-as")
+            or not shutil.which("riscv64-elf-gcc")
+        ):
+            self.skipTest("本机没有阶段固件或固定编译工具")
+        with tempfile.TemporaryDirectory() as selected:
+            root = Path(selected)
+            output = root / LIVE_DATA_VALIDATED_PACKAGE_OUTPUT_FILENAME
+            manifest = root / "manifest.json"
+            result = build_live_data_validated_package_firmware(
+                self.stage,
+                output,
+                manifest,
+                root / "payload",
+                url_base="http://192.168.31.174:18765/a",
+                refresh_seconds=300,
+                tool_revision={
+                    "commit": "test",
+                    "scoped_code_dirty": False,
+                },
+            )
+            document = json.loads(manifest.read_text(encoding="utf-8"))
+
+        self.assertEqual(
+            document["manifest_type"],
+            "agents-live-data-validated-package-firmware",
+        )
+        self.assertEqual(
+            result.output.name,
+            LIVE_DATA_VALIDATED_PACKAGE_OUTPUT_FILENAME,
+        )
+        self.assertEqual(
+            document["status"], "built-not-approved-for-installation"
+        )
+        self.assertTrue(document["transport"]["gif_structural_validation"])
+        self.assertTrue(document["transport"]["gif_trailer_validation"])
+        self.assertTrue(document["transport"]["single_frame_rejected"])
+        self.assertTrue(
+            document["transport"]["unpublished_slot_cleared_on_failure"]
+        )
+        self.assertEqual(document["transport"]["download_state_bytes"], 136)
+        self.assertFalse(document["validation"]["installation_allowed"])
+        self.assertTrue(document["interaction_simulation"]["summary"]["passed"])
+        self.assertLessEqual(document["payload"]["maximum_static_stack"], 96)
 
     def test_failed_live_data_low_stack_name_is_blocked(self) -> None:
         with tempfile.TemporaryDirectory() as selected:

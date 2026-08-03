@@ -116,6 +116,9 @@ LIVE_DATA_LOW_STACK_OUTPUT_FILENAME = (
 LIVE_DATA_LOCATION_INDEPENDENT_OUTPUT_FILENAME = (
     "ap01-1.0.2_0031-agents-live-data-location-independent.bin"
 )
+LIVE_DATA_VALIDATED_PACKAGE_OUTPUT_FILENAME = (
+    "ap01-1.0.2_0031-agents-live-data-validated-package.bin"
+)
 OPT_INTEGRATION_OUTPUT_FILENAME = (
     "ap01-1.0.2_0031-opt-integration-candidate.bin"
 )
@@ -1702,9 +1705,12 @@ def build_sync_firmware(
         raise AgentsDashboardFirmwareError(
             f"同步实验成品文件名必须是 {expected_output_name}"
         )
-    live_data_enabled = (
-        expected_output_name
-        == LIVE_DATA_LOCATION_INDEPENDENT_OUTPUT_FILENAME
+    live_data_enabled = expected_output_name in (
+        LIVE_DATA_LOCATION_INDEPENDENT_OUTPUT_FILENAME,
+        LIVE_DATA_VALIDATED_PACKAGE_OUTPUT_FILENAME,
+    )
+    validated_package_candidate = (
+        expected_output_name == LIVE_DATA_VALIDATED_PACKAGE_OUTPUT_FILENAME
     )
     allowed_variants = {
         (
@@ -1723,6 +1729,13 @@ def build_sync_firmware(
         ),
         (
             LIVE_DATA_LOCATION_INDEPENDENT_OUTPUT_FILENAME,
+            False,
+            True,
+            True,
+            "FW-AGENTS-014",
+        ),
+        (
+            LIVE_DATA_VALIDATED_PACKAGE_OUTPUT_FILENAME,
             False,
             True,
             True,
@@ -1923,17 +1936,21 @@ def build_sync_firmware(
     manifest: dict[str, object] = {
         "schema_version": 1,
         "manifest_type": (
-            "agents-live-data-location-independent-firmware"
-            if live_data_enabled
+            "agents-live-data-validated-package-firmware"
+            if validated_package_candidate
             else (
-                "agents-local-ui-base-safe-firmware"
-                if power_confirm_guard
-                else "agents-local-ui-stock-resume-firmware"
+                "agents-live-data-location-independent-firmware"
+                if live_data_enabled
+                else (
+                    "agents-local-ui-base-safe-firmware"
+                    if power_confirm_guard
+                    else "agents-local-ui-stock-resume-firmware"
+                )
             )
         ),
         "status": (
             "approved-for-one-test-installation"
-            if power_confirm_guard
+            if power_confirm_guard and not validated_package_candidate
             else "built-not-approved-for-installation"
         ),
         "built_at_beijing": datetime.now(ZoneInfo("Asia/Shanghai")).isoformat(
@@ -1968,6 +1985,11 @@ def build_sync_firmware(
             "shared_device_configuration_used": False,
             "weather_location_dependency_removed": live_data_enabled,
             "location_placeholder_transmitted": False,
+            "gif_structural_validation": live_data_enabled,
+            "gif_trailer_validation": live_data_enabled,
+            "single_frame_rejected": live_data_enabled,
+            "unpublished_slot_cleared_on_failure": live_data_enabled,
+            "download_state_bytes": 136 if live_data_enabled else None,
         },
         "payload": {
             "file_offset": f"0x{PAYLOAD_START:06x}",
@@ -2126,7 +2148,9 @@ def build_sync_firmware(
             "stock_location_lookup_scoped_patch": live_data_enabled,
             "shared_device_configuration_absent": True,
             "independent_tail_recovery_verified": True,
-            "installation_allowed": power_confirm_guard,
+            "installation_allowed": (
+                power_confirm_guard and not validated_package_candidate
+            ),
         },
     }
     output_written = False
@@ -2379,6 +2403,46 @@ def build_live_data_location_independent_firmware(
             "不链接任何设备共享配置",
             "四页下载状态使用原厂内存申请与释放入口且不占后台任务栈",
             "位置占位入口解除局域网取包对原厂天气位置的依赖",
+        ),
+        reuse_stock_pet=True,
+        local_ui_only=False,
+        shared_page_filter=True,
+        power_confirm_guard=True,
+        interaction_name="FW-AGENTS-014",
+    )
+
+
+def build_live_data_validated_package_firmware(
+    stage_path: Path,
+    output_path: Path,
+    manifest_path: Path,
+    build_directory: Path,
+    *,
+    url_base: str,
+    refresh_seconds: int,
+    tool_revision: dict[str, object],
+) -> SyncFirmwareResult:
+    return build_sync_firmware(
+        stage_path,
+        output_path,
+        manifest_path,
+        build_directory,
+        tool_revision=tool_revision,
+        url_base=url_base,
+        refresh_seconds=refresh_seconds,
+        expected_output_name=LIVE_DATA_VALIDATED_PACKAGE_OUTPUT_FILENAME,
+        implemented_scope_extra=(
+            "64 字节四页包流式接收与逐页损坏检查",
+            "三组内存临时槽原子提交",
+            "固定局域网地址五分钟后台取包",
+            "两个原厂天气格式区严格只写百分号 s",
+            "界面定时包装先调用原厂入口再应用已提交页面",
+            "进入概览与切换详情时主动应用已提交页面",
+            "不链接任何设备共享配置",
+            "四页下载状态使用原厂内存申请与释放入口且不占后台任务栈",
+            "位置占位入口解除局域网取包对原厂天气位置的依赖",
+            "每页完成动图结构、结束标记与至少双帧检查",
+            "任一失败清空当轮未发布槽的四页文件",
         ),
         reuse_stock_pet=True,
         local_ui_only=False,
