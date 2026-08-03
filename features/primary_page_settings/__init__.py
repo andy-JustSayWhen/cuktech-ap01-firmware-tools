@@ -14,6 +14,13 @@ from .hook_observation import (
     SettingsHookObservationResult,
     build_settings_hook_observation,
 )
+from .delayed_row_creation import (
+    OUTPUT_NAME as DELAYED_ROW_CREATION_OUTPUT_NAME,
+    PageSettingsDelayedRowCreationError,
+    PageSettingsDelayedRowCreationResult,
+    build_page_settings_delayed_row_creation,
+    simulate_page_settings_delayed_row_creation,
+)
 from .read_only_entry import (
     OUTPUT_NAME as READ_ONLY_ENTRY_OUTPUT_NAME,
     PageSettingsReadOnlyEntryError,
@@ -45,10 +52,13 @@ from .single_iteration_append import (
 
 __all__ = (
     "HOOK_OBSERVATION_OUTPUT_NAME",
+    "DELAYED_ROW_CREATION_OUTPUT_NAME",
     "PageSettingsAssetError",
     "PrimaryPageSettingsBuildError",
     "PrimaryPageSettingsObjects",
     "PageSettingsReadOnlyEntryError",
+    "PageSettingsDelayedRowCreationError",
+    "PageSettingsDelayedRowCreationResult",
     "PageSettingsReadOnlyEntryResult",
     "PageSettingsRowCreationError",
     "PageSettingsRowCreationResult",
@@ -66,12 +76,14 @@ __all__ = (
     "apply_page_settings_patches",
     "build_page_settings_assets",
     "build_page_settings_objects",
+    "build_page_settings_delayed_row_creation",
     "build_page_settings_read_only_entry",
     "build_page_settings_row_creation",
     "build_page_settings_single_iteration_append",
     "build_page_settings_startup_passthrough",
     "build_settings_hook_observation",
     "simulate_page_settings_read_only_entry",
+    "simulate_page_settings_delayed_row_creation",
     "simulate_page_settings_row_creation",
     "simulate_page_settings_single_iteration_append",
     "simulate_page_settings_startup_passthrough",
