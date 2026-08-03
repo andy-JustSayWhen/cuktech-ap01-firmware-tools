@@ -66,10 +66,12 @@ from features.primary_page_settings import (
     DELAYED_ROW_CREATION_OUTPUT_NAME,
     HOOK_OBSERVATION_OUTPUT_NAME,
     READ_ONLY_ENTRY_OUTPUT_NAME,
+    RETURN_ROW_LABEL_OUTPUT_NAME,
     ROW_CREATION_OUTPUT_NAME,
     SINGLE_ITERATION_APPEND_OUTPUT_NAME,
     STARTUP_PASSTHROUGH_OUTPUT_NAME,
     PageSettingsReadOnlyEntryError,
+    PageSettingsReturnRowLabelError,
     PageSettingsDelayedRowCreationError,
     PageSettingsRowCreationError,
     PageSettingsSingleIterationAppendError,
@@ -77,6 +79,7 @@ from features.primary_page_settings import (
     PrimaryPageSettingsBuildError,
     SettingsHookObservationError,
     build_page_settings_read_only_entry,
+    build_page_settings_return_row_label,
     build_page_settings_delayed_row_creation,
     build_page_settings_row_creation,
     build_page_settings_single_iteration_append,
@@ -451,6 +454,14 @@ def _parser() -> argparse.ArgumentParser:
     startup_passthrough_command.add_argument("--output", type=Path, required=True)
     startup_passthrough_command.add_argument("--manifest", type=Path, required=True)
     startup_passthrough_command.add_argument("--build-dir", type=Path, required=True)
+    return_row_label_command = commands.add_parser(
+        "page-settings-return-label-build",
+        help="从启动基础透传固件生成原厂返回行文字复用候选",
+    )
+    return_row_label_command.add_argument("--input", type=Path, required=True)
+    return_row_label_command.add_argument("--output", type=Path, required=True)
+    return_row_label_command.add_argument("--manifest", type=Path, required=True)
+    return_row_label_command.add_argument("--build-dir", type=Path, required=True)
     row_creation_command = commands.add_parser(
         "page-settings-row-creation-build",
         help="从启动基础透传固件生成第八项普通行候选",
@@ -1250,6 +1261,41 @@ def main(argv: list[str] | None = None) -> int:
             )
             return 0
 
+        if args.command == "page-settings-return-label-build":
+            result = build_page_settings_return_row_label(
+                args.input,
+                args.output,
+                args.manifest,
+                args.build_dir,
+                assembler=_required_tool("riscv64-elf-as"),
+                linker=_required_tool("riscv64-elf-ld"),
+                copier=_required_tool("riscv64-elf-objcopy"),
+                readelf=_required_tool("riscv64-elf-readelf"),
+                nm=_required_tool("riscv64-elf-nm"),
+                dumper=_required_tool("riscv64-elf-objdump"),
+                tool_revision=revision,
+            )
+            print(
+                json.dumps(
+                    {
+                        "result": "原厂返回行文字复用候选制作完成",
+                        "output": str(result.output),
+                        "manifest": str(result.manifest),
+                        "output_name": RETURN_ROW_LABEL_OUTPUT_NAME,
+                        "output_sha256": result.sha256,
+                        "output_md5": result.md5,
+                        "payload_size": result.payload_size,
+                        "payload_remaining": result.payload_remaining,
+                        "label_runtime_address": f"0x{result.label_runtime_address:08x}",
+                        "simulation_items": result.simulation_items,
+                        "installation_allowed": True,
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                )
+            )
+            return 0
+
         if args.command == "page-settings-row-creation-build":
             result = build_page_settings_row_creation(
                 args.input,
@@ -1391,6 +1437,7 @@ def main(argv: list[str] | None = None) -> int:
         PrimaryPageNavigationError,
         PrimaryPageSettingsBuildError,
         PageSettingsReadOnlyEntryError,
+        PageSettingsReturnRowLabelError,
         PageSettingsDelayedRowCreationError,
         PageSettingsRowCreationError,
         PageSettingsSingleIterationAppendError,
