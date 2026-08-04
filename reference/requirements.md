@@ -6,7 +6,7 @@
 
 | 名称 | 作用 | 类型 | 当前状态 | 阻塞性 | 备注 |
 | --- | --- | --- | --- | --- | --- |
-| `/Users/mac/Desktop/cuktech-screen-controller` | 提供已经验证的 AP01 固件、刷机、画面与 Codex 数据实现 | 参考项目 | 2026-08-01 已按用户远端仓库实时 `main` 分支同步到 `56b64082b1aed9404856fcb940ccde6fb7fd3d34`；本项目独立实现，不在运行时依赖该路径 | 是 | 远端、授权实现来源和执行门禁只见 [`SOP/AP01-固件制作与刷机.md`](SOP/AP01-固件制作与刷机.md) 第 0 节 |
+| `/Users/mac/Desktop/cuktech-screen-controller` | 提供已经验证的 AP01 固件、刷机、画面与 Codex 数据实现 | 参考项目 | 2026-08-04 已核对本机与远端 `main` 分支提交 `c3ac158382f56e520bd7565d1fb2553152e4bc2f`；本项目独立实现，不在运行时依赖该路径 | 是 | 远端、授权实现来源和执行门禁只见 [`SOP/AP01-固件制作与刷机.md`](SOP/AP01-固件制作与刷机.md) 第 0 节 |
 | `PiotrMachowski/Xiaomi-cloud-tokens-extractor` | 提供小米二维码授权协议的上游实现证据 | 源码参考 | 已核对并固定到提交号 `c4db715dace9806e905153c2977608873e8ab7c9` | 是 | 来源、复用边界和许可只见 [`SOP/AP01-固件制作与刷机.md`](SOP/AP01-固件制作与刷机.md) 第 0 节 |
 | Windows 10/11 64 位 | 运行普通用户版 WebUI 和后台服务 | 操作系统 | 待开发与实测 | 是 | 不得只在 macOS 可用后宣称跨系统完成 |
 | macOS | 首个开发、构建和真机验证环境 | 操作系统 | home02-macmini 为 15.7.7，本轮已恢复构建、测试和服务环境 | 是 | 具体最低版本在技术设计阶段确定 |
@@ -20,7 +20,7 @@
 | MiSans | 绘制 AGENTS 看板中文、数字和单位 | 字体 | Regular、Medium、Semibold、Bold 四个字重已从用户自有字体库恢复到 home02 被忽略的 `env/fonts/` | 是 | 官方下载页为 `https://hyperos.mi.com/font/en/download/`；成品注明“使用 MiSans 字体”；不提交、改造或转发字体文件 |
 | Michroma | 绘制 AGENTS 看板超大主数字和主要 Token 数字 | 字体 | home02 已从 Google Fonts 官方仓库取得 Regular 字重，并通过相关自动测试 | 是 | 上游为 `https://github.com/google/fonts/tree/main/ofl/michroma`，使用 SIL Open Font License 1.1；字体文件只放在被忽略的 `env/fonts/` |
 | Material Design Icons | 提供活动、插件、输入、输出和缓存语义图标 | 图标资源 | 本轮接入官方矢量图标、许可与来源 | 是 | 上游为 `https://github.com/google/material-design-icons`，只保留本功能实际使用的图标 |
-| Requests（访问网络接口的程序库） | 参考项目访问网络接口 | 软件库 | 本项目当前使用 Python 标准库完成 Codex 与看板服务请求，未采用本依赖 | 否 | 后续若引入，必须设置超时、有限重试和敏感信息过滤 |
+| Requests（访问网络接口的程序库） | 网页刷机功能访问小米授权、设备、对象存储和安装接口 | 软件库 | 本机 2.34.2 已接入；所有请求均设固定超时，页面和操作记录只接收脱敏结果 | 是 | 运行时不读取参考项目目录；来源与边界见 `features/web_firmware_flash/SOURCE.md` |
 | RISC-V 编译工具 | 编译适用于 AP01 处理器的设备端载荷 | 构建工具 | home02 已安装 GNU Binutils 2.46.1 与 GCC 16.1.0；完整自动测试通过 | 是 | 当前使用 `/opt/homebrew/bin/riscv64-elf-gcc`、`riscv64-elf-as`、`riscv64-elf-ld`、`riscv64-elf-objcopy`、`riscv64-elf-objdump`、`riscv64-elf-nm` 和 `riscv64-elf-readelf`；版本或输出变化时停止构建 |
 | Codex 当前登录态 | 授权读取额度、重置卡和个人统计 | 软件 / 账号 | home02 已登录；2026-07-29 重新实测三个官方数据源均可读 | 是 | 直接读取 Codex 登录文件；不依赖 Cockpit Tools、CC Switch 或 Codex 桌面端安装，不要求再次输入密码 |
 | Codex 本地会话记录 | 汇总今日新增输入、输出、缓存命中和请求数 | 本地数据 | home02 存在并已完成一次实时汇总 | 是 | 直接扫描 Codex 会话目录；不读取 CC Switch 数据库，不输出提示词、回复正文和本机路径 |

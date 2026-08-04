@@ -11,6 +11,15 @@ from .firmware_inspection import (
     inspect_release_firmware,
 )
 from .operation_store import OperationRecord, OperationStore
+from .xiaomi_cloud import (
+    XiaomiCloudClient,
+    XiaomiCloudError,
+    XiaomiCredentials,
+    dispatch_install_once,
+    ota_state,
+    public_device,
+    upload_and_readback,
+)
 
 __all__ = [
     "DirectInstallDecision",
@@ -21,4 +30,11 @@ __all__ = [
     "inspect_release_firmware",
     "OperationRecord",
     "OperationStore",
+    "XiaomiCloudClient",
+    "XiaomiCloudError",
+    "XiaomiCredentials",
+    "dispatch_install_once",
+    "ota_state",
+    "public_device",
+    "upload_and_readback",
 ]
