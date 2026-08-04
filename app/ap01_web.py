@@ -15,7 +15,13 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from features.web_firmware_flash import OperationStore, XiaomiCloudClient, XiaomiCredentials, XiaomiQrLogin
+from features.web_firmware_flash import (
+    OperationStore,
+    XiaomiCloudClient,
+    XiaomiCredentials,
+    XiaomiQrLogin,
+    observe_install,
+)
 from features.web_firmware_flash.firmware_inspection import InspectedFirmware
 from features.web_firmware_flash.server import WebFlashServer
 from features.web_firmware_flash.workflow import FlashWorkflow
@@ -75,6 +81,7 @@ def main() -> int:
         simulation=strict_simulation,
         qr_login=XiaomiQrLogin(),
         credentials_path=credentials_path,
+        installation_observer=lambda cloud, did, life: observe_install(cloud, did, life_before=life),
     )
     server = WebFlashServer(("127.0.0.1", 0), workflow)
     url = f"http://127.0.0.1:{server.server_port}/?access={server.access_token}"

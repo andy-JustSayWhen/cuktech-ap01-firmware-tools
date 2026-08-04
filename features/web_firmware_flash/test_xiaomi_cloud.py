@@ -5,7 +5,7 @@ import tempfile
 import unittest
 import os
 from pathlib import Path
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 from features.web_firmware_flash.xiaomi_cloud import (
     XiaomiCloudError,
@@ -13,6 +13,7 @@ from features.web_firmware_flash.xiaomi_cloud import (
     XiaomiQrLogin,
     _select_fds_device,
     dispatch_install_once,
+    observe_install,
     public_device,
     upload_and_readback,
 )
@@ -118,6 +119,33 @@ class XiaomiCloudAdapterTests(unittest.TestCase):
             self.assertEqual(method, "miIO.ota")
             self.assertEqual(params["proc"], "dnld install")
             self.assertEqual(params["install"], "1")
+
+    def test_install_observer_requires_reboot_or_direct_offline_evidence(self) -> None:
+        cloud = Mock()
+        cloud.unique_ap01.side_effect = [
+            {"did": "device", "isOnline": True},
+            {"did": "device", "isOnline": False},
+            {"did": "device", "isOnline": True},
+        ]
+        now = [0.0]
+        with patch(
+            "features.web_firmware_flash.xiaomi_cloud.ota_state",
+            side_effect=[
+                {"state": "downloading", "progress": 25, "life": 100},
+                {"state": "idle", "progress": 101, "life": 4},
+            ],
+        ):
+            evidence = observe_install(
+                cloud,
+                "device",
+                life_before=100,
+                timeout=10,
+                interval=1,
+                clock=lambda: now[0],
+                sleeper=lambda seconds: now.__setitem__(0, now[0] + seconds),
+            )
+        self.assertIn("设备报告过暂时离线", evidence)
+        self.assertIn("设备运行时间已重置", evidence)
 
 
 if __name__ == "__main__":

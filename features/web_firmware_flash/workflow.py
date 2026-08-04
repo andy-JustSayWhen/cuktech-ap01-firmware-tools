@@ -15,6 +15,7 @@ from .xiaomi_cloud import (
     XiaomiCredentials,
     XiaomiQrLogin,
     dispatch_install_once,
+    observe_install,
     ota_state,
     public_device,
     upload_and_readback,
@@ -22,6 +23,7 @@ from .xiaomi_cloud import (
 
 
 Simulation = Callable[[InspectedFirmware], list[str]]
+InstallObserver = Callable[[XiaomiCloudClient, str, int | None], list[str]]
 
 
 class WorkflowError(RuntimeError):
@@ -49,6 +51,7 @@ class FlashWorkflow:
         qr_login: XiaomiQrLogin | None = None,
         credentials_path: Path | None = None,
         login_cloud_factory: Callable[[XiaomiCredentials], XiaomiCloudClient] = XiaomiCloudClient,
+        installation_observer: InstallObserver | None = None,
     ) -> None:
         self.release_directory = release_directory.expanduser().resolve()
         self.store = store
@@ -57,6 +60,7 @@ class FlashWorkflow:
         self.qr_login = qr_login
         self.credentials_path = credentials_path.expanduser().resolve() if credentials_path else None
         self.login_cloud_factory = login_cloud_factory
+        self.installation_observer = installation_observer
         self.phase = "prepare"
         self.status = "ready"
         self.message = "请检查准备条件"
@@ -101,6 +105,12 @@ class FlashWorkflow:
                 "login_status": self.login_status,
                 "qr_available": self.login_status in {"waiting", "verifying"} and self.qr_path.is_file(),
             }
+
+    def export(self, operation_id: str) -> dict[str, Any]:
+        with self._lock:
+            if self.operation is None or self.operation.operation_id != operation_id:
+                raise WorkflowError("操作不存在")
+            return self.snapshot()
 
     def preflight(self) -> dict[str, Any]:
         with self._lock:
@@ -271,10 +281,28 @@ class FlashWorkflow:
             self._save()
             dispatch_install_once(cloud, str(device["did"]), self.firmware.path, ota_url)
             self.operation.finish_stage("install", evidence=["正式安装只下发一次"])
-            self.operation.phase = "execute"
-            self.operation.status = "running"
-            self.operation.allowed_actions = ["query"]
-            self.message = "正式安装已下发，只允许查询设备状态"
+            self._save()
+            if self.installation_observer is None:
+                self.operation.phase = "execute"
+                self.operation.status = "running"
+                self.operation.allowed_actions = ["query"]
+                self.message = "正式安装已下发，只允许查询设备状态"
+                self._save()
+                return
+            life_before = current_state.get("life")
+            if isinstance(life_before, list) and life_before:
+                life_before = life_before[0]
+            evidence = self.installation_observer(
+                cloud,
+                str(device["did"]),
+                life_before if isinstance(life_before, int) else None,
+            )
+            self.operation.begin_stage("online")
+            self.operation.finish_stage("online", evidence=evidence)
+            self.operation.phase = "result"
+            self.operation.status = "pending_acceptance"
+            self.operation.allowed_actions = ["query", "export"]
+            self.message = "设备已重新上线；成品功能与原厂能力仍需逐项验收"
             self._save()
         except Exception as exc:
             unknown = self.operation.write_may_have_been_dispatched

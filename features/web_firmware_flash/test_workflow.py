@@ -130,6 +130,34 @@ class FlashWorkflowTests(unittest.TestCase):
                 workflow.start(operation_id)
                 self.assertEqual(dispatch.call_count, 1)
 
+    def test_observer_completion_keeps_physical_acceptance_explicit(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            cloud = _Cloud()
+            workflow = FlashWorkflow(
+                release_directory=root,
+                store=OperationStore(root / "records"),
+                cloud_factory=lambda: cloud,
+                simulation=lambda firmware: [],
+                installation_observer=lambda selected, did, life: ["设备运行时间已重置"],
+            )
+            _candidate(root)
+            workflow.preflight()
+            workflow.identify_device()
+            workflow.inspect_firmware("approved.bin")
+            workflow.create_operation()
+            with (
+                patch("features.web_firmware_flash.workflow.ota_state", return_value={"state": "idle", "progress": 0, "life": 100}),
+                patch("features.web_firmware_flash.workflow.upload_and_readback", return_value="https://ota"),
+                patch("features.web_firmware_flash.workflow.dispatch_install_once"),
+            ):
+                workflow.start(workflow.operation.operation_id)
+                workflow._worker.join(timeout=5)
+            snapshot = workflow.snapshot()
+            self.assertEqual(snapshot["phase"], "result")
+            self.assertEqual(snapshot["status"], "pending_acceptance")
+            self.assertNotEqual(snapshot["status"], "succeeded")
+
     def test_changed_device_stops_before_upload(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

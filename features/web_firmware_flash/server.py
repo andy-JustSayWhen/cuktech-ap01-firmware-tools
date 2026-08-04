@@ -45,6 +45,16 @@ class WebFlashHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def _download_json(self, payload: dict[str, Any], filename: str) -> None:
+        body = json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8")
+        self.send_response(HTTPStatus.OK)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Disposition", f'attachment; filename="{filename}"')
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        self.wfile.write(body)
+
     def _cookies(self) -> dict[str, str]:
         result: dict[str, str] = {}
         for item in self.headers.get("Cookie", "").split(";"):
@@ -120,6 +130,18 @@ class WebFlashHandler(BaseHTTPRequestHandler):
             self.send_header("Cache-Control", "no-store")
             self.end_headers()
             self.wfile.write(body)
+            return
+        if parsed.path.startswith("/api/v1/operations/") and parsed.path.endswith("/export"):
+            if not self._authorized():
+                self._json(HTTPStatus.UNAUTHORIZED, {"error": "本次访问凭证无效"})
+                return
+            operation_id = parsed.path.split("/")[-2]
+            try:
+                payload = self.server.workflow.export(operation_id)
+            except RuntimeError as exc:
+                self._json(HTTPStatus.NOT_FOUND, {"error": str(exc)})
+                return
+            self._download_json(payload, f"ap01-flash-{operation_id}.json")
             return
         if parsed.path.startswith("/api/v1/operations/"):
             if not self._authorized():

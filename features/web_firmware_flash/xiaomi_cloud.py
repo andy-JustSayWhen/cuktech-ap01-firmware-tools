@@ -11,7 +11,7 @@ import secrets
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any, Callable, Iterable
 from urllib.parse import urlparse, urlsplit, urlunsplit
 
 import requests
@@ -366,6 +366,59 @@ def ota_state(cloud: XiaomiCloudClient, did: str) -> dict[str, Any]:
     progress = cloud.rpc(did, "miIO.get_ota_progress").get("result")
     info = cloud.rpc(did, "miIO.info").get("result")
     return {"state": state, "progress": progress, "life": info.get("life") if isinstance(info, dict) else None}
+
+
+def _scalar(value: Any) -> Any:
+    if isinstance(value, list) and value:
+        return value[0]
+    return value
+
+
+def observe_install(
+    cloud: XiaomiCloudClient,
+    did: str,
+    *,
+    life_before: int | None,
+    timeout: float = 900,
+    interval: float = 2,
+    clock: Callable[[], float] = time.monotonic,
+    sleeper: Callable[[float], None] = time.sleep,
+) -> list[str]:
+    """只读观察设备下载、重启和重新上线，不在超时后重发。"""
+
+    started = clock()
+    download_seen = False
+    offline_seen = False
+    reboot_seen = False
+    while clock() - started < timeout:
+        device = cloud.unique_ap01()
+        if str(device.get("did") or "") != did:
+            raise XiaomiCloudError("安装观察期间目标设备身份发生变化")
+        if device.get("isOnline") is not True:
+            offline_seen = True
+            sleeper(interval)
+            continue
+        state = ota_state(cloud, did)
+        ota_value = _scalar(state.get("state"))
+        progress = _scalar(state.get("progress"))
+        life = _scalar(state.get("life"))
+        if ota_value not in (None, "idle", "failed") or (isinstance(progress, int) and 0 < progress < 101):
+            download_seen = True
+        if isinstance(life_before, int) and isinstance(life, int) and life < life_before:
+            reboot_seen = True
+        idle = ota_value in (None, "idle", "failed") and progress in (None, 0, 101)
+        if idle and (offline_seen or reboot_seen):
+            evidence = []
+            if download_seen:
+                evidence.append("设备报告过下载或安装进度")
+            if offline_seen:
+                evidence.append("设备报告过暂时离线")
+            if reboot_seen:
+                evidence.append("设备运行时间已重置")
+            evidence.extend(("同一设备已经重新在线", "设备更新状态已经回到空闲"))
+            return evidence
+        sleeper(interval)
+    raise XiaomiCloudError("安装观察达到固定时限，状态无法确认；只允许继续查询")
 
 
 def dispatch_install_once(cloud: XiaomiCloudClient, did: str, firmware: Path, ota_url: str) -> None:

@@ -17,6 +17,11 @@ class _Workflow:
     def preflight(self):
         return {"phase": "device", "status": "ready"}
 
+    def export(self, operation_id):
+        if operation_id != "operation":
+            raise RuntimeError("操作不存在")
+        return {"operation_id": operation_id, "device": {"identity": "masked"}}
+
 
 class WebFlashServerTests(unittest.TestCase):
     def setUp(self) -> None:
@@ -81,6 +86,18 @@ class WebFlashServerTests(unittest.TestCase):
     def test_server_rejects_non_loopback_bind(self) -> None:
         with self.assertRaises(ValueError):
             WebFlashServer(("0.0.0.0", 0), _Workflow())
+
+    def test_result_export_is_authorized_and_downloadable(self) -> None:
+        connection = self._connection()
+        connection.request("GET", "/?access=access-token")
+        response = connection.getresponse()
+        cookie = response.getheader("Set-Cookie").split(";", 1)[0]
+        response.read()
+        connection.request("GET", "/api/v1/operations/operation/export", headers={"Cookie": cookie})
+        response = connection.getresponse()
+        self.assertEqual(response.status, 200)
+        self.assertIn("attachment", response.getheader("Content-Disposition"))
+        self.assertEqual(json.loads(response.read())["device"]["identity"], "masked")
 
 
 if __name__ == "__main__":
