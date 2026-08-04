@@ -10,6 +10,7 @@ from unittest.mock import patch
 
 from features.web_firmware_flash.operation_store import OperationStore
 from features.web_firmware_flash.workflow import FlashWorkflow, WorkflowError
+from features.web_firmware_flash.xiaomi_cloud import LoginChallenge, XiaomiCredentials
 
 
 class _Cloud:
@@ -24,6 +25,17 @@ class _Cloud:
 
     def unique_ap01(self):
         return dict(self.device)
+
+
+class _QrLogin:
+    def start(self, output: Path, timeout: float):
+        del timeout
+        output.write_bytes(b"png")
+        return LoginChallenge("https://qr", "https://login", "https://poll", 30)
+
+    def wait(self, challenge: LoginChallenge):
+        del challenge
+        return XiaomiCredentials("user", "token", "device")
 
 
 def _candidate(root: Path) -> Path:
@@ -74,6 +86,29 @@ class FlashWorkflowTests(unittest.TestCase):
             workflow.preflight()
             with self.assertRaises(WorkflowError):
                 workflow.inspect_firmware("missing.bin")
+
+    def test_qr_login_verifies_unique_online_device_before_saving(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            cloud = _Cloud()
+            credentials_path = root / "xiaomi.env"
+            workflow = FlashWorkflow(
+                release_directory=root,
+                store=OperationStore(root / "records"),
+                cloud_factory=lambda: cloud,
+                simulation=lambda firmware: [],
+                qr_login=_QrLogin(),
+                credentials_path=credentials_path,
+                login_cloud_factory=lambda credentials: cloud,
+            )
+            workflow.preflight()
+            started = workflow.start_login()
+            self.assertTrue(started["qr_available"])
+            workflow.complete_login()
+            workflow._login_worker.join(timeout=2)
+            self.assertEqual(workflow.snapshot()["login_status"], "succeeded")
+            self.assertTrue(credentials_path.is_file())
+            self.assertFalse(workflow.qr_path.exists())
 
     def test_full_flow_dispatches_once_and_then_query_only(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

@@ -10,7 +10,10 @@ from typing import Any, Callable
 from .firmware_inspection import InspectedFirmware, inspect_release_firmware
 from .operation_store import OperationRecord, OperationStore
 from .xiaomi_cloud import (
+    LoginChallenge,
     XiaomiCloudClient,
+    XiaomiCredentials,
+    XiaomiQrLogin,
     dispatch_install_once,
     ota_state,
     public_device,
@@ -43,11 +46,17 @@ class FlashWorkflow:
         store: OperationStore,
         cloud_factory: Callable[[], XiaomiCloudClient],
         simulation: Simulation,
+        qr_login: XiaomiQrLogin | None = None,
+        credentials_path: Path | None = None,
+        login_cloud_factory: Callable[[XiaomiCredentials], XiaomiCloudClient] = XiaomiCloudClient,
     ) -> None:
         self.release_directory = release_directory.expanduser().resolve()
         self.store = store
         self.cloud_factory = cloud_factory
         self.simulation = simulation
+        self.qr_login = qr_login
+        self.credentials_path = credentials_path.expanduser().resolve() if credentials_path else None
+        self.login_cloud_factory = login_cloud_factory
         self.phase = "prepare"
         self.status = "ready"
         self.message = "请检查准备条件"
@@ -58,6 +67,10 @@ class FlashWorkflow:
         self.operation: OperationRecord | None = store.active()
         self._lock = threading.RLock()
         self._worker: threading.Thread | None = None
+        self._login_worker: threading.Thread | None = None
+        self._login_challenge: LoginChallenge | None = None
+        self.qr_path = self.store.directory.parent / "xiaomi-login-qr.png"
+        self.login_status = "not_started"
         if self.operation is not None:
             self.phase = self.operation.phase
             self.status = self.operation.status
@@ -85,6 +98,8 @@ class FlashWorkflow:
                 "device": dict(self.device_public) if self.device_public else None,
                 "firmware": self.firmware.public_dict() if self.firmware else None,
                 "operation": operation,
+                "login_status": self.login_status,
+                "qr_available": self.login_status in {"waiting", "verifying"} and self.qr_path.is_file(),
             }
 
     def preflight(self) -> dict[str, Any]:
@@ -98,6 +113,50 @@ class FlashWorkflow:
             self.evidence = ["本机私有操作目录可写", "发布包固件目录存在", "服务只监听本机"]
             self.message = "准备条件通过，请识别设备"
             return self.snapshot()
+
+    def start_login(self) -> dict[str, Any]:
+        with self._lock:
+            if self.phase != "device":
+                raise WorkflowError("当前阶段不允许登录")
+            if self.qr_login is None or self.credentials_path is None:
+                raise WorkflowError("发布包没有启用二维码登录")
+            if self._login_worker is not None and self._login_worker.is_alive():
+                raise WorkflowError("正在等待本次扫码结果")
+            self._login_challenge = self.qr_login.start(self.qr_path, 300)
+            self.login_status = "waiting"
+            self.message = "请使用拥有目标 AP01 的小米账号扫码并在手机上确认"
+            return self.snapshot()
+
+    def complete_login(self) -> dict[str, Any]:
+        with self._lock:
+            if self.phase != "device" or self._login_challenge is None or self.qr_login is None:
+                raise WorkflowError("请先生成二维码")
+            if self._login_worker is not None and self._login_worker.is_alive():
+                return self.snapshot()
+            self.login_status = "verifying"
+            self.message = "正在等待扫码并核对账号中的唯一 AP01"
+            self._login_worker = threading.Thread(target=self._wait_login, name="ap01-xiaomi-login", daemon=True)
+            self._login_worker.start()
+            return self.snapshot()
+
+    def _wait_login(self) -> None:
+        assert self.qr_login is not None and self._login_challenge is not None and self.credentials_path is not None
+        try:
+            credentials = self.qr_login.wait(self._login_challenge)
+            device = self.login_cloud_factory(credentials).unique_ap01()
+            public = public_device(device)
+            if not public["online"]:
+                raise WorkflowError("账号中的唯一 AP01 当前不在线")
+            credentials.save(self.credentials_path)
+            with self._lock:
+                self.login_status = "succeeded"
+                self.message = "登录与唯一设备核对通过，请识别设备"
+                self.qr_path.unlink(missing_ok=True)
+        except Exception as exc:
+            with self._lock:
+                self.login_status = "failed"
+                self.message = str(exc)
+                self.qr_path.unlink(missing_ok=True)
 
     def identify_device(self) -> dict[str, Any]:
         with self._lock:

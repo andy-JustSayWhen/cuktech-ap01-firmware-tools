@@ -15,7 +15,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from features.web_firmware_flash import OperationStore, XiaomiCloudClient, XiaomiCredentials
+from features.web_firmware_flash import OperationStore, XiaomiCloudClient, XiaomiCredentials, XiaomiQrLogin
 from features.web_firmware_flash.firmware_inspection import InspectedFirmware
 from features.web_firmware_flash.server import WebFlashServer
 from features.web_firmware_flash.workflow import FlashWorkflow
@@ -64,12 +64,17 @@ def main() -> int:
     parser.add_argument("--private-env", type=Path, default=REPO_ROOT / "env" / ".env")
     parser.add_argument("--no-browser", action="store_true")
     args = parser.parse_args()
+    credentials_path = args.data_dir / "xiaomi.env"
     store = OperationStore(args.data_dir / "operations")
     workflow = FlashWorkflow(
         release_directory=args.release_dir,
         store=store,
-        cloud_factory=lambda: XiaomiCloudClient(XiaomiCredentials.load(args.private_env)),
+        cloud_factory=lambda: XiaomiCloudClient(
+            XiaomiCredentials.load(credentials_path if credentials_path.is_file() else args.private_env)
+        ),
         simulation=strict_simulation,
+        qr_login=XiaomiQrLogin(),
+        credentials_path=credentials_path,
     )
     server = WebFlashServer(("127.0.0.1", 0), workflow)
     url = f"http://127.0.0.1:{server.server_port}/?access={server.access_token}"

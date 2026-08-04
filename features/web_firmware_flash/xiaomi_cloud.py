@@ -7,6 +7,7 @@ import hashlib
 import json
 import os
 import random
+import secrets
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -19,6 +20,7 @@ import requests
 MODEL = "njcuk.enstor.ap01"
 OTA_CDN_HOST = "iot-ota-cdn.io.mi.com"
 DEFAULT_USER_AGENT = "APP/com.xiaomi.mihome APPV/10.5.201"
+LOGIN_ENDPOINT = "https://account.xiaomi.com/longPolling/loginUrl"
 
 
 class XiaomiCloudError(RuntimeError):
@@ -53,6 +55,109 @@ class XiaomiCredentials:
         if not user_id or not pass_token:
             raise XiaomiCloudError("没有找到小米登录态")
         return cls(user_id, pass_token, device_id or os.urandom(8).hex().upper())
+
+    def save(self, private_file: Path) -> None:
+        destination = private_file.expanduser().resolve()
+        destination.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+        destination.parent.chmod(0o700)
+        values = {
+            "CUKTECH_MI_USER_ID": self.user_id,
+            "CUKTECH_MI_PASS_TOKEN": self.pass_token,
+            "CUKTECH_MI_DEVICE_ID": self.device_id,
+        }
+        lines = [f"{key}{chr(61)}{value}" for key, value in values.items()]
+        temporary = destination.with_name(f".{destination.name}.{secrets.token_hex(4)}")
+        try:
+            temporary.write_text("\n".join(lines) + "\n", encoding="utf-8")
+            temporary.chmod(0o600)
+            os.replace(temporary, destination)
+            destination.chmod(0o600)
+        finally:
+            temporary.unlink(missing_ok=True)
+
+
+def _xiaomi_json(text: str) -> dict[str, Any]:
+    try:
+        value = json.loads(text.removeprefix("&&&START&&&"))
+    except json.JSONDecodeError as exc:
+        raise XiaomiCloudError("小米登录响应无法解析") from exc
+    if not isinstance(value, dict):
+        raise XiaomiCloudError("小米登录响应不是对象")
+    return value
+
+
+@dataclass(frozen=True)
+class LoginChallenge:
+    qr_url: str
+    login_url: str
+    polling_url: str
+    timeout: float
+
+
+class XiaomiQrLogin:
+    """包装参考项目已经验证的小米二维码授权流程。"""
+
+    def __init__(self, session: requests.Session | None = None) -> None:
+        self.session = session or requests.Session()
+        self.session.headers["User-Agent"] = DEFAULT_USER_AGENT
+
+    def start(self, qr_output: Path, requested_timeout: float = 300) -> LoginChallenge:
+        response = self.session.get(
+            LOGIN_ENDPOINT,
+            params={
+                "_qrsize": "480",
+                "qs": "%3Fsid%3Dxiaomiio%26_json%3Dtrue",
+                "callback": "https://sts.api.io.mi.com/sts",
+                "_hasLogo": "false",
+                "sid": "xiaomiio",
+                "serviceParam": "",
+                "_locale": "zh_CN",
+                "_dc": str(int(time.time() * 1000)),
+            },
+            timeout=20,
+        )
+        response.raise_for_status()
+        payload = _xiaomi_json(response.text)
+        if any(not payload.get(key) for key in ("qr", "loginUrl", "lp")):
+            raise XiaomiCloudError("小米没有返回完整的二维码登录信息")
+        server_timeout = float(payload.get("timeout") or requested_timeout)
+        challenge = LoginChallenge(
+            qr_url=str(payload["qr"]),
+            login_url=str(payload["loginUrl"]),
+            polling_url=str(payload["lp"]),
+            timeout=min(requested_timeout, server_timeout),
+        )
+        image = self.session.get(challenge.qr_url, timeout=20)
+        image.raise_for_status()
+        qr_output.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+        qr_output.parent.chmod(0o700)
+        temporary = qr_output.with_name(f".{qr_output.name}.{secrets.token_hex(4)}")
+        try:
+            temporary.write_bytes(image.content)
+            temporary.chmod(0o600)
+            os.replace(temporary, qr_output)
+            qr_output.chmod(0o600)
+        finally:
+            temporary.unlink(missing_ok=True)
+        return challenge
+
+    def wait(self, challenge: LoginChallenge) -> XiaomiCredentials:
+        started = time.monotonic()
+        while time.monotonic() - started < challenge.timeout:
+            remaining = challenge.timeout - (time.monotonic() - started)
+            try:
+                response = self.session.get(challenge.polling_url, timeout=max(1.0, min(10.0, remaining)))
+            except requests.Timeout:
+                continue
+            if response.status_code != 200:
+                time.sleep(0.5)
+                continue
+            payload = _xiaomi_json(response.text)
+            user_id = str(payload.get("userId") or "").strip()
+            pass_token = str(payload.get("passToken") or "").strip()
+            if user_id and pass_token:
+                return XiaomiCredentials(user_id, pass_token, secrets.token_hex(8).upper())
+        raise XiaomiCloudError("二维码已超时，请重新生成后扫码")
 
 
 class XiaomiCloudClient:

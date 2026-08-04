@@ -105,6 +105,22 @@ class WebFlashHandler(BaseHTTPRequestHandler):
                 return
             self._json(HTTPStatus.OK, self.server.workflow.snapshot())
             return
+        if parsed.path == "/api/v1/device/login-qr":
+            if not self._authorized():
+                self._json(HTTPStatus.UNAUTHORIZED, {"error": "本次访问凭证无效"})
+                return
+            selected = self.server.workflow.qr_path
+            if not selected.is_file() or not self.server.workflow.snapshot().get("qr_available"):
+                self.send_error(HTTPStatus.NOT_FOUND)
+                return
+            body = selected.read_bytes()
+            self.send_response(HTTPStatus.OK)
+            self.send_header("Content-Type", "image/png")
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            self.wfile.write(body)
+            return
         if parsed.path.startswith("/api/v1/operations/"):
             if not self._authorized():
                 self._json(HTTPStatus.UNAUTHORIZED, {"error": "本次访问凭证无效"})
@@ -144,6 +160,10 @@ class WebFlashHandler(BaseHTTPRequestHandler):
             path = urlparse(self.path).path
             if path == "/api/v1/preflight":
                 result = self.server.workflow.preflight()
+            elif path == "/api/v1/device/login/start":
+                result = self.server.workflow.start_login()
+            elif path == "/api/v1/device/login/complete":
+                result = self.server.workflow.complete_login()
             elif path == "/api/v1/device/identify":
                 result = self.server.workflow.identify_device()
             elif path == "/api/v1/firmware/inspect":
