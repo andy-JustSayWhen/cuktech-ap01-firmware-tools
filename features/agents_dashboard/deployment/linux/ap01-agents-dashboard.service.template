@@ -1,0 +1,17 @@
+[Unit]
+Description=CUKTECH AP01 AGENTS dashboard
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User={{USER}}
+WorkingDirectory={{PROJECT}}
+ExecStart={{PYTHON}} -m features.agents_dashboard.bridge --bind 0.0.0.0 --port {{PORT}} --interval 300 --output {{OUTPUT}} --font-directory {{FONTS}} --codex-home {{CODEX_HOME}} --cache-directory {{CACHE}}
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

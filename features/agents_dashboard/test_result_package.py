@@ -5,6 +5,7 @@ import io
 import json
 import tempfile
 import unittest
+from dataclasses import replace
 from pathlib import Path
 from unittest.mock import patch
 
@@ -16,8 +17,11 @@ from .result_package import (
     decode_package,
     encode_package,
     png_to_device_gif,
+    weekly_to_device_gif,
 )
-from .bridge import BridgeState
+from .models import ActivityInsights, DashboardSnapshot, ResetCard, TodayUsage
+from .renderer import _token_or_unavailable, render_all
+from .bridge import BridgeState, start_refresh_worker
 
 
 def _gif(color: tuple[int, int, int]) -> bytes:
@@ -84,6 +88,77 @@ class ResultPackageTests(unittest.TestCase):
                 self.assertGreaterEqual(image.n_frames, 2)
             self.assertEqual(hashlib.sha256(payload).digest_size, 32)
 
+    def test_all_reset_cards_are_split_across_weekly_frames(self) -> None:
+        cards = tuple(
+            ResetCard("available", "2026-08-01T00:00:00+08:00", f"2026-08-{10 + index:02d}T00:00:00+08:00", None)
+            for index in range(5)
+        )
+        snapshot = DashboardSnapshot(
+            generated_at="2026-08-04T00:00:00+08:00",
+            weekly_remaining_percent=50,
+            weekly_reset_at="2026-08-10T00:00:00+08:00",
+            reset_cards_available=5,
+            reset_cards=cards,
+            today=TodayUsage(0, 0, 0, 0, 0, 0, 0, 0, 0),
+            last_30d_tokens=0,
+            daily_30d=(),
+            activity=ActivityInsights(None, None, None, 0, 0, 0, 0),
+            common_plugins=(),
+            quota_fetched_at=None,
+            reset_cards_fetched_at=None,
+            profile_fetched_at=None,
+            profile_usage_as_of=None,
+            pricing_verified_on="2026-07-28",
+            quota_available=True,
+            reset_cards_source_available=True,
+            profile_available=False,
+            local_sessions_available=False,
+        )
+        fonts = Path(__file__).resolve().parents[2] / "env/fonts"
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory) / "weekly.gif"
+            weekly_to_device_gif(snapshot, fonts, target)
+            with Image.open(target) as image:
+                self.assertEqual(image.n_frames, 3)
+
+    def test_all_sixteen_source_availability_combinations_render(self) -> None:
+        snapshot = DashboardSnapshot(
+            generated_at="2026-08-04T00:00:00+08:00",
+            weekly_remaining_percent=50,
+            weekly_reset_at="2026-08-10T00:00:00+08:00",
+            reset_cards_available=0,
+            reset_cards=(),
+            today=TodayUsage(100, 50, 100, 20, 50, 0, 10, 1, 50),
+            last_30d_tokens=1000,
+            daily_30d=(("2026-08-04", 1000),),
+            activity=ActivityInsights(10, "高", 20, 1, 2, 3, 4),
+            common_plugins=(),
+            quota_fetched_at=None,
+            reset_cards_fetched_at=None,
+            profile_fetched_at=None,
+            profile_usage_as_of=None,
+            pricing_verified_on="2026-07-28",
+            quota_available=True,
+            reset_cards_source_available=True,
+            profile_available=True,
+            local_sessions_available=True,
+        )
+        fonts = Path(__file__).resolve().parents[2] / "env/fonts"
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for mask in range(16):
+                selected = replace(
+                    snapshot,
+                    quota_available=bool(mask & 1),
+                    reset_cards_source_available=bool(mask & 2),
+                    profile_available=bool(mask & 4),
+                    local_sessions_available=bool(mask & 8),
+                )
+                paths = render_all(selected, root / str(mask), fonts)
+                self.assertEqual(len(paths), 4)
+        self.assertEqual(_token_or_unavailable(100, False).value, "无法获取")
+        self.assertEqual(_token_or_unavailable(100, True).value, "100")
+
     def test_bridge_refresh_uses_selected_data_directories(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -129,6 +204,25 @@ class ResultPackageTests(unittest.TestCase):
             self.assertTrue(health["ok"])
             self.assertTrue(health["degraded"])
             self.assertEqual(health["error"], "refresh failed")
+
+    def test_saved_result_survives_new_bridge_state(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory)
+            package = encode_package(self.pages, generation=11, generated_at=1_700_000_004)
+            (output / "agents-dashboard.apag").write_bytes(package)
+            restarted = BridgeState(output, output)
+            self.assertTrue(restarted.has_valid_result())
+            self.assertEqual(restarted.package_for_request("127.0.0.1")[0], package)
+
+    def test_refresh_thread_failure_keeps_old_result_available(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory)
+            package = encode_package(self.pages, generation=12, generated_at=1_700_000_005)
+            (output / "agents-dashboard.apag").write_bytes(package)
+            state = BridgeState(output, output)
+            with patch("features.agents_dashboard.bridge.threading.Thread", side_effect=RuntimeError("no thread")):
+                self.assertIsNone(start_refresh_worker(state, 300))
+            self.assertTrue(state.has_valid_result())
 
 
 if __name__ == "__main__":

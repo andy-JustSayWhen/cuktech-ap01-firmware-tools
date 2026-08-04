@@ -225,6 +225,21 @@ def _refresh_loop(state: BridgeState, interval: int) -> None:
             print(f"AGENTS 看板刷新失败，继续提供上次成功结果：{error}")
 
 
+def start_refresh_worker(state: BridgeState, interval: int) -> threading.Thread | None:
+    try:
+        worker = threading.Thread(
+            target=_refresh_loop,
+            args=(state, interval),
+            daemon=True,
+            name="ap01-agents-refresh",
+        )
+        worker.start()
+        return worker
+    except RuntimeError as error:
+        print(f"AGENTS 看板定时刷新线程无法启动，继续提供上次成功结果：{error}")
+        return None
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--bind", default="0.0.0.0")
@@ -258,12 +273,7 @@ def main(argv: list[str] | None = None) -> int:
             "AGENTS 看板首次刷新失败，继续提供已验证的旧结果："
             f"{state._safe_error(error)}"
         )
-    worker = threading.Thread(
-        target=_refresh_loop,
-        args=(state, arguments.interval),
-        daemon=True,
-    )
-    worker.start()
+    start_refresh_worker(state, arguments.interval)
     server = ThreadingHTTPServer(
         (arguments.bind, arguments.port),
         make_handler(state),

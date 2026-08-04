@@ -16,7 +16,7 @@ from typing import Iterable
 from PIL import Image
 
 from .collector import collect_snapshot
-from .renderer import render_all
+from .renderer import FontBook, render_all, render_weekly_batches
 
 
 MAGIC = b"APAG"
@@ -91,6 +91,27 @@ def png_to_device_gif(source: Path, output: Path) -> bytes:
         save_all=True,
         append_images=[second],
         duration=(1000, 1000),
+        loop=0,
+        optimize=True,
+        disposal=2,
+    )
+    return validate_gif(output)
+
+
+def weekly_to_device_gif(snapshot, font_directory: Path, output: Path) -> bytes:
+    output.parent.mkdir(parents=True, exist_ok=True)
+    frames = render_weekly_batches(snapshot, FontBook(font_directory))
+    if len(frames) == 1:
+        second = frames[0].copy()
+        pixel = second.getpixel((319, 239))
+        second.putpixel((319, 239), (pixel[0] ^ 0x10, pixel[1], pixel[2]))
+        frames.append(second)
+    frames[0].save(
+        output,
+        format="GIF",
+        save_all=True,
+        append_images=frames[1:],
+        duration=tuple(3000 for _ in frames),
         loop=0,
         optimize=True,
         disposal=2,
@@ -228,10 +249,13 @@ def publish_current_result(
             cache_directory=cache_directory,
         )
         png_paths = render_all(snapshot, temporary, font_directory)
-        pages = tuple(
-            png_to_device_gif(png_paths[png_name], temporary / gif_name)
-            for png_name, gif_name in zip(PNG_NAMES, PAGE_NAMES)
-        )
+        pages_list = [
+            png_to_device_gif(png_paths[PNG_NAMES[0]], temporary / PAGE_NAMES[0]),
+            weekly_to_device_gif(snapshot, font_directory, temporary / PAGE_NAMES[1]),
+            png_to_device_gif(png_paths[PNG_NAMES[2]], temporary / PAGE_NAMES[2]),
+            png_to_device_gif(png_paths[PNG_NAMES[3]], temporary / PAGE_NAMES[3]),
+        ]
+        pages = tuple(pages_list)
         generated_at = int(time.time())
         package = encode_package(
             pages,

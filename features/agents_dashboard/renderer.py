@@ -267,32 +267,33 @@ def _sparkline(canvas: Canvas, values: list[int]) -> None:
         )
 
 
+def _token_or_unavailable(value: int, available: bool) -> TokenDisplay:
+    return format_token_count(value) if available else TokenDisplay("无法获取", "")
+
+
 def render_overview(snapshot: DashboardSnapshot, fonts: FontBook) -> Image.Image:
     canvas = Canvas(fonts)
     canvas.glow((227, 171, 331, 265), "#9C2200", 22)
     canvas.text((10, 7), "AGENTS 看板", 7, MUTED, "body")
 
     remaining = snapshot.weekly_remaining_percent
-    if remaining is None:
-        remaining = 0
-    _draw_quality_arc(canvas, (24, 34, 139, 149), -90, 360, remaining, 4.5)
-    canvas.text((79, 93), format_integer(remaining), 41, WHITE, "hero", "mm")
+    remaining_value = remaining if remaining is not None and snapshot.quota_available else 0
+    remaining_text = format_integer(remaining_value) if snapshot.quota_available and remaining is not None else "无法获取"
+    _draw_quality_arc(canvas, (24, 34, 139, 149), -90, 360, remaining_value, 4.5)
+    remaining_size = _fit_font(canvas, remaining_text, (41, 16, 13), 92, "hero")
+    canvas.text((79, 93), remaining_text, remaining_size, WHITE, "hero", "mm")
     number_bounds = canvas.draw.textbbox(
-        (0, 0), format_integer(remaining), font=canvas.fonts.get(41, "hero")
+        (0, 0), remaining_text, font=canvas.fonts.get(remaining_size, "hero")
     )
     number_width = (number_bounds[2] - number_bounds[0]) / SCALE
-    canvas.text(
-        (79 + number_width / 2 + 3, 96),
-        "%",
-        15,
-        WHITE,
-        "secondary",
-        "lm",
-    )
+    if snapshot.quota_available and remaining is not None:
+        canvas.text(
+            (79 + number_width / 2 + 3, 96), "%", 15, WHITE, "secondary", "lm"
+        )
     canvas.text((81, 120), "本周剩余", 7, YELLOW, "emphasis", "mm")
 
-    today = format_token_count(snapshot.today.total_tokens)
-    last_30 = format_token_count(snapshot.last_30d_tokens)
+    today = _token_or_unavailable(snapshot.today.total_tokens, snapshot.local_sessions_available)
+    last_30 = _token_or_unavailable(snapshot.last_30d_tokens, snapshot.profile_available)
     canvas.text((178, 38), "今日消耗", 7, YELLOW, "emphasis")
     _draw_token_pair(
         canvas,
@@ -359,30 +360,34 @@ def _remaining_days(value: str | None, generated_at: str) -> str:
     return format_integer((seconds + 86_399) // 86_400)
 
 
-def render_weekly(snapshot: DashboardSnapshot, fonts: FontBook) -> Image.Image:
+def render_weekly(
+    snapshot: DashboardSnapshot,
+    fonts: FontBook,
+    *,
+    card_offset: int = 0,
+) -> Image.Image:
     canvas = Canvas(fonts)
     canvas.glow((240, 168, 330, 257), "#702000", 23)
     canvas.text((10, 7), "周剩余额度", 7, MUTED, "body")
 
-    remaining = snapshot.weekly_remaining_percent or 0
-    _draw_gradient_arc(canvas, (10, 28, 164, 170), 155, 230, remaining, 7)
-    canvas.text((87, 99), format_integer(remaining), 54, WHITE, "hero", "mm")
+    remaining = snapshot.weekly_remaining_percent
+    remaining_value = remaining if remaining is not None and snapshot.quota_available else 0
+    remaining_text = format_integer(remaining_value) if snapshot.quota_available and remaining is not None else "无法获取"
+    _draw_gradient_arc(canvas, (10, 28, 164, 170), 155, 230, remaining_value, 7)
+    remaining_size = _fit_font(canvas, remaining_text, (54, 18, 14), 128, "hero")
+    canvas.text((87, 99), remaining_text, remaining_size, WHITE, "hero", "mm")
     value_width = (
         canvas.draw.textbbox(
             (0, 0),
-            format_integer(remaining),
-            font=canvas.fonts.get(54, "hero"),
+            remaining_text,
+            font=canvas.fonts.get(remaining_size, "hero"),
         )[2]
         / SCALE
     )
-    canvas.text(
-        (87 + value_width / 2 + 2, 103),
-        "%",
-        18,
-        WHITE,
-        "secondary",
-        "lm",
-    )
+    if snapshot.quota_available and remaining is not None:
+        canvas.text(
+            (87 + value_width / 2 + 2, 103), "%", 18, WHITE, "secondary", "lm"
+        )
     canvas.text((87, 128), "本周剩余", 7, MUTED, "body", "mm")
 
     countdown, reset_time = _countdown(snapshot.weekly_reset_at, snapshot.generated_at)
@@ -409,7 +414,7 @@ def render_weekly(snapshot: DashboardSnapshot, fonts: FontBook) -> Image.Image:
     canvas.text((267, 114), available_text, available_size, CYAN, "body", "mm")
 
     canvas.line(((10, 146), (308, 146)), "#4A2B08", 0.8)
-    cards = list(snapshot.reset_cards[:2])
+    cards = list(snapshot.reset_cards[card_offset : card_offset + 2])
     if not cards:
         canvas.text(
             (14, 193),
@@ -423,7 +428,7 @@ def render_weekly(snapshot: DashboardSnapshot, fonts: FontBook) -> Image.Image:
 
     for index, card in enumerate(cards):
         y = 173 + index * 35
-        canvas.text((14, y), f"重置卡 {index + 1}", 11, WHITE, "secondary", "lm")
+        canvas.text((14, y), f"重置卡 {card_offset + index + 1}", 11, WHITE, "secondary", "lm")
         canvas.line(((88, y - 10), (88, y + 10)), YELLOW, 0.8)
         canvas.text((99, y), "剩余", 7, DIM, "body", "lm")
         canvas.text(
@@ -443,6 +448,11 @@ def render_weekly(snapshot: DashboardSnapshot, fonts: FontBook) -> Image.Image:
     return canvas.finish()
 
 
+def render_weekly_batches(snapshot: DashboardSnapshot, fonts: FontBook) -> list[Image.Image]:
+    count = max(1, (len(snapshot.reset_cards) + 1) // 2)
+    return [render_weekly(snapshot, fonts, card_offset=index * 2) for index in range(count)]
+
+
 def _draw_metric_column(
     canvas: Canvas,
     x: float,
@@ -454,7 +464,7 @@ def _draw_metric_column(
 ) -> None:
     canvas.icon(icon, (x, 125), 18, icon_color, mirror)
     canvas.text((x + 21, 134), label, 7, MUTED, "body", "lm")
-    value_size = _fit_font(canvas, display.value, (30, 24), 82, "secondary")
+    value_size = _fit_font(canvas, display.value, (30, 24, 16, 12, 10), 82, "secondary")
     canvas.text((x, 169), display.value, value_size, WHITE, "secondary", "ls")
     canvas.text((x, 189), display.unit, 7, MUTED, "body", "ls")
 
@@ -465,7 +475,7 @@ def render_today(snapshot: DashboardSnapshot, fonts: FontBook) -> Image.Image:
     canvas.text((14, 7), "今日消耗", 7, MUTED, "body")
     canvas.text((14, 25), "总消耗", 7, MUTED, "body")
 
-    total = format_token_count(snapshot.today.total_tokens)
+    total = _token_or_unavailable(snapshot.today.total_tokens, snapshot.local_sessions_available)
     _draw_token_pair(
         canvas,
         total,
@@ -483,14 +493,14 @@ def render_today(snapshot: DashboardSnapshot, fonts: FontBook) -> Image.Image:
     canvas.text((258, 21), "请求数", 7, YELLOW, "emphasis")
     request_size = _fit_font(
         canvas,
-        format_integer(snapshot.today.request_count),
-        (24, 19, 15),
+        format_integer(snapshot.today.request_count) if snapshot.local_sessions_available else "无法获取",
+        (24, 19, 15, 10, 8, 7),
         50,
         "secondary",
     )
     canvas.text(
         (258, 46),
-        format_integer(snapshot.today.request_count),
+        format_integer(snapshot.today.request_count) if snapshot.local_sessions_available else "无法获取",
         request_size,
         WHITE,
         "secondary",
@@ -500,7 +510,7 @@ def render_today(snapshot: DashboardSnapshot, fonts: FontBook) -> Image.Image:
     canvas.text((258, 70), "API成本", 7, ORANGE, "emphasis")
     cost = (
         "无法获取"
-        if snapshot.today.api_cost_usd_rounded is None
+        if snapshot.today.api_cost_usd_rounded is None or not snapshot.local_sessions_available
         else f"${format_integer(snapshot.today.api_cost_usd_rounded)}"
     )
     cost_size = _fit_font(canvas, cost, (16, 13, 11), 52, "secondary")
@@ -512,14 +522,14 @@ def render_today(snapshot: DashboardSnapshot, fonts: FontBook) -> Image.Image:
         "新增输入",
         "arrow-circle",
         BLUE,
-        format_token_count(snapshot.today.fresh_input_tokens),
+        _token_or_unavailable(snapshot.today.fresh_input_tokens, snapshot.local_sessions_available),
         True,
     )
     _draw_metric_column(
-        canvas, 119, "输出", "arrow-circle", CYAN, format_token_count(snapshot.today.output_tokens)
+        canvas, 119, "输出", "arrow-circle", CYAN, _token_or_unavailable(snapshot.today.output_tokens, snapshot.local_sessions_available)
     )
     _draw_metric_column(
-        canvas, 222, "缓存命中", "cache", YELLOW, format_token_count(snapshot.today.cached_input_tokens)
+        canvas, 222, "缓存命中", "cache", YELLOW, _token_or_unavailable(snapshot.today.cached_input_tokens, snapshot.local_sessions_available)
     )
 
     canvas.text((15, 211), "缓存命中率", 7, MUTED, "body")
@@ -529,7 +539,7 @@ def render_today(snapshot: DashboardSnapshot, fonts: FontBook) -> Image.Image:
         radius=canvas.s(3),
         fill=DARK,
     )
-    percent = max(0, min(100, snapshot.today.cache_hit_percent))
+    percent = max(0, min(100, snapshot.today.cache_hit_percent)) if snapshot.local_sessions_available else 0
     completed = (right - left) * percent / 100
     segments = max(1, round(completed))
     for index in range(segments):
@@ -540,11 +550,13 @@ def render_today(snapshot: DashboardSnapshot, fonts: FontBook) -> Image.Image:
             canvas.rect((x1, y - 3, x2, y + 3)),
             fill=quality_color(absolute_percent),
         )
+    cache_text = f"{percent}%" if snapshot.local_sessions_available else "无法获取"
+    cache_size = _fit_font(canvas, cache_text, (17, 12, 9, 7), 42, "emphasis")
     canvas.text(
         (269, 226),
-        f"{percent}%",
-        17,
-        quality_color(percent),
+        cache_text,
+        cache_size,
+        quality_color(percent) if snapshot.local_sessions_available else DIM,
         "emphasis",
         "lm",
     )
@@ -574,7 +586,7 @@ def render_last_30_days(snapshot: DashboardSnapshot, fonts: FontBook) -> Image.I
     canvas.text((23, 38), "累计消耗", 7, MUTED, "body")
     _draw_token_pair(
         canvas,
-        format_token_count(snapshot.last_30d_tokens),
+        _token_or_unavailable(snapshot.last_30d_tokens, snapshot.profile_available),
         107,
         79,
         115,
@@ -586,7 +598,7 @@ def render_last_30_days(snapshot: DashboardSnapshot, fonts: FontBook) -> Image.I
     )
     canvas.text((190, 38), "最长任务", 7, MUTED, "body")
     hours_value, minutes_value = divmod(snapshot.activity.longest_task_minutes, 60)
-    duration = f"{format_integer(hours_value)}时{minutes_value}分"
+    duration = f"{format_integer(hours_value)}时{minutes_value}分" if snapshot.profile_available else "无法获取"
     duration_size = _fit_font(canvas, duration, (32, 27, 23), 119, "secondary")
     canvas.text((304, 79), duration, duration_size, WHITE, "secondary", "rs")
 

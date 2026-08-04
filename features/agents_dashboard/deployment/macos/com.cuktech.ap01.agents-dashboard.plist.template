@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+<key>Label</key><string>com.cuktech.ap01.agents-dashboard</string>
+<key>ProgramArguments</key><array>
+<string>{{PYTHON}}</string><string>-m</string><string>features.agents_dashboard.bridge</string>
+<string>--bind</string><string>0.0.0.0</string><string>--port</string><string>{{PORT}}</string>
+<string>--interval</string><string>300</string><string>--output</string><string>{{OUTPUT}}</string>
+<string>--font-directory</string><string>{{FONTS}}</string><string>--codex-home</string><string>{{CODEX_HOME}}</string>
+<string>--cache-directory</string><string>{{CACHE}}</string>
+</array>
+<key>WorkingDirectory</key><string>{{PROJECT}}</string><key>RunAtLoad</key><true/><key>KeepAlive</key><true/>
+<key>StandardOutPath</key><string>{{LOG}}</string><key>StandardErrorPath</key><string>{{ERROR_LOG}}</string>
+</dict></plist>
