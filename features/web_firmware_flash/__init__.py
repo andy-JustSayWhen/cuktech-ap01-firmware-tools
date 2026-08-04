@@ -5,9 +5,20 @@ from .install_policy import (
     DirectInstallSnapshot,
     decide_direct_install_action,
 )
+from .firmware_inspection import (
+    FirmwareInspectionError,
+    InspectedFirmware,
+    inspect_release_firmware,
+)
+from .operation_store import OperationRecord, OperationStore
 
 __all__ = [
     "DirectInstallDecision",
     "DirectInstallSnapshot",
     "decide_direct_install_action",
+    "FirmwareInspectionError",
+    "InspectedFirmware",
+    "inspect_release_firmware",
+    "OperationRecord",
+    "OperationStore",
 ]
