@@ -31,6 +31,7 @@ REQUIRED_SYMBOLS = (
     "ap01_primary_page_filter_and_switch",
     "ap01_page_settings_load_mask",
     "ap01_page_settings_save_mask",
+    "ap01_page_settings_reset",
     "page_settings_background_descriptor",
     "page_settings_marker_descriptor",
     "page_settings_check_descriptor",

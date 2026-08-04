@@ -74,12 +74,23 @@ static int read_record(const char *path, struct page_record *record)
 {
   int fd = ((open_fn)VA_OPEN)(path, AP01_O_RDONLY, 0);
   int result;
+  u8 extra;
   if (fd < 0)
     return 0;
   result = read_exact(fd, record, (u32)sizeof(*record));
+  if (result && ((read_fn)VA_READ)(fd, &extra, 1u) != 0)
+    result = 0;
   if (((close_fn)VA_CLOSE)(fd) < 0)
     result = 0;
   return result && record_valid(record);
+}
+
+static int invalidate_record(const char *path)
+{
+  int fd = ((open_fn)VA_OPEN)(path, AP01_O_RDWR_CREAT_TRUNC, AP01_MODE_0666);
+  if (fd < 0)
+    return 0;
+  return ((close_fn)VA_CLOSE)(fd) >= 0;
 }
 
 static int newer(u32 left, u32 right)
@@ -148,4 +159,14 @@ int ap01_page_settings_save_mask(u32 mask)
   if (!result || !read_record(path, &verify))
     return 0;
   return verify.sequence == next.sequence && verify.mask == next.mask;
+}
+
+__attribute__((noinline, used))
+int ap01_page_settings_reset(void)
+{
+  int invalid0 = invalidate_record(page_path0);
+  int invalid1 = invalidate_record(page_path1);
+  if (!invalid0 || !invalid1)
+    return 0;
+  return ap01_page_settings_save_mask(PAGE_MASK_DEFAULT);
 }
