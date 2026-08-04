@@ -7,7 +7,7 @@ typedef unsigned int u32;
 #define VA_WRITE 0xa0027d94u
 
 #define AP01_O_RDONLY 1
-#define AP01_O_RDWR_CREAT_TRUNC 39
+#define AP01_O_WRONLY_CREAT_TRUNC 38
 #define AP01_MODE_0666 438
 #define PAGE_RECORD_MAGIC 0x47535041u
 #define PAGE_RECORD_SALT 0x6d8135c7u
@@ -87,7 +87,7 @@ static int read_record(const char *path, struct page_record *record)
 
 static int invalidate_record(const char *path)
 {
-  int fd = ((open_fn)VA_OPEN)(path, AP01_O_RDWR_CREAT_TRUNC, AP01_MODE_0666);
+  int fd = ((open_fn)VA_OPEN)(path, AP01_O_WRONLY_CREAT_TRUNC, AP01_MODE_0666);
   if (fd < 0)
     return 0;
   return ((close_fn)VA_CLOSE)(fd) >= 0;
@@ -150,7 +150,7 @@ int ap01_page_settings_save_mask(u32 mask)
   next.mask = mask;
   next.check = record_check(&next);
   path = target == 0 ? page_path0 : page_path1;
-  fd = ((open_fn)VA_OPEN)(path, AP01_O_RDWR_CREAT_TRUNC, AP01_MODE_0666);
+  fd = ((open_fn)VA_OPEN)(path, AP01_O_WRONLY_CREAT_TRUNC, AP01_MODE_0666);
   if (fd < 0)
     return 0;
   result = write_exact(fd, &next, (u32)sizeof(next));

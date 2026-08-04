@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import struct
 import subprocess
 from dataclasses import dataclass
@@ -36,6 +37,16 @@ REQUIRED_SYMBOLS = (
     "page_settings_marker_descriptor",
     "page_settings_check_descriptor",
 )
+OFFICIAL_FIRMWARE_SIZE = 6_804_520
+OFFICIAL_FIRMWARE_SHA256 = (
+    "8a721fc8ef25458d415b2460e4a251e0503a82f7743fdff85b12612190e5c1cb"
+)
+FIRMWARE_ALIGNMENT_APPROVED = False
+FIRMWARE_ALIGNMENT_BLOCKERS = (
+    "原厂设置列表禁止新增普通行，当前对象容量与生命周期方案未获批准",
+    "恢复出厂设置的最终确认调用链尚无逐指令直接证据",
+    "完整页面开关对象尚未完成原厂回调、销毁路径与成品挂接复核",
+)
 
 
 class PrimaryPageSettingsBuildError(RuntimeError):
@@ -61,6 +72,23 @@ def _run(command: list[Path | str]) -> None:
     if completed.returncode:
         detail = completed.stderr.strip() or completed.stdout.strip()
         raise PrimaryPageSettingsBuildError(f"页面开关构建失败：{detail}")
+
+
+def _require_firmware_alignment(official_firmware: Path) -> None:
+    selected = official_firmware.expanduser().resolve()
+    try:
+        firmware = selected.read_bytes()
+    except OSError as error:
+        raise PrimaryPageSettingsBuildError("无法读取原厂固件基线") from error
+    if len(firmware) != OFFICIAL_FIRMWARE_SIZE:
+        raise PrimaryPageSettingsBuildError("原厂固件基线长度不匹配")
+    if hashlib.sha256(firmware).hexdigest() != OFFICIAL_FIRMWARE_SHA256:
+        raise PrimaryPageSettingsBuildError("原厂固件基线完整文件指纹不匹配")
+    if not FIRMWARE_ALIGNMENT_APPROVED:
+        raise PrimaryPageSettingsBuildError(
+            "原厂逐指令对齐门禁未通过，拒绝生成可链接对象："
+            + "；".join(FIRMWARE_ALIGNMENT_BLOCKERS)
+        )
 
 
 def _asset_assembly(path: Path, assets: tuple[PageSettingsAsset, ...]) -> None:
@@ -94,11 +122,13 @@ def build_page_settings_objects(
     build_directory: Path,
     font_directory: Path,
     *,
+    official_firmware: Path,
     assembler: Path,
     compiler: Path,
 ) -> PrimaryPageSettingsObjects:
     """生成可由最终固件入口组合的三个目标文件。"""
 
+    _require_firmware_alignment(official_firmware)
     selected = build_directory.expanduser().resolve()
     selected.mkdir(parents=True, exist_ok=True)
     assets = build_page_settings_assets(font_directory, selected / "assets")
