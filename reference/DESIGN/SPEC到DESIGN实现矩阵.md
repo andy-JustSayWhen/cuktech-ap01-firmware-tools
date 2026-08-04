@@ -5,24 +5,24 @@
 本矩阵只索引 [`SPEC.md`](../SPEC.md) 全部稳定条款的设计、代码、验证和状态落点，不重新定义
 需求、架构、技术术语或验收结论。设计纠偏流程只见 [`design.md`](../design.md) 第 2 节。
 
-状态取 2026-07-30 当前仓库和已有证据。范围内只要有一条尚未通过，整行就不得视为完成。
+状态取 2026-08-04 当前仓库和已有证据。范围内只要有一条尚未通过，整行就不得视为完成。
 
 ## 2. 文档、产品与版本
 
 | SPEC 条款 | DESIGN 落点 | 代码或维护落点 | 验证方法 | 当前状态 |
 | --- | --- | --- | --- | --- |
-| `SPEC-DOC-001` 至 `SPEC-DOC-004` | [`design.md`](../design.md) 第 1、3 节；[`项目交付与 WebUI 刷机工具 DESIGN`](项目交付与WebUI刷机工具.md) 第 2 节 | 后续文档核对任务 | Brief 指纹、92 个语义单元、SPEC 条款集合和引用完整性核对 | 拟定；Brief 到 SPEC 已有静态覆盖结果，自动任务未实现 |
+| `SPEC-DOC-001` 至 `SPEC-DOC-004` | [`design.md`](../design.md) 第 1、3 节；[`项目交付与 WebUI 刷机工具 DESIGN`](项目交付与WebUI刷机工具.md) 第 2 节 | `features/document_contract_check/` | Brief 指纹、101 个 SPEC 条款、矩阵集合和本地引用完整性核对 | 已实现；当前 101 个条款与 53 条本地引用核对通过 |
 | `SPEC-PRODUCT-001` 至 `SPEC-PRODUCT-006` | [`项目交付与 WebUI 刷机工具 DESIGN`](项目交付与WebUI刷机工具.md) 第 3、4、9 节 | `features/web_firmware_flash/`、`app/ap01_web.py`、发布包目录 | macOS 与 Windows 使用同一套 Chrome 流程；发布包敏感内容检查 | 同源实现和 macOS 本机启动已完成；Windows 实机待验收 |
-| `SPEC-VERSION-001` 至 `SPEC-VERSION-003` | [`design.md`](../design.md) 第 2、3 节；[`项目交付与 WebUI 刷机工具 DESIGN`](项目交付与WebUI刷机工具.md) 第 2 节 | 后续文档核对任务 | 分别模拟 Brief、事实、依赖、操作和视觉变化，核对更新顺序 | 拟定 |
+| `SPEC-VERSION-001` 至 `SPEC-VERSION-003` | [`design.md`](../design.md) 第 2、3 节；[`项目交付与 WebUI 刷机工具 DESIGN`](项目交付与WebUI刷机工具.md) 第 2 节 | `features/document_contract_check/` 与各唯一上游文档 | 分别模拟 Brief、事实、依赖、操作和视觉变化，核对更新顺序 | 部分实现；静态合同已自动核对，五类变化演练待完成 |
 
 ## 3. MVP、固件身份与刷机
 
 | SPEC 条款 | DESIGN 落点 | 代码或维护落点 | 验证方法 | 当前状态 |
 | --- | --- | --- | --- | --- |
-| `SPEC-MVP-001` 至 `SPEC-MVP-003` | [`优化固件 DESIGN`](AP01-1.0.2_0031-opt.bin.md) 第 0、4、11、14 节；[`项目交付与 WebUI 刷机工具 DESIGN`](项目交付与WebUI刷机工具.md) 第 10 节 | `core/firmware_image/`、`features/offline_firmware_build/`、`features/settings_menu_wrap/` | 只读工作副本、官方基线检查、阶段成品确定性构建、修改范围和真机功能验收 | 部分已验证；跟踪材料已存在，当前只读工作副本能力拟定 |
+| `SPEC-MVP-001` 至 `SPEC-MVP-003` | [`优化固件 DESIGN`](AP01-1.0.2_0031-opt.bin.md) 第 0、4、11、14 节；[`项目交付与 WebUI 刷机工具 DESIGN`](项目交付与WebUI刷机工具.md) 第 10 节 | `core/firmware_image/`、`features/offline_firmware_build/`、`features/settings_menu_wrap/` | 只读工作副本、官方基线检查、阶段成品确定性构建、修改范围和真机功能验收 | 只读工作副本、身份检查和阶段构建已实现；完整成品仍阻塞 |
 | `SPEC-MVP-004` 至 `SPEC-MVP-006` | [`优化固件 DESIGN`](AP01-1.0.2_0031-opt.bin.md) 第 4、11、14 节；[`项目交付与 WebUI 刷机工具 DESIGN`](项目交付与WebUI刷机工具.md) 第 10 节 | `features/optimized_firmware_build/`、各固件功能模块、SOP 与案例 | 完整成品构建、唯一目标设备真实刷机、原厂能力回归和文档回写 | 阻塞 |
-| `SPEC-MVP-007` 至 `SPEC-MVP-009` | [`项目交付与 WebUI 刷机工具 DESIGN`](项目交付与WebUI刷机工具.md) 第 3 至 10 节 | `features/web_firmware_flash/`、`app/ap01_web.py`、双平台发布包 | 零基础用户双平台完整操作、三组固件功能和发布总门禁 | 拟定 |
-| `SPEC-FIRMWARE-001` 至 `SPEC-FIRMWARE-003` | [`优化固件 DESIGN`](AP01-1.0.2_0031-opt.bin.md) 第 0、2、4、14 节 | `core/firmware_image/`、`features/optimized_firmware_build/` | 版本化来源到只读工作副本、型号、版本、长度、完整文件指纹和三种文件身份检查 | 身份检查已实现；当前测试被可写来源门禁截停，只读副本能力拟定 |
+| `SPEC-MVP-007` 至 `SPEC-MVP-009` | [`项目交付与 WebUI 刷机工具 DESIGN`](项目交付与WebUI刷机工具.md) 第 3 至 10 节 | `features/web_firmware_flash/`、`app/ap01_web.py`、双平台发布包 | 零基础用户双平台完整操作、三组固件功能和发布总门禁 | 本机同源流程与检查发布包已实现；Windows 和最终成品验收待完成 |
+| `SPEC-FIRMWARE-001` 至 `SPEC-FIRMWARE-003` | [`优化固件 DESIGN`](AP01-1.0.2_0031-opt.bin.md) 第 0、2、4、14 节 | `core/firmware_image/`、`features/optimized_firmware_build/` | 版本化来源到只读工作副本、型号、版本、长度、完整文件指纹和三种文件身份检查 | 已实现并由当前只读官方基线复核 |
 | `SPEC-FIRMWARE-004` 至 `SPEC-FIRMWARE-005` | [`优化固件 DESIGN`](AP01-1.0.2_0031-opt.bin.md) 第 0、4.1、6.2、11、14 节 | `features/settings_menu_wrap/`、`core/rotary_encoder/` | 四个批准修改区间、文件尾记录、旋钮首尾与抖动真机验收 | 已验证的历史阶段成品；当前提交重建待只读副本能力完成 |
 | `SPEC-FIRMWARE-006` 至 `SPEC-FIRMWARE-008` | [`优化固件 DESIGN`](AP01-1.0.2_0031-opt.bin.md) 第 4、10、11 节 | 完整固件构建组合、构建清单和冻结产物 | 确定性重建、修改区间外逐字节一致、禁止区无差异、完整指纹 | 阻塞 |
 | `SPEC-FLASH-001` 至 `SPEC-FLASH-004` | [`项目交付与 WebUI 刷机工具 DESIGN`](项目交付与WebUI刷机工具.md) 第 4 至 6 节 | `features/web_firmware_flash/` 的页面、准备检查、设备识别和固件核对 | 双平台 Chrome 页面、敏感字段过滤、三种固件身份和门禁展示 | 页面、访问边界、设备识别和固件清单门禁已实现；双平台实机待验收 |
@@ -58,8 +58,8 @@
 
 | SPEC 条款 | DESIGN 落点 | 代码或维护落点 | 验证方法 | 当前状态 |
 | --- | --- | --- | --- | --- |
-| `SPEC-GOV-001` 至 `SPEC-GOV-004` | [`项目交付与 WebUI 刷机工具 DESIGN`](项目交付与WebUI刷机工具.md) 第 2、4 节 | `reference/requirements.md`、复制后的功能专属资产、发布检查 | 依赖唯一性、参考来源记录、无绝对路径运行依赖和模块归属检查 | 现有固件部分已执行；WebUI 复用拟定 |
-| `SPEC-GOV-005` 至 `SPEC-GOV-008` | [`design.md`](../design.md) 第 2、3 节；[`优化固件 DESIGN`](AP01-1.0.2_0031-opt.bin.md) 第 1、4、11、12 节 | `knowledge/AP01-官方固件分析/`、固件规范、安全兼容入口、文档核对任务 | 原厂逻辑调查、固件分析路径引用、复用边界、先 DESIGN 后代码和纠偏顺序检查 | 原厂复用先行流程已写入；自动核对拟定 |
+| `SPEC-GOV-001` 至 `SPEC-GOV-004` | [`项目交付与 WebUI 刷机工具 DESIGN`](项目交付与WebUI刷机工具.md) 第 2、4 节 | `reference/requirements.md`、复制后的功能专属资产、发布检查 | 依赖唯一性、参考来源记录、无绝对路径运行依赖和模块归属检查 | 小米云与二维码来源已记录并在项目内改造；检查发布包门禁通过 |
+| `SPEC-GOV-005` 至 `SPEC-GOV-008` | [`design.md`](../design.md) 第 2、3 节；[`优化固件 DESIGN`](AP01-1.0.2_0031-opt.bin.md) 第 1、4、11、12 节 | `knowledge/AP01-官方固件分析/`、固件规范、安全兼容入口、文档核对任务 | 原厂逻辑调查、固件分析路径引用、复用边界、先 DESIGN 后代码和纠偏顺序检查 | 原厂复用门禁与自动文档核对已实现；物理验收仍单列 |
 | `SPEC-ACCEPT-001` 至 `SPEC-ACCEPT-002` | 本矩阵；[`项目交付与 WebUI 刷机工具 DESIGN`](项目交付与WebUI刷机工具.md) 第 10 节 | 后续验收汇总任务 | 全条款落点、证据范围和阶段成品边界检查 | 落点已建立；总体验收未通过 |
 | `SPEC-ACCEPT-003` 至 `SPEC-ACCEPT-004` | [`优化固件 DESIGN`](AP01-1.0.2_0031-opt.bin.md) 第 10.18、10.20、11、14 节 | 固件与服务端模块测试、含基座生命周期的刷前连续事件模拟、真机验收案例 | 四页、故障切换、基座在线离线、残留功率页、旋钮全路径和页面开关六类场景 | 阻塞；刷前模拟不能替代物理设备验收 |
 | `SPEC-ACCEPT-005` 至 `SPEC-ACCEPT-006` | [`项目交付与 WebUI 刷机工具 DESIGN`](项目交付与WebUI刷机工具.md) 第 9、10 节 | 双平台发布包、刷机记录、回刷记录和发布门禁 | 双平台完整流程、真实刷机、敏感检查、原厂回归与证据适用范围 | 阻塞 |
