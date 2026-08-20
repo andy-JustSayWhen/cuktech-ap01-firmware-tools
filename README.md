@@ -4,7 +4,7 @@
 
 ## 克隆本项目到本地
 
-让AI执行：
+直接对AI说：克隆这个仓库到电脑桌面https://github.com/andy-JustSayWhen/cuktech-ap01-firmware-tools
 
 ## 如何刷机
 
