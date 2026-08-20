@@ -1,0 +1,32 @@
+# macOS
+.DS_Store
+
+# Node.js
+node_modules/
+dist/
+/build/
+*.log
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+
+# 环境与密钥
+.env
+.env.local
+env/*.env
+tools/ota-cdn.crt
+tools/ota-cdn.key
+artifacts/build/
+artifacts/install-records/
+artifacts/login/
+artifacts/firmware/ap01-1.0.2_0031-opt-integration-candidate.bin
+artifacts/device*.etl
+artifacts/device*.txt
+artifacts/agents-dashboard/
+artifacts/agents-dashboard-cache/
+artifacts/official-firmware/
+artifacts/device.etl
+artifacts/device.txt
+artifacts/fw_rules.txt

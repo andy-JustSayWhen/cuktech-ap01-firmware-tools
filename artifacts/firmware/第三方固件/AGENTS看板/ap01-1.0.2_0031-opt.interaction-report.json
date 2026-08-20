@@ -1,0 +1,873 @@
+{
+  "schema_version": 1,
+  "report_type": "agents-preflash-interaction-simulation",
+  "contract": {
+    "name": "FW-PAGE-011",
+    "local_hook_labels": [
+      "萌宠左旋",
+      "萌宠右旋",
+      "萌宠确认",
+      "共享序号切页过滤",
+      "功率确认连接保护"
+    ],
+    "overview_right_target_dispatch": 0,
+    "power_left_enters_agents": true,
+    "stock_entry_filter_enabled": true,
+    "power_confirm_isolated": false,
+    "page_registration_unchanged": true,
+    "global_key_callback_registration_unchanged": true,
+    "fixed_shared_pages_enabled": true,
+    "fixed_hidden_primary_pages_enabled": false,
+    "weather_hidden_primary_page_enabled": true,
+    "calendar_skip_direction_correct": true,
+    "overview_left_preserves_gif_until_switch": true,
+    "power_confirm_guard_enabled": true,
+    "power_confirm_guard_calls_stock_clock": true,
+    "source_manifest_sha256": "b735c11c2c9676813dd45f067bb1c5af361110b2f8a85e25dc4f2c967d5a7ded"
+  },
+  "scope": {
+    "events": [
+      "left",
+      "right",
+      "enter"
+    ],
+    "stock_dispatches": {
+      "0": "power",
+      "1": "c1",
+      "2": "c2",
+      "3": "clock",
+      "4": "calendar",
+      "5": "weather",
+      "6": "settings",
+      "7": "pet"
+    },
+    "agents_states": {
+      "1": "agents-overview",
+      "2": "agents-weekly",
+      "3": "agents-today",
+      "4": "agents-last-30-days"
+    },
+    "runtime_states": [
+      "base_connected",
+      "power_data_available"
+    ],
+    "configuration_cases": 4,
+    "exhaustive_depth": 8
+  },
+  "capability_boundary": {
+    "continuous_page_event_model": true,
+    "base_lifecycle_event_model": true,
+    "instruction_level_execution": false,
+    "board_hardware_model": false,
+    "physical_acceptance_replaced": false
+  },
+  "summary": {
+    "passed": true,
+    "build_allowed": true,
+    "scenario_count": 19,
+    "trace_step_count": 111,
+    "exhaustive_sequence_count": 118080,
+    "failure_count": 0
+  },
+  "failures": [],
+  "selected_traces": {
+    "detached-primary-cycle:left": [
+      {
+        "sequence": 1,
+        "event": "left",
+        "before": {
+          "dispatch": 3,
+          "agents_state": 0,
+          "original_owned_context": null,
+          "base_connected": false,
+          "power_data_available": false,
+          "visible_page": "clock"
+        },
+        "action": "show-agents",
+        "after": {
+          "dispatch": 7,
+          "agents_state": 1,
+          "original_owned_context": null,
+          "base_connected": false,
+          "power_data_available": false,
+          "visible_page": "agents-overview"
+        },
+        "continuation_address": null,
+        "intermediate_visible_pages": [],
+        "resolved": true,
+        "message": null
+      },
+      {
+        "sequence": 2,
+        "event": "left",
+        "before": {
+          "dispatch": 7,
+          "agents_state": 1,
+          "original_owned_context": null,
+          "base_connected": false,
+          "power_data_available": false,
+          "visible_page": "agents-overview"
+        },
+        "action": "restore-pet",
+        "after": {
+          "dispatch": 7,
+          "agents_state": 0,
+          "original_owned_context": null,
+          "base_connected": false,
+          "power_data_available": false,
+          "visible_page": "pet"
+        },
+        "continuation_address": null,
+        "intermediate_visible_pages": [],
+        "resolved": true,
+        "message": null
+      },
+      {
+        "sequence": 3,
+        "event": "left",
+        "before": {
+          "dispatch": 7,
+          "agents_state": 0,
+          "original_owned_context": null,
+          "base_connected": false,
+          "power_data_available": false,
+          "visible_page": "pet"
+        },
+        "action": "stock-resume",
+        "after": {
+          "dispatch": 6,
+          "agents_state": 0,
+          "original_owned_context": null,
+          "base_connected": false,
+          "power_data_available": false,
+          "visible_page": "settings"
+        },
+        "continuation_address": "0xa00bc464",
+        "intermediate_visible_pages": [],
+        "resolved": true,
+        "message": null
+      },
+      {
+        "sequence": 4,
+        "event": "left",
+        "before": {
+          "dispatch": 6,
+          "agents_state": 0,
+          "original_owned_context": null,
+          "base_connected": false,
+          "power_data_available": false,
+          "visible_page": "settings"
+        },
+        "action": "stock-rotate",
+        "after": {
+          "dispatch": 5,
+          "agents_state": 0,
+          "original_owned_context": null,
+          "base_connected": false,
+          "power_data_available": false,
+          "visible_page": "weather"
+        },
+        "continuation_address": null,
+        "intermediate_visible_pages": [],
+        "resolved": true,
+        "message": null
+      },
+      {
+        "sequence": 5,
+        "event": "left",
+        "before": {
+          "dispatch": 5,
+          "agents_state": 0,
+          "original_owned_context": null,
+          "base_connected": false,
+          "power_data_available": false,
+          "visible_page": "weather"
+        },
+        "action": "stock-rotate",
+        "after": {
+          "dispatch": 4,
+          "agents_state": 0,
+          "original_owned_context": null,
+          "base_connected": false,
+          "power_data_available": false,
+          "visible_page": "calendar"
+        },
+        "continuation_address": null,
+        "intermediate_visible_pages": [],
+        "resolved": true,
+        "message": null
+      },
+      {
+        "sequence": 6,
+        "event": "left",
+        "before": {
+          "dispatch": 4,
+          "agents_state": 0,
+          "original_owned_context": null,
+          "base_connected": false,
+          "power_data_available": false,
+          "visible_page": "calendar"
+        },
+        "action": "stock-rotate",
+        "after": {
+          "dispatch": 3,
+          "agents_state": 0,
+          "original_owned_context": null,
+          "base_connected": false,
+          "power_data_available": false,
+          "visible_page": "clock"
+        },
+        "continuation_address": null,
+        "intermediate_visible_pages": [],
+        "resolved": true,
+        "message": null
+      },
+      {
+        "sequence": 7,
+        "event": "left",
+        "before": {
+          "dispatch": 3,
+          "agents_state": 0,
+          "original_owned_context": null,
+          "base_connected": false,
+          "power_data_available": false,
+          "visible_page": "clock"
+        },
+        "action": "show-agents",
+        "after": {
+          "dispatch": 7,
+          "agents_state": 1,
+          "original_owned_context": null,
+          "base_connected": false,
+          "power_data_available": false,
+          "visible_page": "agents-overview"
+        },
+        "continuation_address": null,
+        "intermediate_visible_pages": [],
+        "resolved": true,
+        "message": null
+      }
+    ],
+    "detached-primary-cycle:right": [
+      {
+        "sequence": 1,
+        "event": "right",
+        "before": {
+          "dispatch": 3,
+          "agents_state": 0,
+          "original_owned_context": null,
+          "base_connected": false,
+          "power_data_available": false,
+          "visible_page": "clock"
+        },
+        "action": "stock-rotate",
+        "after": {
+          "dispatch": 4,
+          "agents_state": 0,
+          "original_owned_context": null,
+          "base_connected": false,
+          "power_data_available": false,
+          "visible_page": "calendar"
+        },
+        "continuation_address": null,
+        "intermediate_visible_pages": [],
+        "resolved": true,
+        "message": null
+      },
+      {
+        "sequence": 2,
+        "event": "right",
+        "before": {
+          "dispatch": 4,
+          "agents_state": 0,
+          "original_owned_context": null,
+          "base_connected": false,
+          "power_data_available": false,
+          "visible_page": "calendar"
+        },
+        "action": "stock-rotate",
+        "after": {
+          "dispatch": 5,
+          "agents_state": 0,
+          "original_owned_context": null,
+          "base_connected": false,
+          "power_data_available": false,
+          "visible_page": "weather"
+        },
+        "continuation_address": null,
+        "intermediate_visible_pages": [],
+        "resolved": true,
+        "message": null
+      },
+      {
+        "sequence": 3,
+        "event": "right",
+        "before": {
+          "dispatch": 5,
+          "agents_state": 0,
+          "original_owned_context": null,
+          "base_connected": false,
+          "power_data_available": false,
+          "visible_page": "weather"
+        },
+        "action": "stock-rotate",
+        "after": {
+          "dispatch": 6,
+          "agents_state": 0,
+          "original_owned_context": null,
+          "base_connected": false,
+          "power_data_available": false,
+          "visible_page": "settings"
+        },
+        "continuation_address": null,
+        "intermediate_visible_pages": [],
+        "resolved": true,
+        "message": null
+      },
+      {
+        "sequence": 4,
+        "event": "right",
+        "before": {
+          "dispatch": 6,
+          "agents_state": 0,
+          "original_owned_context": null,
+          "base_connected": false,
+          "power_data_available": false,
+          "visible_page": "settings"
+        },
+        "action": "stock-rotate",
+        "after": {
+          "dispatch": 7,
+          "agents_state": 0,
+          "original_owned_context": null,
+          "base_connected": false,
+          "power_data_available": false,
+          "visible_page": "pet"
+        },
+        "continuation_address": null,
+        "intermediate_visible_pages": [],
+        "resolved": true,
+        "message": null
+      },
+      {
+        "sequence": 5,
+        "event": "right",
+        "before": {
+          "dispatch": 7,
+          "agents_state": 0,
+          "original_owned_context": null,
+          "base_connected": false,
+          "power_data_available": false,
+          "visible_page": "pet"
+        },
+        "action": "show-agents",
+        "after": {
+          "dispatch": 7,
+          "agents_state": 1,
+          "original_owned_context": null,
+          "base_connected": false,
+          "power_data_available": false,
+          "visible_page": "agents-overview"
+        },
+        "continuation_address": null,
+        "intermediate_visible_pages": [],
+        "resolved": true,
+        "message": null
+      },
+      {
+        "sequence": 6,
+        "event": "right",
+        "before": {
+          "dispatch": 7,
+          "agents_state": 1,
+          "original_owned_context": null,
+          "base_connected": false,
+          "power_data_available": false,
+          "visible_page": "agents-overview"
+        },
+        "action": "close-then-stock-resume",
+        "after": {
+          "dispatch": 3,
+          "agents_state": 0,
+          "original_owned_context": null,
+          "base_connected": false,
+          "power_data_available": false,
+          "visible_page": "clock"
+        },
+        "continuation_address": "0xa00bc716",
+        "intermediate_visible_pages": [],
+        "resolved": true,
+        "message": null
+      },
+      {
+        "sequence": 7,
+        "event": "right",
+        "before": {
+          "dispatch": 3,
+          "agents_state": 0,
+          "original_owned_context": null,
+          "base_connected": false,
+          "power_data_available": false,
+          "visible_page": "clock"
+        },
+        "action": "stock-rotate",
+        "after": {
+          "dispatch": 4,
+          "agents_state": 0,
+          "original_owned_context": null,
+          "base_connected": false,
+          "power_data_available": false,
+          "visible_page": "calendar"
+        },
+        "continuation_address": null,
+        "intermediate_visible_pages": [],
+        "resolved": true,
+        "message": null
+      }
+    ],
+    "overview-enter-return": [
+      {
+        "sequence": 1,
+        "event": "enter",
+        "before": {
+          "dispatch": 7,
+          "agents_state": 1,
+          "original_owned_context": null,
+          "base_connected": true,
+          "power_data_available": true,
+          "visible_page": "agents-overview"
+        },
+        "action": "show-agents",
+        "after": {
+          "dispatch": 7,
+          "agents_state": 2,
+          "original_owned_context": null,
+          "base_connected": true,
+          "power_data_available": true,
+          "visible_page": "agents-weekly"
+        },
+        "continuation_address": null,
+        "intermediate_visible_pages": [],
+        "resolved": true,
+        "message": null
+      },
+      {
+        "sequence": 2,
+        "event": "enter",
+        "before": {
+          "dispatch": 7,
+          "agents_state": 2,
+          "original_owned_context": null,
+          "base_connected": true,
+          "power_data_available": true,
+          "visible_page": "agents-weekly"
+        },
+        "action": "show-agents",
+        "after": {
+          "dispatch": 7,
+          "agents_state": 1,
+          "original_owned_context": null,
+          "base_connected": true,
+          "power_data_available": true,
+          "visible_page": "agents-overview"
+        },
+        "continuation_address": null,
+        "intermediate_visible_pages": [],
+        "resolved": true,
+        "message": null
+      }
+    ],
+    "details-right-cycle": [
+      {
+        "sequence": 1,
+        "event": "right",
+        "before": {
+          "dispatch": 7,
+          "agents_state": 2,
+          "original_owned_context": null,
+          "base_connected": true,
+          "power_data_available": true,
+          "visible_page": "agents-weekly"
+        },
+        "action": "show-agents",
+        "after": {
+          "dispatch": 7,
+          "agents_state": 3,
+          "original_owned_context": null,
+          "base_connected": true,
+          "power_data_available": true,
+          "visible_page": "agents-today"
+        },
+        "continuation_address": null,
+        "intermediate_visible_pages": [],
+        "resolved": true,
+        "message": null
+      },
+      {
+        "sequence": 2,
+        "event": "right",
+        "before": {
+          "dispatch": 7,
+          "agents_state": 3,
+          "original_owned_context": null,
+          "base_connected": true,
+          "power_data_available": true,
+          "visible_page": "agents-today"
+        },
+        "action": "show-agents",
+        "after": {
+          "dispatch": 7,
+          "agents_state": 4,
+          "original_owned_context": null,
+          "base_connected": true,
+          "power_data_available": true,
+          "visible_page": "agents-last-30-days"
+        },
+        "continuation_address": null,
+        "intermediate_visible_pages": [],
+        "resolved": true,
+        "message": null
+      },
+      {
+        "sequence": 3,
+        "event": "right",
+        "before": {
+          "dispatch": 7,
+          "agents_state": 4,
+          "original_owned_context": null,
+          "base_connected": true,
+          "power_data_available": true,
+          "visible_page": "agents-last-30-days"
+        },
+        "action": "show-agents",
+        "after": {
+          "dispatch": 7,
+          "agents_state": 2,
+          "original_owned_context": null,
+          "base_connected": true,
+          "power_data_available": true,
+          "visible_page": "agents-weekly"
+        },
+        "continuation_address": null,
+        "intermediate_visible_pages": [],
+        "resolved": true,
+        "message": null
+      }
+    ],
+    "details-left-cycle": [
+      {
+        "sequence": 1,
+        "event": "left",
+        "before": {
+          "dispatch": 7,
+          "agents_state": 2,
+          "original_owned_context": null,
+          "base_connected": true,
+          "power_data_available": true,
+          "visible_page": "agents-weekly"
+        },
+        "action": "show-agents",
+        "after": {
+          "dispatch": 7,
+          "agents_state": 4,
+          "original_owned_context": null,
+          "base_connected": true,
+          "power_data_available": true,
+          "visible_page": "agents-last-30-days"
+        },
+        "continuation_address": null,
+        "intermediate_visible_pages": [],
+        "resolved": true,
+        "message": null
+      },
+      {
+        "sequence": 2,
+        "event": "left",
+        "before": {
+          "dispatch": 7,
+          "agents_state": 4,
+          "original_owned_context": null,
+          "base_connected": true,
+          "power_data_available": true,
+          "visible_page": "agents-last-30-days"
+        },
+        "action": "show-agents",
+        "after": {
+          "dispatch": 7,
+          "agents_state": 3,
+          "original_owned_context": null,
+          "base_connected": true,
+          "power_data_available": true,
+          "visible_page": "agents-today"
+        },
+        "continuation_address": null,
+        "intermediate_visible_pages": [],
+        "resolved": true,
+        "message": null
+      },
+      {
+        "sequence": 3,
+        "event": "left",
+        "before": {
+          "dispatch": 7,
+          "agents_state": 3,
+          "original_owned_context": null,
+          "base_connected": true,
+          "power_data_available": true,
+          "visible_page": "agents-today"
+        },
+        "action": "show-agents",
+        "after": {
+          "dispatch": 7,
+          "agents_state": 2,
+          "original_owned_context": null,
+          "base_connected": true,
+          "power_data_available": true,
+          "visible_page": "agents-weekly"
+        },
+        "continuation_address": null,
+        "intermediate_visible_pages": [],
+        "resolved": true,
+        "message": null
+      }
+    ],
+    "overview-right-exit": [
+      {
+        "sequence": 1,
+        "event": "right",
+        "before": {
+          "dispatch": 7,
+          "agents_state": 1,
+          "original_owned_context": null,
+          "base_connected": true,
+          "power_data_available": true,
+          "visible_page": "agents-overview"
+        },
+        "action": "close-then-stock-resume",
+        "after": {
+          "dispatch": 0,
+          "agents_state": 0,
+          "original_owned_context": null,
+          "base_connected": true,
+          "power_data_available": true,
+          "visible_page": "power"
+        },
+        "continuation_address": "0xa00bc716",
+        "intermediate_visible_pages": [],
+        "resolved": true,
+        "message": null
+      }
+    ],
+    "overview-left-exit": [
+      {
+        "sequence": 1,
+        "event": "left",
+        "before": {
+          "dispatch": 7,
+          "agents_state": 1,
+          "original_owned_context": null,
+          "base_connected": true,
+          "power_data_available": true,
+          "visible_page": "agents-overview"
+        },
+        "action": "restore-pet",
+        "after": {
+          "dispatch": 7,
+          "agents_state": 0,
+          "original_owned_context": null,
+          "base_connected": true,
+          "power_data_available": true,
+          "visible_page": "pet"
+        },
+        "continuation_address": null,
+        "intermediate_visible_pages": [],
+        "resolved": true,
+        "message": null
+      }
+    ],
+    "power-confirm-connected": [
+      {
+        "sequence": 1,
+        "event": "enter",
+        "before": {
+          "dispatch": 0,
+          "agents_state": 0,
+          "original_owned_context": null,
+          "base_connected": true,
+          "power_data_available": true,
+          "visible_page": "power"
+        },
+        "action": "stock-confirm",
+        "after": {
+          "dispatch": 0,
+          "agents_state": 0,
+          "original_owned_context": "stock-owned:power:confirm",
+          "base_connected": true,
+          "power_data_available": true,
+          "visible_page": "stock-owned:power:confirm"
+        },
+        "continuation_address": null,
+        "intermediate_visible_pages": [],
+        "resolved": true,
+        "message": null
+      }
+    ],
+    "fast-reversal": [
+      {
+        "sequence": 1,
+        "event": "right",
+        "before": {
+          "dispatch": 3,
+          "agents_state": 0,
+          "original_owned_context": null,
+          "base_connected": true,
+          "power_data_available": true,
+          "visible_page": "clock"
+        },
+        "action": "stock-rotate",
+        "after": {
+          "dispatch": 4,
+          "agents_state": 0,
+          "original_owned_context": null,
+          "base_connected": true,
+          "power_data_available": true,
+          "visible_page": "calendar"
+        },
+        "continuation_address": null,
+        "intermediate_visible_pages": [],
+        "resolved": true,
+        "message": null
+      },
+      {
+        "sequence": 2,
+        "event": "left",
+        "before": {
+          "dispatch": 4,
+          "agents_state": 0,
+          "original_owned_context": null,
+          "base_connected": true,
+          "power_data_available": true,
+          "visible_page": "calendar"
+        },
+        "action": "stock-rotate",
+        "after": {
+          "dispatch": 3,
+          "agents_state": 0,
+          "original_owned_context": null,
+          "base_connected": true,
+          "power_data_available": true,
+          "visible_page": "clock"
+        },
+        "continuation_address": null,
+        "intermediate_visible_pages": [],
+        "resolved": true,
+        "message": null
+      },
+      {
+        "sequence": 3,
+        "event": "right",
+        "before": {
+          "dispatch": 3,
+          "agents_state": 0,
+          "original_owned_context": null,
+          "base_connected": true,
+          "power_data_available": true,
+          "visible_page": "clock"
+        },
+        "action": "stock-rotate",
+        "after": {
+          "dispatch": 4,
+          "agents_state": 0,
+          "original_owned_context": null,
+          "base_connected": true,
+          "power_data_available": true,
+          "visible_page": "calendar"
+        },
+        "continuation_address": null,
+        "intermediate_visible_pages": [],
+        "resolved": true,
+        "message": null
+      },
+      {
+        "sequence": 4,
+        "event": "left",
+        "before": {
+          "dispatch": 4,
+          "agents_state": 0,
+          "original_owned_context": null,
+          "base_connected": true,
+          "power_data_available": true,
+          "visible_page": "calendar"
+        },
+        "action": "stock-rotate",
+        "after": {
+          "dispatch": 3,
+          "agents_state": 0,
+          "original_owned_context": null,
+          "base_connected": true,
+          "power_data_available": true,
+          "visible_page": "clock"
+        },
+        "continuation_address": null,
+        "intermediate_visible_pages": [],
+        "resolved": true,
+        "message": null
+      }
+    ],
+    "power-confirm-detached-stale": [
+      {
+        "sequence": 1,
+        "event": "enter",
+        "before": {
+          "dispatch": 0,
+          "agents_state": 0,
+          "original_owned_context": null,
+          "base_connected": false,
+          "power_data_available": false,
+          "visible_page": "power"
+        },
+        "action": "power-confirm-guard-to-clock",
+        "after": {
+          "dispatch": 3,
+          "agents_state": 0,
+          "original_owned_context": null,
+          "base_connected": false,
+          "power_data_available": false,
+          "visible_page": "clock"
+        },
+        "continuation_address": "0xa0193862",
+        "intermediate_visible_pages": [],
+        "resolved": true,
+        "message": null
+      }
+    ],
+    "power-confirm-data-missing": [
+      {
+        "sequence": 1,
+        "event": "enter",
+        "before": {
+          "dispatch": 0,
+          "agents_state": 0,
+          "original_owned_context": null,
+          "base_connected": true,
+          "power_data_available": false,
+          "visible_page": "power"
+        },
+        "action": "power-confirm-guard-to-clock",
+        "after": {
+          "dispatch": 3,
+          "agents_state": 0,
+          "original_owned_context": null,
+          "base_connected": false,
+          "power_data_available": false,
+          "visible_page": "clock"
+        },
+        "continuation_address": "0xa0193862",
+        "intermediate_visible_pages": [],
+        "resolved": true,
+        "message": null
+      }
+    ]
+  },
+  "firmware_sha256": "796abb5350f3790e9184de1a0e748576f71e237365ccadd45fe315eaf1148c09"
+}
