@@ -152,6 +152,21 @@ AP01_1_0_2_0031 = BaselineDefinition(
     immutable_header_end=0x1000,
 )
 
+AP01_1_0_2_0041 = BaselineDefinition(
+    model="njcuk.enstor.ap01",
+    version="1.0.2_0041",
+    size=6_769_704,
+    md5="3c2d962be82c73860daff903178d9b9e",
+    sha256="972db4c136c7ed9e24a83c07c1a7fd62040ca018b08ca285216d26b1fee3c6b9",
+    header_markers=((0x0, b"BFNP"), (0x8, b"FCFG"), (0x64, b"PCFG")),
+    model_offsets=(0x4F00, 0x257F6C),
+    recovery_tag=RECOVERY_TAG,
+    recovery_tag_offsets=(0x25A96C, 0x674C00),
+    recovery_trailer_offset=0x674C00,
+    recovery_crc_value=0x47FB9315,
+    immutable_header_end=0x1000,
+)
+
 
 def md5_bytes(data: bytes | bytearray) -> str:
     return hashlib.md5(data).hexdigest()

@@ -2,6 +2,7 @@
 
 from .image import (
     AP01_1_0_2_0031,
+    AP01_1_0_2_0041,
     BaselineDefinition,
     BaselineReport,
     ByteRange,
@@ -19,6 +20,7 @@ from .material import PreparedFirmware, prepare_read_only_copy
 
 __all__ = [
     "AP01_1_0_2_0031",
+    "AP01_1_0_2_0041",
     "BaselineDefinition",
     "BaselineReport",
     "ByteRange",

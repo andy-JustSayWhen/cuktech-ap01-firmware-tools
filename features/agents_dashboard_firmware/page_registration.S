@@ -589,7 +589,11 @@ ap01_agents_primary_page_filter_and_switch:
  * A stale power page reuses the stock offline page switch before the common
  * stock key epilogue. */
 ap01_agents_stock_power_confirm_guard:
+    .ifdef AP01_0041
+    bnez s3, .Lpower_guard_epilogue
+    .else
     bnez s4, .Lpower_guard_epilogue
+    .endif
 
     li t0, 0x62fc4cd8
     lw t1, 0(t0)
