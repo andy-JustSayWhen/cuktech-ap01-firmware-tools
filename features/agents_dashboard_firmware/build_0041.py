@@ -46,6 +46,7 @@ GIF_SIZE_OFFSET = 0x1C5A5C
 GIF_DATA_OFFSET = 0x1C5A6C
 GIF_ORIGINAL_SIZE = 385_834
 GIF_ORIGINAL_SHA256 = "5e656788665f7f0022b0b5500d569a8aae07f4a46b080d033b3cacfa4abc940d"
+GIF_OPTIMIZED_SIZE = 324_886
 PAYLOAD_START = 0x214F90
 PAYLOAD_CAPACITY = 60_934
 PAYLOAD_VA = XIP_DELTA + PAYLOAD_START
@@ -139,7 +140,7 @@ def _optimize_gif(baseline: bytes, directory: Path) -> bytes:
     source.write_bytes(original)
     _run(["gifsicle", "--no-warnings", "--optimize=3", source, "-o", optimized])
     result = optimized.read_bytes()
-    if len(result) != PAYLOAD_START - GIF_DATA_OFFSET:
+    if len(result) != GIF_OPTIMIZED_SIZE:
         raise AgentsDashboardFirmwareError("0041 动图无损优化长度不匹配")
     return result
 
