@@ -165,7 +165,7 @@ def build(output: Path = OUTPUT, manifest: Path = MANIFEST, directory: Path = BU
     refresh_recovery_crc(candidate, AP01_1_0_2_0041)
     allowed.append(ByteRange(AP01_1_0_2_0041.recovery_trailer_offset + 36, AP01_1_0_2_0041.recovery_trailer_offset + 40))
     report = validate_candidate(baseline, bytes(candidate), allowed, AP01_1_0_2_0041)
-    simulation = run_interaction_simulation(InteractionContract(name="FW-PAGE-011", local_hook_labels=tuple(item[3] for item in HOOKS), overview_right_target_dispatch=0, power_left_enters_agents=True, stock_entry_filter_enabled=True, power_confirm_isolated=False, power_confirm_guard_enabled=True, power_confirm_guard_calls_stock_clock=True, page_registration_unchanged=True, global_key_callback_registration_unchanged=True, fixed_shared_pages_enabled=True, fixed_hidden_primary_pages_enabled=True, weather_hidden_primary_page_enabled=True, calendar_skip_direction_correct=True, weather_skip_direction_correct=True))
+    simulation = run_interaction_simulation(InteractionContract(name="FW-PAGE-011", local_hook_labels=tuple(item[3] for item in HOOKS), overview_right_target_dispatch=0, power_left_enters_agents=True, stock_entry_filter_enabled=True, power_confirm_isolated=False, power_confirm_guard_enabled=True, power_confirm_guard_calls_stock_clock=True, page_registration_unchanged=True, global_key_callback_registration_unchanged=True, fixed_shared_pages_enabled=True, fixed_hidden_primary_pages_enabled=True, weather_hidden_primary_page_enabled=True, calendar_skip_direction_correct=True))
     if not simulation["summary"]["passed"]:
         raise AgentsDashboardFirmwareError("连续页面事件模拟失败")
     _write_frozen(output, bytes(candidate))
