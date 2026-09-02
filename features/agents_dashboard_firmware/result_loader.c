@@ -19,13 +19,31 @@ typedef unsigned long long u64;
 #endif
 #define ATTR_NOINLINE __attribute__((noinline))
 
+#ifdef AP01_0041
+#define VA_STOCK_UI_TIMER                 0xa00af262u
+#define VA_STOCK_GET_DISPATCH             0xa00b2ff4u
+#define VA_STOCK_GET_CHILD                0xa00b3902u
+#define VA_LV_GIF_SET_SRC                 0xa00ed7f4u
+#define VA_WEBCLIENT_PERFORM              0xa00efb74u
+#define VA_STOCK_LOCATION_LOOKUP          0xa00acbeau
+#define VA_STOCK_WEATHER_STATE            0x62fca650u
+#define VA_OPEN                           0xa003f4f6u
+#define VA_CLOSE                          0xa0026888u
+#define VA_READ                           0xa003f6a2u
+#define VA_WRITE                          0xa0027e94u
+#define VA_MALLOC                         0xa008e362u
+#define VA_FREE                           0xa008ac12u
+#define VA_STOCK_WEATHER_TIMER_GLOBAL     0x62fc9520u
+#define VA_STOCK_TIMER_INIT               0xa009d106u
+#define VA_STOCK_TIMER_SCHEDULE           0xa009d146u
+#else
 #define VA_STOCK_UI_TIMER                 0xa00bb5dau
 #define VA_STOCK_GET_DISPATCH             0xa00be388u
 #define VA_STOCK_GET_CHILD                0xa00be3cau
 #define VA_LV_GIF_SET_SRC                 0xa00cf8d8u
 #define VA_WEBCLIENT_PERFORM              0xa00d86bau
-#define VA_STOCK_LOCATION_LOOKUP           0xa00acbeau
-#define VA_STOCK_WEATHER_STATE             0x62fca650u
+#define VA_STOCK_LOCATION_LOOKUP          0xa00acbeau
+#define VA_STOCK_WEATHER_STATE            0x62fca650u
 #define VA_OPEN                           0xa003f448u
 #define VA_CLOSE                          0xa0026788u
 #define VA_READ                           0xa003f5f4u
@@ -35,6 +53,7 @@ typedef unsigned long long u64;
 #define VA_STOCK_WEATHER_TIMER_GLOBAL     0x62fca9a8u
 #define VA_STOCK_TIMER_INIT               0xa009b376u
 #define VA_STOCK_TIMER_SCHEDULE           0xa009b3b6u
+#endif
 
 #define AP01_O_RDONLY                     1
 #define AP01_O_RDWR_CREAT_TRUNC           39
