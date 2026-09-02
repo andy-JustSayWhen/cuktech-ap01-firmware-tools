@@ -67,6 +67,9 @@ HOOKS = (
 PERSONALIZED_OUTPUT = Path("artifacts/build/personalized/ap01-1.0.2_0041-opt-personalized.bin")
 PERSONALIZED_MANIFEST = Path("artifacts/build/personalized/ap01-1.0.2_0041-opt-personalized.manifest.json")
 PERSONALIZED_BUILD_DIRECTORY = Path("artifacts/build/personalized/0041-opt")
+PERSONALIZED_BUILD_DISABLED_REASON = (
+    "0041 个人看板固件已在真机出现启动异常，修复并完成分阶段真机验收前禁止制作或安装"
+)
 UI_TIMER_HIGH_OFFSET = 0x05E0F2
 UI_TIMER_LOW_OFFSET = 0x05E0FC
 UI_TIMER_HIGH_ORIGINAL = bytes.fromhex("37f50aa0")
@@ -237,6 +240,7 @@ def build(output: Path = OUTPUT, manifest: Path = MANIFEST, directory: Path = BU
 
 
 def build_personalized(*, env_file: Path, output: Path = PERSONALIZED_OUTPUT, manifest: Path = PERSONALIZED_MANIFEST, directory: Path = PERSONALIZED_BUILD_DIRECTORY) -> dict[str, object]:
+    raise AgentsDashboardFirmwareError(PERSONALIZED_BUILD_DISABLED_REASON)
     endpoints = load_endpoint_config(env_file.resolve()).endpoints
     if not 1 <= len(endpoints) <= 10:
         raise AgentsDashboardFirmwareError("0041 个人看板地址数量不在允许范围")
