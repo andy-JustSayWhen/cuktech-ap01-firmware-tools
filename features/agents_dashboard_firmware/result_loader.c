@@ -34,8 +34,8 @@ typedef unsigned long long u64;
 #define VA_MALLOC                         0xa008e362u
 #define VA_FREE                           0xa008ac12u
 #define VA_STOCK_WEATHER_TIMER_GLOBAL     0x62fc9520u
-#define VA_STOCK_TIMER_INIT               0xa009d106u
-#define VA_STOCK_TIMER_SCHEDULE           0xa009d146u
+#define VA_STOCK_TIMER_INIT               0xa009e106u
+#define VA_STOCK_TIMER_SCHEDULE           0xa009e146u
 #else
 #define VA_STOCK_UI_TIMER                 0xa00bb5dau
 #define VA_STOCK_GET_DISPATCH             0xa00be388u

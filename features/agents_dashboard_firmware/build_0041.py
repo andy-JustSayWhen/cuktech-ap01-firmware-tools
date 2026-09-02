@@ -6,6 +6,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import stat
 import struct
 import subprocess
@@ -74,6 +75,10 @@ UI_TIMER_HIGH_OFFSET = 0x05E0F2
 UI_TIMER_LOW_OFFSET = 0x05E0FC
 UI_TIMER_HIGH_ORIGINAL = bytes.fromhex("37f50aa0")
 UI_TIMER_LOW_ORIGINAL = bytes.fromhex("13052526")
+PERSONALIZED_TIMER_TARGETS = {
+    "fw_stock_timer_init": 0xA009E106,
+    "fw_stock_timer_schedule": 0xA009E146,
+}
 
 
 def _run(command: list[object], *, capture: bool = False) -> str:
@@ -110,6 +115,21 @@ def _write_json(path: Path, document: dict[str, object]) -> None:
     finally:
         if temporary.exists():
             temporary.unlink()
+
+
+def _verify_personalized_timer_targets(elf: Path) -> None:
+    disassembler = _tool("riscv64-elf-objdump")
+    disassembly = _run([disassembler, "-d", elf], capture=True).lower()
+    for symbol, target in PERSONALIZED_TIMER_TARGETS.items():
+        matched = re.search(
+            rf"<{re.escape(symbol)}>:\n(?P<body>.*?)(?=\n[0-9a-f]+ <|\Z)",
+            disassembly,
+            flags=re.DOTALL,
+        )
+        if matched is None or f"{target:08x}" not in matched.group("body"):
+            raise AgentsDashboardFirmwareError(
+                f"0041 个人看板 {symbol} 未调用已验证原厂入口：0x{target:08x}"
+            )
 
 
 def _build_payload(directory: Path) -> tuple[bytes, dict[str, int], Path, Path]:
@@ -191,6 +211,7 @@ def _build_personalized_payload(directory: Path, endpoints: tuple[str, ...]) -> 
             raise AgentsDashboardFirmwareError(f"0041 个人看板载荷缺少入口：{symbol}")
     if symbols.get("ap01_agents_page_register") != PAYLOAD_VA:
         raise AgentsDashboardFirmwareError("0041 个人看板载荷入口地址不匹配")
+    _verify_personalized_timer_targets(elf)
     return payload, symbols, elf, binary
 
 
