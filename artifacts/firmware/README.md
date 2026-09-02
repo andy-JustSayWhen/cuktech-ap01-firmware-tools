@@ -7,6 +7,7 @@
 | `ap01-1.0.2_0031-opt.bin` | `第三方固件/AGENTS看板/ap01-1.0.2_0031-opt.bin` | 基于opt-setting.bin`制作的第三方固件。支持在屏幕上显示AGENTS看板，该固件隐藏了日历、天气和萌宠页面。更多介绍，见artifacts/firmware/README.md的<`第三方固件/AGENTS看板/ap01-1.0.2_0031-opt.bin` 简介>章节。 | 第三方 |
 | `ap01-1.0.2_0031-opt.manifest.json` | `第三方固件/AGENTS看板/ap01-1.0.2_0031-opt.manifest.json` | 0031-opt.bin`固件的构建与校验记录。 | 第三方 |
 | `ap01-1.0.2_0031-opt.interaction-report.json` | `第三方固件/AGENTS看板/ap01-1.0.2_0031-opt.interaction-report.json` | 0031-opt.bin`固件的页面操作测试报告。 | 第三方 |
+| `ap01-1.0.2_0041-opt.bin` | `第三方固件/AGENTS看板/ap01-1.0.2_0041-opt.bin` | 基于官方固件0041制作的第三方固件，保留0041新增设置并继续隐藏日历、天气和萌宠一级页面。 | 第三方 |
 
 ## 官方原版固件获取流程
 
