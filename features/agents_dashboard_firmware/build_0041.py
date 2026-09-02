@@ -31,7 +31,8 @@ from .build import (
 )
 from .fallback_assets import build_fallback_assets
 from .interaction_simulator import InteractionContract, run_interaction_simulation
-from .sync_build import load_endpoint_config, route_stock_local_branch
+from .endpoint_config import load_endpoint_config
+from .sync_build import route_stock_local_branch
 
 
 MODULE_DIR = Path(__file__).resolve().parent
