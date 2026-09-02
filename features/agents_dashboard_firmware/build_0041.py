@@ -21,6 +21,7 @@ from core.firmware_image import (
 
 from .build import (
     AgentsDashboardFirmwareError,
+    _absolute_lui_addi,
     _absolute_tail_jump,
     _encode_jal,
     _symbols,
@@ -30,7 +31,7 @@ from .build import (
 )
 from .fallback_assets import build_fallback_assets
 from .interaction_simulator import InteractionContract, run_interaction_simulation
-from .sync_build import route_stock_local_branch
+from .sync_build import load_endpoint_config, route_stock_local_branch
 
 
 MODULE_DIR = Path(__file__).resolve().parent
@@ -62,6 +63,13 @@ HOOKS = (
     (0x0B0D2C, bytes.fromhex("ef30a03d"), "ap01_agents_primary_page_filter_and_switch", "一级页面过滤"),
     (0x0B159A, bytes.fromhex("e399098c"), "ap01_agents_stock_power_confirm_guard", "功率确认保护"),
 )
+PERSONALIZED_OUTPUT = Path("artifacts/build/personalized/ap01-1.0.2_0041-opt-personalized.bin")
+PERSONALIZED_MANIFEST = Path("artifacts/build/personalized/ap01-1.0.2_0041-opt-personalized.manifest.json")
+PERSONALIZED_BUILD_DIRECTORY = Path("artifacts/build/personalized/0041-opt")
+UI_TIMER_HIGH_OFFSET = 0x05E0F2
+UI_TIMER_LOW_OFFSET = 0x05E0FC
+UI_TIMER_HIGH_ORIGINAL = bytes.fromhex("37f50aa0")
+UI_TIMER_LOW_ORIGINAL = bytes.fromhex("13052526")
 
 
 def _run(command: list[object], *, capture: bool = False) -> str:
@@ -132,6 +140,56 @@ def _build_payload(directory: Path) -> tuple[bytes, dict[str, int], Path, Path]:
     return payload, symbols, elf, binary
 
 
+def _build_personalized_payload(directory: Path, endpoints: tuple[str, ...]) -> tuple[bytes, dict[str, int], Path, Path]:
+    directory.mkdir(parents=True, exist_ok=True)
+    assets = build_fallback_assets(directory / "fallback-assets")
+    endpoint_header = directory / "endpoint-config.h"
+    endpoint_header.write_text("\n".join([
+        f"#define AP01_AGENTS_ENDPOINT_COUNT {len(endpoints)}u",
+        "#define AP01_AGENTS_DISABLE_DOWNLOAD 0u",
+        "#define AP01_AGENTS_ENDPOINT_TIMEOUT_SECONDS 3u",
+        "#define AP01_AGENTS_WEATHER_COEXISTENCE 0u",
+        "#define AP01_AGENTS_WEATHER_DUAL_REQUEST 0u",
+        "#define AP01_AGENTS_WEATHER_SUCCESS_REQUIRES_STOCK 0u",
+        "#define AP01_AGENTS_STOCK_WEATHER_FIRST 0u",
+        "#define AP01_AGENTS_WEATHER_SOLO_REQUEST 0u",
+        "#define AP01_AGENTS_POST_WEATHER_FETCH 0u",
+        "#define AP01_AGENTS_LOCATION_SLOT_DASHBOARD 0u",
+        "#define AP01_AGENTS_ROUND_DIAGNOSTIC 0u",
+        "#define AP01_AGENTS_DOWNLOAD_DIAGNOSTIC 0u",
+        "#define AP01_AGENTS_RESULT_DIAGNOSTIC 0u",
+        "#define AP01_AGENTS_PUBLISH_DIAGNOSTIC 0u",
+        "#define AP01_AGENTS_ADOPTION_DIAGNOSTIC 0u",
+        "#define AP01_AGENTS_STANDALONE_TIMER 1u",
+        "#define AP01_AGENTS_REFRESH_SECONDS 300u",
+        *[f'#define AP01_AGENTS_ENDPOINT_{index} "{endpoint}"' for index, endpoint in enumerate(endpoints, start=1)],
+    ]) + "\n", encoding="ascii")
+    assets_source = directory / "fallback-assets.S"
+    _write_asset_assembly(assets_source, assets)
+    assembler = _tool("riscv64-elf-as")
+    compiler = _tool("riscv64-elf-gcc")
+    linker = _tool("riscv64-elf-ld")
+    copier = _tool("riscv64-elf-objcopy")
+    nm = _tool("riscv64-elf-nm")
+    page, loader, asset = directory / "page.o", directory / "loader.o", directory / "assets.o"
+    elf, binary = directory / "payload.elf", directory / "payload.bin"
+    _run([assembler, "-march=rv32imac", "-mabi=ilp32", "--defsym", "SYNC_LOADER=1", "--defsym", "STOCK_PET_REUSE=1", "--defsym", "POWER_CONFIRM_GUARD=1", "--defsym", "FIXED_HIDDEN_PRIMARY_PAGES=1", "--defsym", "FIXED_WEATHER_HIDDEN_PRIMARY_PAGES=1", "--defsym", "AP01_0041=1", "-o", page, SOURCE])
+    _run([compiler, "-march=rv32imac", "-mabi=ilp32", "-Os", "-ffreestanding", "-fno-builtin", "-fno-pic", "-fno-pie", "-fno-plt", "-fno-stack-protector", "-fno-asynchronous-unwind-tables", "-fno-unwind-tables", "-fno-jump-tables", "-fno-common", "-fno-toplevel-reorder", "-fno-tree-loop-distribute-patterns", "-msmall-data-limit=0", "-Wall", "-Wextra", "-Werror", "-DAP01_0041", "-include", endpoint_header, "-c", MODULE_DIR / "result_loader.c", "-o", loader])
+    _run([assembler, "-march=rv32imac", "-mabi=ilp32", "-o", asset, assets_source])
+    _run([linker, "-m", "elf32lriscv", "--no-relax", "-T", LINKER, "-o", elf, page, loader, asset])
+    _run([copier, "-O", "binary", "-j", ".payload", elf, binary])
+    payload = binary.read_bytes()
+    if not payload or len(payload) > PAYLOAD_CAPACITY:
+        raise AgentsDashboardFirmwareError("0041 个人看板载荷为空或超过固定空间")
+    symbols = _symbols(nm, elf)
+    for symbol in (*[item[2] for item in HOOKS], "ap01_agents_ui_timer_wrapper", "ap01_agents_standalone_timer_ensure", "ap01_agents_standalone_timer_cb"):
+        if symbol not in symbols:
+            raise AgentsDashboardFirmwareError(f"0041 个人看板载荷缺少入口：{symbol}")
+    if symbols.get("ap01_agents_page_register") != PAYLOAD_VA:
+        raise AgentsDashboardFirmwareError("0041 个人看板载荷入口地址不匹配")
+    return payload, symbols, elf, binary
+
+
 def _optimize_gif(baseline: bytes, directory: Path) -> bytes:
     original = baseline[GIF_DATA_OFFSET : GIF_DATA_OFFSET + GIF_ORIGINAL_SIZE]
     if hashlib.sha256(original).hexdigest() != GIF_ORIGINAL_SHA256:
@@ -177,13 +235,60 @@ def build(output: Path = OUTPUT, manifest: Path = MANIFEST, directory: Path = BU
     return document
 
 
+def build_personalized(*, env_file: Path, output: Path = PERSONALIZED_OUTPUT, manifest: Path = PERSONALIZED_MANIFEST, directory: Path = PERSONALIZED_BUILD_DIRECTORY) -> dict[str, object]:
+    endpoints = load_endpoint_config(env_file.resolve()).endpoints
+    if not 1 <= len(endpoints) <= 10:
+        raise AgentsDashboardFirmwareError("0041 个人看板地址数量不在允许范围")
+    baseline, baseline_report = load_read_only_baseline(BASELINE.resolve(), AP01_1_0_2_0041)
+    payload, symbols, elf, binary = _build_personalized_payload(directory.resolve(), endpoints)
+    timer_high, timer_low = _absolute_lui_addi(symbols["ap01_agents_ui_timer_wrapper"], register=10)
+    optimized = _optimize_gif(baseline, directory.resolve())
+    candidate = bytearray(baseline)
+    allowed = [
+        _replace(candidate, PET_STATE_SIZE_OFFSET, PET_STATE_SIZE_ORIGINAL, PET_STATE_SIZE_EXTENDED, "萌宠状态长度"),
+        _replace(candidate, GIF_SIZE_OFFSET, struct.pack("<I", GIF_ORIGINAL_SIZE), struct.pack("<I", len(optimized)), "首张动图长度"),
+    ]
+    candidate[GIF_DATA_OFFSET : GIF_DATA_OFFSET + len(optimized)] = optimized
+    allowed.append(ByteRange(GIF_DATA_OFFSET, GIF_DATA_OFFSET + len(optimized)))
+    for (hook_offset, original, symbol, label), trampoline in zip(HOOKS, TRAMPOLINES, strict=True):
+        if bytes(candidate[trampoline : trampoline + 8]) != b"\0" * 8:
+            raise AgentsDashboardFirmwareError(f"{label}跳转中继区不再全零")
+        allowed.append(_replace(candidate, hook_offset, original, _encode_jal(XIP_DELTA + hook_offset, XIP_DELTA + trampoline), label))
+        candidate[trampoline : trampoline + 8] = _absolute_tail_jump(symbols[symbol])
+        allowed.append(ByteRange(trampoline, trampoline + 8))
+    allowed.extend([
+        _replace(candidate, UI_TIMER_HIGH_OFFSET, UI_TIMER_HIGH_ORIGINAL, timer_high, "0041 页面定时回调高位"),
+        _replace(candidate, UI_TIMER_LOW_OFFSET, UI_TIMER_LOW_ORIGINAL, timer_low, "0041 页面定时回调低位"),
+    ])
+    candidate[PAYLOAD_START : PAYLOAD_START + len(payload)] = payload
+    allowed.append(ByteRange(PAYLOAD_START, PAYLOAD_START + len(payload)))
+    refresh_recovery_crc(candidate, AP01_1_0_2_0041)
+    allowed.append(ByteRange(AP01_1_0_2_0041.recovery_trailer_offset + 36, AP01_1_0_2_0041.recovery_trailer_offset + 40))
+    validate_candidate(baseline, bytes(candidate), allowed, AP01_1_0_2_0041)
+    simulation = run_interaction_simulation(InteractionContract(name="FW-PAGE-011", local_hook_labels=tuple(item[3] for item in HOOKS), overview_right_target_dispatch=0, power_left_enters_agents=True, stock_entry_filter_enabled=True, power_confirm_isolated=False, power_confirm_guard_enabled=True, power_confirm_guard_calls_stock_clock=True, page_registration_unchanged=True, global_key_callback_registration_unchanged=True, fixed_shared_pages_enabled=True, fixed_hidden_primary_pages_enabled=True, weather_hidden_primary_page_enabled=True, calendar_skip_direction_correct=True, overview_left_preserves_gif_until_switch=True), route_stock_local_branch)
+    if not simulation["summary"]["passed"]:
+        raise AgentsDashboardFirmwareError("0041 个人看板连续页面事件模拟失败")
+    _write_frozen(output, bytes(candidate))
+    readback_report = validate_candidate(baseline, output.resolve().read_bytes(), allowed, AP01_1_0_2_0041)
+    document = {"schema_version": 1, "status": "approved-for-one-test-installation", "input": baseline_report.to_dict(), "output": {"path": str(output), "read_only": True, **readback_report.to_dict()}, "payload": {"path": str(binary), "elf": str(elf), "size": len(payload), "sha256": hashlib.sha256(payload).hexdigest(), "runtime_address": f"0x{PAYLOAD_VA:08x}"}, "device_specific": True, "transport_enabled": True, "installation_allowed": True, "endpoint_count": len(endpoints), "standalone_timer_enabled": True, "implemented_scope": ["AGENTS 看板四张页面与实时取数", "萌宠复用与局部旋钮入口", "一级页面隐藏日历和天气", "功率确认连接保护"], "preserved_0041_features": ["插件屏保类型", "夜间屏幕模式", "蜂鸣器开关", "设备按键快速返回"], "interaction_simulation": simulation, "allowed_ranges": [item.to_dict() for item in allowed]}
+    _write_json(manifest, document)
+    return document
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--output", type=Path, default=OUTPUT)
     parser.add_argument("--manifest", type=Path, default=MANIFEST)
     parser.add_argument("--build-directory", type=Path, default=BUILD_DIRECTORY)
+    parser.add_argument("--personalized", action="store_true")
+    parser.add_argument("--env-file", type=Path)
     options = parser.parse_args()
-    document = build(options.output, options.manifest, options.build_directory)
+    if options.personalized:
+        if options.env_file is None:
+            raise AgentsDashboardFirmwareError("个人构建必须指定地址配置文件")
+        document = build_personalized(env_file=options.env_file, output=options.output if options.output != OUTPUT else PERSONALIZED_OUTPUT, manifest=options.manifest if options.manifest != MANIFEST else PERSONALIZED_MANIFEST, directory=options.build_directory if options.build_directory != BUILD_DIRECTORY else PERSONALIZED_BUILD_DIRECTORY)
+    else:
+        document = build(options.output, options.manifest, options.build_directory)
     print(json.dumps(document["output"], ensure_ascii=False))
 
 
