@@ -6,7 +6,7 @@ import hashlib
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any, Callable, Protocol
 from urllib.parse import urlsplit, urlunsplit
 
 import requests
@@ -117,6 +117,33 @@ def choose_fds_device(
     return candidates[0]
 
 
+def select_install_target(
+    cloud: XiaomiCloudProtocol,
+    choose: Callable[[list[dict[str, Any]]], int] | None = None,
+) -> dict[str, Any]:
+    candidates = [d for d in cloud.devices() if d.get("model") == AP01_MODEL]
+    if not candidates:
+        raise FirmwareInstallError("账号内没有找到 AP01")
+    if len(candidates) == 1:
+        selected = candidates[0]
+    else:
+        if choose is None:
+            raise FirmwareInstallError("账号内有多个 AP01，请用户按编号指定")
+        public = [{"model": AP01_MODEL, "online": d.get("isOnline") is True,
+                   "label": hashlib.sha256(str(d.get("did", "")).encode()).hexdigest()[:8]}
+                  for d in candidates]
+        try:
+            number = choose(public)
+        except (ValueError, EOFError) as exc:
+            raise FirmwareInstallError("未取得有效设备选择") from exc
+        if type(number) is not int or not 1 <= number <= len(candidates):
+            raise FirmwareInstallError("设备编号无效")
+        selected = candidates[number - 1]
+    if not selected.get("did"):
+        raise FirmwareInstallError("目标设备缺少内部编号")
+    return selected
+
+
 def select_unique_ap01(cloud: XiaomiCloudProtocol) -> dict[str, Any]:
     candidates = [
         device for device in cloud.devices() if device.get("model") == AP01_MODEL
@@ -124,8 +151,7 @@ def select_unique_ap01(cloud: XiaomiCloudProtocol) -> dict[str, Any]:
     if not candidates:
         raise FirmwareInstallError("扫码账号内没有找到 AP01")
     if len(candidates) > 1:
-        names = ", ".join(str(item.get("name") or item.get("did")) for item in candidates)
-        raise FirmwareInstallError(f"账号内有多个 AP01，不能自动选择：{names}")
+        raise FirmwareInstallError("账号内有多个 AP01，不能自动选择")
     return candidates[0]
 
 
@@ -294,9 +320,22 @@ def install_firmware(
     *,
     timeout: int = 360,
     cert_verify: str | None = None,
+    target_did: str | None = None,
 ) -> InstallationResult:
     selected = require_ap01_firmware(firmware)
-    device = select_unique_ap01(cloud)
+    if target_did is not None:
+        matches = [d for d in cloud.devices()
+                   if str(d.get("did")) == target_did and d.get("model") == AP01_MODEL]
+        if len(matches) != 1:
+            raise FirmwareInstallError("指定目标不存在或不唯一")
+        device = matches[0]
+        if device.get("isOnline") is not True:
+            raise FirmwareInstallError("指定目标不在线")
+        status = query_ap01_update_status(cloud, did=target_did)
+        if status["state"] != "idle" or not isinstance(status["life"], int):
+            raise FirmwareInstallError("指定目标不空闲或状态不可验证")
+    else:
+        device = select_unique_ap01(cloud)
     did = str(device["did"])
     checksum = fingerprint_file(selected).md5
     params: dict[str, Any] = {

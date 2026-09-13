@@ -11,6 +11,7 @@ from .install import (
     ota_install_stage_observed,
     query_ap01_update_status,
     select_unique_ap01,
+    select_install_target,
     upload_and_verify_firmware,
     verify_existing_ota_url,
 )
@@ -26,6 +27,7 @@ __all__ = [
     "ota_install_stage_observed",
     "query_ap01_update_status",
     "select_unique_ap01",
+    "select_install_target",
     "upload_and_verify_firmware",
     "verify_existing_ota_url",
 ]

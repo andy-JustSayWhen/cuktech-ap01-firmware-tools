@@ -31,6 +31,7 @@ from features.firmware_installation import (
     FirmwareInstallError,
     install_firmware,
     query_ap01_update_status,
+    select_install_target,
     upload_and_verify_firmware,
     verify_existing_ota_url,
 )
@@ -45,6 +46,14 @@ from features.settings_menu_wrap import (
     write_approved_plan,
     write_draft_plan,
 )
+
+
+def _choose_install_device(devices: list[dict[str, object]]) -> int:
+    for number, device in enumerate(devices, 1):
+        state = "在线" if device["online"] else "离线"
+        print(f"{number}. AP01 — {state} — 标识 {device['label']}", file=sys.stderr, flush=True)
+    print("请输入要刷入的设备编号：", file=sys.stderr, flush=True)
+    return int(input())
 
 
 def _tool_revision() -> dict[str, object]:
@@ -183,7 +192,7 @@ def _parser() -> argparse.ArgumentParser:
 
     firmware_install = commands.add_parser(
         "firmware-install",
-        help="上传回读核对后向唯一 AP01 下发一次安装",
+        help="选择 AP01 并回读核对后下发一次安装",
     )
     firmware_install.add_argument("--firmware", type=Path, required=True)
     firmware_install.add_argument("--env-file", type=Path)
@@ -402,6 +411,7 @@ def main(argv: list[str] | None = None) -> int:
                 args.env_file or Path("env/mi-cloud.env")
             )
             client = XiaomiCloudClient(env_file=env_file, timeout=args.cloud_timeout)
+            target = select_install_target(client, _choose_install_device)
             supplied_url = args.ota_url
             if args.ota_url_file:
                 supplied_url = args.ota_url_file.expanduser().read_text(
@@ -430,6 +440,7 @@ def main(argv: list[str] | None = None) -> int:
                 upload_result.url,
                 timeout=args.timeout,
                 cert_verify="optional" if args.self_signed_ota else None,
+                target_did=str(target["did"]),
             )
             _print(
                 {
