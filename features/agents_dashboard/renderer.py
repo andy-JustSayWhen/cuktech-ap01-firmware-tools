@@ -655,7 +655,8 @@ def render_last_30_days(snapshot: DashboardSnapshot, fonts: FontBook) -> Image.I
         y = 151 + index * 18
         label_size = _fit_font(canvas, label, (11.5, 11, 10.5), 82, "body")
         canvas.text((21, y), label, label_size, MUTED, "body", "lm")
-        size = _fit_font(canvas, value, (11.5, 11, 10.5), 48, "body")
+        value_sizes = (11.5, 11, 10.5, 10, 9.5, 9, 8.5, 8) if label == "常用推理强度" else (11.5, 11, 10.5)
+        size = _fit_font(canvas, value, value_sizes, 48, "body")
         canvas.text((143, y), value, size, MUTED, "body", "rm")
 
     plugins = list(snapshot.common_plugins)

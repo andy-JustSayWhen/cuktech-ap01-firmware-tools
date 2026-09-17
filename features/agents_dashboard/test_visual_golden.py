@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import sys
 import unittest
+from dataclasses import replace
 from pathlib import Path
 
 from PIL import Image
@@ -155,6 +156,16 @@ def _update_golden() -> None:
 
 
 class VisualGoldenTests(unittest.TestCase):
+    def test_all_supported_reasoning_labels_fit(self) -> None:
+        snapshot = _synthetic_snapshot()
+        fonts = FontBook(FONT_DIRECTORY)
+        for label in ("低", "中", "高", "超高", "最大", "极限"):
+            for percent in (0, 30, 100):
+                with self.subTest(label=label, percent=percent):
+                    activity = replace(snapshot.activity, reasoning_label=label, reasoning_percent=percent)
+                    image = render_last_30_days(replace(snapshot, activity=activity), fonts)
+                    self.assertEqual(image.size, (320, 240))
+
     @unittest.skipUnless(
         all((FONT_DIRECTORY / name).is_file() for name in (
             "MiSans-Regular.ttf",
