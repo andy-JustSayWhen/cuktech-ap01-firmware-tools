@@ -648,7 +648,7 @@ class RendererTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             paths = render_all(snapshot, Path(directory), FONT_DIRECTORY)
             self.assertEqual(len(paths), 4)
-            long_names = replace(snapshot, common_plugins=(
+            long_names = replace(snapshot, activity=replace(snapshot.activity, reasoning_label="超高", reasoning_percent=100), common_plugins=(
                 PluginUsage("unified-computer-use", 127),
                 PluginUsage("很长的中文插件名称" * 12, 10),
                 PluginUsage("a" * 500, 1),
