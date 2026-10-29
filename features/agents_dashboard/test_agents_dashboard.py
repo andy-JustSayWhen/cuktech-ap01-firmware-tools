@@ -648,6 +648,12 @@ class RendererTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             paths = render_all(snapshot, Path(directory), FONT_DIRECTORY)
             self.assertEqual(len(paths), 4)
+            long_names = replace(snapshot, common_plugins=(
+                PluginUsage("unified-computer-use", 127),
+                PluginUsage("很长的中文插件名称" * 12, 10),
+                PluginUsage("a" * 500, 1),
+            ))
+            self.assertEqual(len(render_all(long_names, Path(directory) / "long", FONT_DIRECTORY)), 4)
             for path in paths.values():
                 with Image.open(path) as image:
                     self.assertEqual(image.size, (320, 240))

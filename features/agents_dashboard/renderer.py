@@ -663,8 +663,15 @@ def render_last_30_days(snapshot: DashboardSnapshot, fonts: FontBook) -> Image.I
         y = 151 + index * 18
         if index < len(plugins):
             plugin = plugins[index]
-            plugin_size = _fit_font(canvas, plugin.name, (11.5, 11, 10.5), 94, "body")
-            canvas.text((162, y), plugin.name, plugin_size, MUTED, "body", "lm")
+            plugin_name = plugin.name
+            font = canvas.fonts.get(10.5, "body")
+            while plugin_name:
+                bounds = canvas.draw.textbbox((0, 0), plugin_name, font=font)
+                if bounds[2] - bounds[0] <= canvas.s(94):
+                    break
+                plugin_name = plugin_name.removesuffix("…")[:-1] + "…"
+            plugin_size = _fit_font(canvas, plugin_name, (11.5, 11, 10.5), 94, "body")
+            canvas.text((162, y), plugin_name, plugin_size, MUTED, "body", "lm")
             canvas.text(
                 (304, y),
                 f"{format_integer(plugin.count)}次",
